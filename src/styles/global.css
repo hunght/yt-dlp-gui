@@ -1,0 +1,287 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  @font-face {
+    font-family: "Geist";
+    font-weight: 100;
+
+    src: url("../assets/fonts/geist/Geist-Thin.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Geist";
+    font-weight: 200;
+
+    src: url("../assets/fonts/geist/Geist-UltraLight.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Geist";
+    font-weight: 300;
+
+    src: url("../assets/fonts/geist/Geist-Light.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Geist";
+    font-weight: 400;
+    font-style: normal;
+
+    src: url("../assets/fonts/geist/Geist-Regular.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Geist";
+    font-weight: 600;
+
+    src: url("../assets/fonts/geist/Geist-SemiBold.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Geist";
+    font-weight: 700;
+
+    src: url("../assets/fonts/geist/Geist-Bold.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Geist";
+    font-weight: 800;
+
+    src: url("../assets/fonts/geist/Geist-Black.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Geist";
+    font-weight: 900;
+
+    src: url("../assets/fonts/geist/Geist-UltraBlack.woff2") format("woff2");
+  }
+  :root {
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply m-0 border-border p-0 font-sans;
+  }
+  body {
+    @apply overflow-hidden bg-background text-foreground;
+  }
+  .draglayer {
+    @apply bg-background;
+    -webkit-app-region: drag;
+  }
+
+  /* Ensure buttons and interactive elements in drag region are clickable */
+  .draglayer button,
+  .draglayer input,
+  .draglayer select,
+  .draglayer a {
+    -webkit-app-region: no-drag;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Task list styles */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* RichTextEditor dark mode styles */
+.dark .ProseMirror {
+  color: white;
+}
+
+.dark .ProseMirror p {
+  color: white;
+}
+
+.dark .ProseMirror h1,
+.dark .ProseMirror h2,
+.dark .ProseMirror h3,
+.dark .ProseMirror h4,
+.dark .ProseMirror h5,
+.dark .ProseMirror h6 {
+  color: white;
+}
+
+.dark .ProseMirror strong {
+  color: white;
+}
+
+.dark .ProseMirror em {
+  color: white;
+}
+
+.dark .ProseMirror code {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .ProseMirror pre {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .ProseMirror blockquote {
+  color: white;
+  border-left-color: rgba(255, 255, 255, 0.3);
+}
+
+.dark .ProseMirror ul,
+.dark .ProseMirror ol {
+  color: white;
+}
+
+.dark .ProseMirror li {
+  color: white;
+}
+
+.dark .ProseMirror a {
+  color: #60a5fa;
+}
+
+.dark .ProseMirror a:hover {
+  color: #93c5fd;
+}
+
+/* For the rendered read-only view */
+.task-list {
+  list-style: none;
+  padding: 0;
+}
+
+.task-list li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5em;
+}
+
+.task-list li input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+.task-list li p {
+  margin: 0;
+  line-height: 1.5;
+}

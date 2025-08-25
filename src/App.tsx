@@ -10,7 +10,7 @@ import { router } from "./routes/router";
 import { RouterProvider } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAuth } from "./hooks/useAuth";
+
 import { getConfig } from "./config/env";
 import { VersionChecker } from "@/components/version-checker";
 import { getAppVersion } from "./helpers/version";
@@ -77,33 +77,6 @@ function AuthenticatedApp() {
 }
 
 function App() {
-  const { user, loading } = useAuth();
-
-  useEffect(() => {
-    // Identify user when available
-    if (user) {
-      posthog.identify(user.id, {
-        app_platform: "electron",
-      });
-    }
-  }, [user]);
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-lg">Please sign in to continue</div>
-      </div>
-    );
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

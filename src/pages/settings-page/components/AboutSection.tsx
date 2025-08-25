@@ -27,10 +27,6 @@ export function AboutSection() {
     }
   };
 
-  const handleClearActivities = async () => {
-    await trpcClient.activity.clearActivities.mutate();
-  };
-
   return (
     <>
       <Card className="mb-6">

@@ -1,1 +1,0 @@
-ALTER TABLE `boards` ADD `deleted_at` integer;

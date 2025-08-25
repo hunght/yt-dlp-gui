@@ -1,1 +1,0 @@
-ALTER TABLE `time_entries` ADD `notification_sent_at` integer;

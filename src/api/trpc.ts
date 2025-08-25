@@ -1,6 +1,5 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { logger } from "../helpers/logger";
-import { getCurrentUserIdLocalStorage } from "./services/userSettings";
 
 // Define context type
 export interface Context {
@@ -9,8 +8,7 @@ export interface Context {
 
 // Create context for each request
 export const createContext = async (): Promise<{ userId: string | null }> => {
-  const userId = await getCurrentUserIdLocalStorage();
-  return { userId };
+  return { userId: null };
 };
 
 const t = initTRPC.context<Context>().create();

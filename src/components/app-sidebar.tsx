@@ -29,7 +29,6 @@ import {
   SidebarMenuSubButton,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { BottomSideBar } from "./BottomSideBar";
 
 // This is sample data.
 const items = [
@@ -39,22 +38,7 @@ const items = [
     url: "/",
     isActive: true,
   },
-  {
-    title: "Scheduling",
-    icon: CalendarClock,
-    url: "/scheduling",
-  },
 
-  {
-    title: "Projects",
-    icon: FolderClosed,
-    url: "/projects",
-  },
-  {
-    title: "Categorization",
-    icon: Tags,
-    url: "/categorization",
-  },
   {
     title: "Classify",
     icon: Target,
@@ -67,21 +51,7 @@ const items = [
       },
     ],
   },
-  {
-    title: "Analytics",
-    icon: BarChart,
-    url: "/dashboard",
-  },
-  {
-    title: "Focus Music",
-    icon: Music,
-    url: "/music",
-  },
-  {
-    title: "Reports",
-    icon: FileText,
-    url: "/reports",
-  },
+
   {
     title: "Settings",
     icon: Settings,
@@ -194,9 +164,6 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
-        <BottomSideBar />
-      </SidebarFooter>
       <SidebarRail className="border-tracksy-gold/20 dark:border-tracksy-gold/10" />
     </Sidebar>
   );

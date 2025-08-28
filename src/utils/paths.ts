@@ -1,4 +1,4 @@
-import path from "path";
+import * as path from "path";
 
 // Safely import app from electron, might not be available in non-Electron contexts
 let app: any;

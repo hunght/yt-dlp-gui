@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { protectedProcedure, t } from "../trpc";
+import { publicProcedure, t } from "../trpc";
 import { BrowserWindow, Tray } from "electron";
 import { logger } from "../../helpers/logger";
 import { hideClockWindow } from "../../main/windows/clock";
@@ -16,7 +16,7 @@ export const setWindowReferences = (mainWindow: BrowserWindow, tray: Tray | null
 
 export const windowRouter = t.router({
   // WIN_MINIMIZE_CHANNEL
-  minimize: protectedProcedure.mutation(async () => {
+  minimize: publicProcedure.mutation(async () => {
     try {
       if (!mainWindowRef) {
         throw new Error("Main window not available");
@@ -30,7 +30,7 @@ export const windowRouter = t.router({
   }),
 
   // WIN_MAXIMIZE_CHANNEL
-  maximize: protectedProcedure.mutation(async () => {
+  maximize: publicProcedure.mutation(async () => {
     try {
       if (!mainWindowRef) {
         throw new Error("Main window not available");
@@ -49,7 +49,7 @@ export const windowRouter = t.router({
   }),
 
   // WIN_CLOSE_CHANNEL
-  close: protectedProcedure.mutation(async () => {
+  close: publicProcedure.mutation(async () => {
     try {
       if (!mainWindowRef) {
         throw new Error("Main window not available");
@@ -63,7 +63,7 @@ export const windowRouter = t.router({
   }),
 
   // WIN_UPDATE_TRAY_TITLE_CHANNEL
-  updateTrayTitle: protectedProcedure
+  updateTrayTitle: publicProcedure
     .input(z.object({ title: z.string() }))
     .mutation(async ({ input }) => {
       try {
@@ -79,7 +79,7 @@ export const windowRouter = t.router({
     }),
 
   // WIN_CLOCK_VISIBILITY_CHANGE_CHANNEL
-  setClockVisibility: protectedProcedure
+  setClockVisibility: publicProcedure
     .input(z.object({ isVisible: z.boolean() }))
     .mutation(async ({ input }) => {
       try {

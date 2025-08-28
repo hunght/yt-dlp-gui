@@ -1,20 +1,18 @@
-import { initTRPC, TRPCError } from "@trpc/server";
+import { initTRPC } from "@trpc/server";
 import { logger } from "../helpers/logger";
 
 // Define context type
-export interface Context {
-  userId: string | null;
-}
+export interface Context {}
 
 // Create context for each request
-export const createContext = async (): Promise<{ userId: string | null }> => {
-  return { userId: null };
+export const createContext = async (): Promise<{}> => {
+  return {};
 };
 
 const t = initTRPC.context<Context>().create();
 
 // Create middleware
-const loggerMiddleware = t.middleware(async ({ path, type, ctx, next }) => {
+const loggerMiddleware = t.middleware(async ({ path, type, next }) => {
   const start = Date.now();
 
   const result = await next();
@@ -25,14 +23,12 @@ const loggerMiddleware = t.middleware(async ({ path, type, ctx, next }) => {
       durationMs,
       type,
       path,
-      userId: ctx.userId,
     });
   } else {
     logger.error(`[tRPC] ${type} ${path} failed`, {
       durationMs,
       type,
       path,
-      userId: ctx.userId,
       error: result.error,
     });
   }
@@ -40,24 +36,6 @@ const loggerMiddleware = t.middleware(async ({ path, type, ctx, next }) => {
   return result;
 });
 
-// Add auth check middleware
-const authMiddleware = t.middleware(async ({ ctx, next }) => {
-  if (!ctx.userId) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "User not authenticated",
-    });
-  }
-
-  return next({
-    ctx: {
-      ...ctx,
-      userId: ctx.userId, // TypeScript now knows userId is not null here
-    },
-  });
-});
-
 // Export procedures that include the logger middleware
 export const publicProcedure = t.procedure.use(loggerMiddleware);
-export const protectedProcedure = t.procedure.use(loggerMiddleware).use(authMiddleware);
 export { t };

@@ -66,7 +66,7 @@ const queryClient = new QueryClient({});
 // Initialize theme based on saved preference
 syncThemeWithLocal().catch(console.error);
 
-function AuthenticatedApp() {
+function MainApp() {
   const { i18n } = useTranslation();
 
   useEffect(() => {
@@ -80,7 +80,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AuthenticatedApp />
+        <MainApp />
         <VersionChecker autoCheck={true} showCheckButton={false} />
       </TooltipProvider>
     </QueryClientProvider>

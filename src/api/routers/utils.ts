@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { protectedProcedure, t } from "../trpc";
+import { publicProcedure, t } from "../trpc";
 import { shell, net, app } from "electron";
 import {
   createNotificationWindow,
@@ -33,7 +33,7 @@ const getPlatformDownloadUrl = (version: string): string => {
   }
 };
 export const utilsRouter = t.router({
-  openExternalUrl: protectedProcedure
+  openExternalUrl: publicProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -44,7 +44,7 @@ export const utilsRouter = t.router({
       return { success };
     }),
 
-  openLocalFile: protectedProcedure
+  openLocalFile: publicProcedure
     .input(
       z.object({
         filePath: z.string(),
@@ -60,7 +60,7 @@ export const utilsRouter = t.router({
       }
     }),
 
-  openFolder: protectedProcedure
+  openFolder: publicProcedure
     .input(
       z.object({
         folderPath: z.string(),
@@ -76,7 +76,7 @@ export const utilsRouter = t.router({
       }
     }),
 
-  quitApp: protectedProcedure.mutation(async () => {
+  quitApp: publicProcedure.mutation(async () => {
     try {
       logger.info("Quitting application...");
       app.quit();
@@ -88,12 +88,12 @@ export const utilsRouter = t.router({
   }),
 
   // Get current app version
-  getAppVersion: protectedProcedure.query(() => {
+  getAppVersion: publicProcedure.query(() => {
     return app.getVersion();
   }),
 
   // Get log file content
-  getLogFileContent: protectedProcedure.query(async () => {
+  getLogFileContent: publicProcedure.query(async () => {
     try {
       const logFileContent = await logger.getFileContent();
       return logFileContent;
@@ -103,7 +103,7 @@ export const utilsRouter = t.router({
     }
   }),
 
-  openNotificationWindow: protectedProcedure
+  openNotificationWindow: publicProcedure
     .input(
       z
         .object({
@@ -135,7 +135,7 @@ export const utilsRouter = t.router({
     }),
 
   // Version checking procedure
-  checkForUpdates: protectedProcedure.query(async () => {
+  checkForUpdates: publicProcedure.query(async () => {
     try {
       logger.info("Checking for updates...");
       const currentVersion = app.getVersion();
@@ -185,7 +185,7 @@ export const utilsRouter = t.router({
   }),
 
   // Download update procedure with progress tracking
-  downloadUpdate: protectedProcedure
+  downloadUpdate: publicProcedure
     .input(
       z.object({
         downloadUrl: z.string().url(),
@@ -320,7 +320,7 @@ export const utilsRouter = t.router({
       }
     }),
 
-  closeNotificationWindow: protectedProcedure.mutation(() => {
+  closeNotificationWindow: publicProcedure.mutation(() => {
     try {
       closeWindow();
       return { success: true };
@@ -331,7 +331,7 @@ export const utilsRouter = t.router({
   }),
 
   // Direct notification send procedure (uses the new IPC channel)
-  sendNotification: protectedProcedure
+  sendNotification: publicProcedure
     .input(
       z.object({
         title: z.string(),

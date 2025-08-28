@@ -12,6 +12,7 @@ import {
   FileText,
   Music,
   CalendarClock,
+  Play,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,12 @@ const items = [
     icon: Timer,
     url: "/",
     isActive: true,
+  },
+
+  {
+    title: "YouTube Videos",
+    icon: Play,
+    url: "/videos",
   },
 
   {

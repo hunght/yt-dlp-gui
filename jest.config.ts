@@ -13,7 +13,7 @@ const config: Config = {
     "^@/(.*)$": "<rootDir>/src/$1",
   },
 
-  testMatch: ["**/*.test.ts"],
+  testMatch: ["**/*.test.ts", "**/*.test.tsx"],
   setupFilesAfterEnv: ["<rootDir>/src/tests/unit/setup.ts"],
   roots: ["<rootDir>/src"],
 

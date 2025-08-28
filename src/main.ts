@@ -183,7 +183,7 @@ async function createTray() {
 
 function createWindow(): void {
   const preload = path.join(__dirname, "preload.js");
-  console.log("Main: Preload path:", preload);
+
   const iconPath = path.join(__dirname, "../resources/icon.ico");
   mainWindow = new BrowserWindow({
     width: 1400,

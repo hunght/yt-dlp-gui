@@ -9,17 +9,9 @@ const NotificationApp: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState<number>(5); // Auto-close after 5 seconds
 
   useEffect(() => {
-    console.log("NotificationApp: Component mounted");
-    console.log(
-      "NotificationApp: window.electronNotification available:",
-      !!window.electronNotification
-    );
-    console.log("NotificationApp: window object keys:", Object.keys(window));
-
     // Listen for notification data from main process via the preload API
     if (window.electronNotification) {
       const handleNotification = (data: NotificationData) => {
-        console.log("Notification received in component:", data);
         setNotificationData(data);
         // Reset timer when new notification arrives (only if autoDismiss is enabled)
         if (data.autoDismiss) {
@@ -32,7 +24,6 @@ const NotificationApp: React.FC = () => {
       // Cleanup function would be called if available
       return () => {
         // Note: we may need to add a removeListener function to the preload script
-        console.log("Cleaning up notification listener");
       };
     } else {
       console.error("electronNotification not available in notification window");
@@ -68,11 +59,9 @@ const NotificationApp: React.FC = () => {
   }, []);
 
   const closeNotification = async () => {
-    console.log("Closing notification via electronNotification");
     if (window.electronNotification) {
       try {
         await window.electronNotification.close();
-        console.log("Notification window close request completed");
       } catch (error) {
         console.error("Failed to close notification window:", error);
       }

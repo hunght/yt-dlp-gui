@@ -5,16 +5,12 @@ import path from "path";
 let notificationWindow: BrowserWindow | null = null;
 
 export function createNotificationWindow(): BrowserWindow {
-  console.log("Creating notification window");
   // Don't create multiple notification windows
   if (notificationWindow && !notificationWindow.isDestroyed()) {
-    console.log("Reusing existing notification window");
     notificationWindow.focus();
     return notificationWindow;
   }
   const preload = path.join(__dirname, "./preload/notification.js");
-  console.log("Notification: Preload path:", preload);
-  console.log("Creating new notification window");
 
   // Get the primary display to position the notification
   const { screen } = require("electron");
@@ -46,10 +42,8 @@ export function createNotificationWindow(): BrowserWindow {
 
   // Load the notification app
   if (NOTIFICATION_WINDOW_VITE_DEV_SERVER_URL) {
-    console.log(`Loading notification URL: ${NOTIFICATION_WINDOW_VITE_DEV_SERVER_URL}`);
     notificationWindow.loadURL(NOTIFICATION_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    console.log("Loading notification from file");
     notificationWindow.loadFile(
       path.join(__dirname, `../renderer/${NOTIFICATION_WINDOW_VITE_NAME}/index.html`)
     );
@@ -57,7 +51,6 @@ export function createNotificationWindow(): BrowserWindow {
 
   // Inject CSS to hide scrollbars and ensure proper content sizing
   notificationWindow.webContents.on("did-finish-load", () => {
-    console.log("Notification window loaded, injecting CSS for scrollbar prevention");
     notificationWindow?.webContents.insertCSS(`
       ::-webkit-scrollbar {
         display: none !important;
@@ -82,13 +75,11 @@ export function createNotificationWindow(): BrowserWindow {
   });
 
   notificationWindow.on("closed", () => {
-    console.log("Notification window closed");
     notificationWindow = null;
   });
 
   // Open DevTools for debugging
   if (process.env.NODE_ENV === "development") {
-    console.log("Opening notification window DevTools");
     notificationWindow.webContents.openDevTools();
   }
 
@@ -96,13 +87,11 @@ export function createNotificationWindow(): BrowserWindow {
 }
 
 export function getNotificationWindow(): BrowserWindow | null {
-  console.log("Getting notification window reference");
   return notificationWindow;
 }
 
 export function closeNotificationWindow(): void {
   if (notificationWindow && !notificationWindow.isDestroyed()) {
-    console.log("Closing notification window");
     notificationWindow.close();
     notificationWindow = null;
   }

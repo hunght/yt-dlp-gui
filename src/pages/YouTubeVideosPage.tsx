@@ -48,13 +48,6 @@ const YouTubeVideosPage: React.FC = () => {
   } = useQuery({
     queryKey: ["videos", currentPage, searchQuery, sortBy, sortOrder, selectedChannel],
     queryFn: async () => {
-      console.log("Fetching videos with params:", {
-        currentPage,
-        searchQuery,
-        sortBy,
-        sortOrder,
-        selectedChannel,
-      });
       try {
         const result = await trpcClient.youtube.getVideos.query({
           page: currentPage,
@@ -64,7 +57,6 @@ const YouTubeVideosPage: React.FC = () => {
           sortBy,
           sortOrder,
         });
-        console.log("Videos query result:", result);
         return result;
       } catch (error) {
         console.error("Error fetching videos:", error);
@@ -89,14 +81,7 @@ const YouTubeVideosPage: React.FC = () => {
   // Fetch channels for filtering
   const { data: channels } = useQuery({
     queryKey: ["channels"],
-    queryFn: async () => {
-      try {
-        return await trpcClient.youtube.getChannels.query();
-      } catch (error) {
-        console.error("Error fetching channels:", error);
-        throw error;
-      }
-    },
+    queryFn: async () => await trpcClient.youtube.getChannels.query(),
   });
 
   // Handle search
@@ -118,7 +103,6 @@ const YouTubeVideosPage: React.FC = () => {
 
   // Handle channel change
   const handleChannelChange = (value: string) => {
-    console.log("Channel changed from", selectedChannel, "to", value);
     setSelectedChannel(value);
     setCurrentPage(1);
   };

@@ -52,7 +52,6 @@ posthog.register({
 (async () => {
   try {
     const appVersion = await getAppVersion();
-    console.log(`App Version: ${appVersion}`);
 
     // Update the global property with the correct version
     posthog.register({ app_version: appVersion });

@@ -10,13 +10,11 @@ export function exposeNotificationContext() {
   contextBridge.exposeInMainWorld("electronNotification", {
     // Function to send a notification
     send: (data: any) => {
-      console.log("Sending notification:", data);
       return ipcRenderer.invoke(NOTIFICATION_SEND_CHANNEL, data);
     },
 
     // Function to close the notification window
     close: () => {
-      console.log("Closing notification");
       return ipcRenderer.invoke(NOTIFICATION_CLOSE_CHANNEL);
     },
 

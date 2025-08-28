@@ -12,16 +12,9 @@ const BlockingNotificationApp: React.FC = () => {
   const [notificationData, setNotificationData] = useState<BlockingNotificationData | null>(null);
 
   useEffect(() => {
-    console.log("BlockingNotificationApp: Component mounted");
-    console.log(
-      "BlockingNotificationApp: window.electronBlockingNotification available:",
-      !!(window as any).electronBlockingNotification
-    );
-
     // Listen for blocking notification data from main process
     if ((window as any).electronBlockingNotification) {
       const handleNotification = (data: BlockingNotificationData) => {
-        console.log("Blocking notification received:", data);
         setNotificationData(data);
       };
 
@@ -37,7 +30,6 @@ const BlockingNotificationApp: React.FC = () => {
       window.addEventListener("keydown", handleKeyDown);
 
       return () => {
-        console.log("Cleaning up blocking notification listener");
         window.removeEventListener("keydown", handleKeyDown);
       };
     } else {
@@ -54,17 +46,13 @@ const BlockingNotificationApp: React.FC = () => {
   }, []);
 
   const handleResponse = async (response: number) => {
-    console.log("Blocking notification response:", response);
-
     if ((window as any).electronBlockingNotification) {
       try {
         await (window as any).electronBlockingNotification.respond(response);
-        console.log("Response sent successfully");
       } catch (error) {
         console.error("Failed to send response:", error);
       }
     } else {
-      console.log("Would send response:", response);
     }
   };
 
@@ -73,17 +61,13 @@ const BlockingNotificationApp: React.FC = () => {
   const handleTakeBreak = () => handleResponse(2);
 
   const handleClose = async () => {
-    console.log("Closing blocking notification");
-
     if ((window as any).electronBlockingNotification) {
       try {
         await (window as any).electronBlockingNotification.close();
-        console.log("Close request sent successfully");
       } catch (error) {
         console.error("Failed to send close request:", error);
       }
     } else {
-      console.log("Would close notification window");
     }
   };
 

@@ -1,6 +1,6 @@
-# macOS Permissions Setup
+# macOS Permissions Setup for iTracksy
 
-To enable certain integrations on macOS, the app may require specific system permissions. This guide explains what permissions might be needed and how to grant them.
+To enable full browser URL tracking on macOS, iTracksy requires specific system permissions. This guide explains what permissions are needed and how to grant them.
 
 ## Required Permissions
 
@@ -20,7 +20,7 @@ To enable certain integrations on macOS, the app may require specific system per
 
 ### Automatic Setup
 
-When you first launch the app, it may automatically:
+When you first launch iTracksy, it will automatically:
 
 1. Check if permissions are already granted
 2. Show a dialog explaining what permissions are needed
@@ -43,7 +43,7 @@ If you need to grant permissions manually:
 3. **Grant Accessibility Permission**
 
    - Click "Accessibility"
-   - Click the "+" button or toggle to add the app
+   - Click the "+" button or toggle to add iTracksy
    - Enable the checkbox next to iTracksy
 
 4. **Grant Screen Recording Permission**
@@ -52,7 +52,7 @@ If you need to grant permissions manually:
    - Click the "+" button or toggle to add iTracksy
    - Enable the checkbox next to iTracksy
 
-5. **Restart the app**
+5. **Restart iTracksy**
    - Quit and relaunch the app for permissions to take effect
 
 ## Verification
@@ -96,4 +96,4 @@ If you continue to have issues with permissions:
 2. Try toggling permissions off and on again in System Settings
 3. Ensure you're running a supported version of macOS (10.15+)
 
-For additional help, consult the project documentation or support channels.
+For additional help, visit the iTracksy documentation or support channels.

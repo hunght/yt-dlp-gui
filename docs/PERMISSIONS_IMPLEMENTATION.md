@@ -2,7 +2,7 @@
 
 ## Overview
 
-This implementation adds comprehensive macOS system permission handling to the app, enabling integrations that may require access to system features such as window information.
+This implementation adds comprehensive macOS system permission handling to iTracksy, enabling the `get-windows` library to access browser URLs for detailed activity tracking.
 
 ## Required Permissions
 

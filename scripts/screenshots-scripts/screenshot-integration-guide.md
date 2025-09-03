@@ -1,6 +1,6 @@
-# App Screenshot Integration Guide for Web Developers
+# iTracksy Screenshot Integration Guide for Web Developers
 
-This technical guide explains how to integrate the automatically generated feature screenshots into your landing page website.
+This technical guide explains how to integrate the automatically generated feature screenshots into the iTracksy landing page website.
 
 ## Screenshot Generation Technical Details
 
@@ -28,7 +28,7 @@ The screenshots are generated using Playwright testing framework, which:
 The screenshots are automatically copied to:
 
 ```
-../app-web/public/screenshots/
+../itracksy-web/public/screenshots/
 ```
 
 This makes them available via the URL path:
@@ -45,14 +45,14 @@ Consider implementing the following optimizations:
 
 ```bash
 # Using sharp or similar tool
-npx sharp --input "../app-web/public/screenshots/*.png" --output "../app-web/public/screenshots/" --format webp
+npx sharp --input "../itracksy-web/public/screenshots/*.png" --output "../itracksy-web/public/screenshots/" --format webp
 ```
 
 2. Create responsive image variants:
 
 ```bash
 # Create mobile variants at 480px width
-npx sharp --input "../app-web/public/screenshots/*.png" --output "../app-web/public/screenshots/mobile/" --resize 480
+npx sharp --input "../itracksy-web/public/screenshots/*.png" --output "../itracksy-web/public/screenshots/mobile/" --resize 480
 ```
 
 3. Use the HTML `<picture>` element for responsive images:
@@ -117,7 +117,7 @@ const FeatureShowcase = ({
           />
           <img
             src={`/screenshots/${imageName}.png`}
-            alt={`${title} feature in the app`}
+            alt={`${title} feature in iTracksy`}
             loading="lazy"
           />
         </picture>
@@ -219,7 +219,7 @@ const FeaturesSection = () => {
 
 When new features are added or UI changes are made:
 
-1. Run the screenshot script in the app directory:
+1. Run the screenshot script in the iTracksy app:
 
    ```bash
    ./scripts/generate-screenshots.sh
@@ -246,7 +246,7 @@ If screenshots don't appear or show outdated UI:
 2. Verify the copy process was successful:
 
    ```bash
-   ls -la ../app-web/public/screenshots/
+   ls -la ../itracksy-web/public/screenshots/
    ```
 
 3. Clear browser cache or use incognito mode to test

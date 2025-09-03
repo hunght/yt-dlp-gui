@@ -1,6 +1,6 @@
-# yt-dlp-gui
+# iTracksy
 
-yt-dlp-gui is a simple GUI wrapper around the yt-dlp tool for downloading videos from YouTube and many other sites. This repository is a starting point adapted from a previous Electron app.
+iTracksy is a powerful desktop application for tracking your activities and managing projects efficiently. It provides real-time window activity tracking, project management with boards, and detailed time analytics to help you understand how you spend your time.
 
 ![Screenshot 2025-03-08 at 20 18 19](https://github.com/user-attachments/assets/e2255cb1-4a3c-4ab8-a83b-c95c3196caab)
 ![Screenshot 2025-03-25 at 14 40 29](https://github.com/user-attachments/assets/617b065d-88ff-4f5b-9734-518fe9e4436d)
@@ -29,7 +29,7 @@ yt-dlp-gui is a simple GUI wrapper around the yt-dlp tool for downloading videos
 
 ### Download
 
-Download the latest release for your platform from the [GitHub Releases page](https://github.com/your-org/yt-dlp-gui/releases).
+Download the latest release for your platform from the [GitHub Releases page](https://github.com/hunght/itracksy/releases).
 
 ### Windows Installation
 
@@ -47,16 +47,16 @@ The macOS version is properly signed and notarized, so you shouldn't see securit
 
 ## macOS Permissions
 
-For full functionality on macOS, the app may require system permissions depending on the features you enable:
+For full functionality on macOS, iTracksy requires system permissions to track browser URLs:
 
 - **Accessibility Permission**: Required to detect active applications and window information
 - **Screen Recording Permission**: Required to access browser URLs and detailed window content
 
 ### Quick Setup
-1. Launch the app - it may prompt for system permissions depending on features used
+1. Launch iTracksy - it will automatically prompt for permissions
 2. Follow the guided setup to open System Settings
 3. Grant both Accessibility and Screen Recording permissions
-4. Restart the app for changes to take effect
+4. Restart iTracksy for changes to take effect
 
 ### Manual Setup
 See [`docs/MACOS_PERMISSIONS.md`](docs/MACOS_PERMISSIONS.md) for detailed instructions.
@@ -91,13 +91,28 @@ Run `npm run test-permissions` to verify your permission setup.
 
 ### Distribution
 - **Electron Forge**: Building and packaging
-- **Squirrel.Windows**: Auto-updates
+- **Auto-Updates**: Automatic updates via update.electronjs.org
 - **GitHub Actions**: CI/CD pipeline
 - **Azure Code Signing**: Certificate signing for Windows
 
+## Auto-Updates
+
+iTracksy automatically updates to the latest version, ensuring you always have the newest features and improvements. The app checks for updates every 24 hours and downloads them in the background.
+
+### How It Works
+- **Automatic**: Updates are downloaded and installed automatically
+- **Seamless**: No interruption to your workflow
+- **Secure**: All updates are verified and signed
+- **Free**: Uses the free update.electronjs.org service
+
+### Manual Update Check
+You can manually check for updates by restarting the application.
+
+📖 **[View Auto-Update Documentation](./docs/AUTO_UPDATE_SETUP.md)** for detailed information.
+
 ## Architecture
 
-iTrackpy-gui uses tRPC for type-safe communication between the main and renderer processes:
+iTracksy uses tRPC for type-safe communication between the main and renderer processes:
 
 ```typescript
 // In main process (src/api/index.ts)
@@ -145,7 +160,7 @@ The rule system allows you to classify your activities automatically:
 ### Development
 ```bash
 # Clone repository
-git clone https://github.com/your-org/yt-dlp-gui.git
+git clone https://github.com/hunght/iTracksy.git
 
 # Install dependencies
 npm install
@@ -189,4 +204,4 @@ Native module issues are handled via `packageAfterPrune` in `forge.config.ts`, e
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/hunght/iTracksy/blob/main/LICENSE) file for details.

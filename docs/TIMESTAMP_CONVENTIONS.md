@@ -1,6 +1,6 @@
 # Timestamp and Timezone Conventions
 
-This document establishes the canonical patterns for handling timestamps and timezones across the application.
+This document establishes the canonical patterns for handling timestamps and timezones across the iTracksy application.
 
 ## Overview
 

@@ -190,7 +190,7 @@ const ClockApp: React.FC = () => {
       <div
         className="clock-container idle"
         onClick={handleContainerClick}
-        title="Click to open the app"
+        title="Click to open iTracksy"
       >
         <div className="clock-content">
           {hasTarget ? (

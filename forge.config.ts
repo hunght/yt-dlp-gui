@@ -6,48 +6,77 @@ import path, { join, normalize } from "node:path";
 import { MakerDeb } from "@electron-forge/maker-deb";
 import { MakerRpm } from "@electron-forge/maker-rpm";
 import { MakerDMG } from "@electron-forge/maker-dmg";
+import { MakerZIP } from "@electron-forge/maker-zip";
 // Use flora-colossus for finding all dependencies of EXTERNAL_DEPENDENCIES
 // flora-colossus is maintained by MarshallOfSound (a top electron-forge contributor)
 // already included as a dependency of electron-packager/galactus (so we do NOT have to add it to package.json)
 // grabs nested dependencies from tree
 import { Walker, DepType, type Module } from "flora-colossus";
-import VitePlugin from "@electron-forge/plugin-vite";
-import FusesPlugin from "@electron-forge/plugin-fuses";
+import { VitePlugin } from "@electron-forge/plugin-vite";
+import { FusesPlugin } from "@electron-forge/plugin-fuses";
 import { FuseV1Options, FuseVersion } from "@electron/fuses";
-import MakerSquirrel from "@electron-forge/maker-squirrel";
-import PublisherGithub from "@electron-forge/publisher-github";
+import { MakerSquirrel } from "@electron-forge/maker-squirrel";
+import { PublisherGithub } from "@electron-forge/publisher-github";
 
 // Track native module dependencies that need to be packaged
 let nativeModuleDependenciesToPackage: string[] = [];
 
-// List of external dependencies that require special handling during packaging
-// base on this solution https://github.com/electron/forge/issues/3738
+/**
+ * External dependencies that require special handling during Electron packaging.
+ *
+ * These dependencies are explicitly included in the final bundle to ensure they
+ * are properly packaged and available at runtime. This is necessary because:
+ *
+ * 1. **Native modules** (like @libsql/darwin-x64) need to be bundled with their
+ *    platform-specific binaries
+ * 2. **Runtime dependencies** (like drizzle-orm, zod) are used by the main process
+ *    and need to be available when the app starts
+ * 3. **Electron-specific modules** (like electron-squirrel-startup) handle
+ *    Windows installer integration
+ *
+ * This configuration is based on the solution from:
+ * https://github.com/electron/forge/issues/3738
+ *
+ * @see {@link https://github.com/electron/forge/issues/3738|Electron Forge Issue #3738}
+ */
 export const EXTERNAL_DEPENDENCIES = [
+  // Windows installer integration - handles Squirrel installer events
   "electron-squirrel-startup",
+  // Windows-specific utilities for getting window information
   "get-windows",
+  // Runtime validation library used throughout the application
   "zod",
+  // SQLite client library for database operations
   "@libsql/client",
+  // Platform-specific SQLite binaries for macOS ARM64
   "@libsql/darwin-x64",
+  // Database ORM for type-safe database queries
   "drizzle-orm",
+  // Zod integration for Drizzle ORM schema validation
   "drizzle-zod",
+  // Date manipulation library for time tracking features
   "date-fns",
+  // tRPC server for type-safe API communication
+  "@trpc/server",
+  // ZIP extraction library for auto-updates (replaced extract-zip with yauzl for better reliability)
+  "yauzl",
 ];
 
 // Base packager configuration
 const packagerConfig: ForgePackagerOptions = {
   // The name of the executable
-  executableName: "yt-dlp-gui",
+  executableName: "itracksy",
   // The name of the application
-  name: "yt-dlp-gui",
+  name: "itracksy",
   // Path to the application icon
   icon: process.platform === "win32" ? "./resources/icon.ico" : "./resources/icon",
   // The bundle ID for the application
-  appBundleId: "com.ytdlpy.guiexample",
+  appBundleId: "com.itracksy.app",
   // Define custom protocols for the application
   protocols: [
     {
       name: "iTracksy",
-      schemes: ["yt-dlp-gui"],
+      schemes: ["itracksy"],
     },
   ],
   // Include additional resources in the final build
@@ -59,7 +88,7 @@ if (process.platform === "darwin") {
   // Add Info.plist keys for Apple Events usage
   packagerConfig.extendInfo = {
     NSAppleEventsUsageDescription:
-      "This app may require system permissions for certain integrations. Update the text for your specific features.",
+      "iTracksy needs access to browser applications to track website URLs for time management and productivity analysis. This helps provide detailed insights into your browsing activity.",
     // Additional Info.plist keys for better permission handling
     NSAppleScriptEnabled: true,
     OSAScriptingDefinition: "com.itracksy.app.sdef",
@@ -280,23 +309,40 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({
       setupIcon: path.resolve(__dirname, "resources", "icon.ico"),
-      iconUrl: "https://raw.githubusercontent.com/your-org/yt-dlp-gui/main/resources/icon.ico",
+      iconUrl: "https://raw.githubusercontent.com/hunght/itracksy/main/resources/icon.ico",
       loadingGif: path.resolve(__dirname, "resources", "icon_64x64.png"),
+      // Naming pattern: itracksy-{version}.Setup.exe
+      name: "itracksy-${version}.Setup.exe",
     }),
     new MakerDMG({
       icon: path.resolve(__dirname, "resources", "icon.icns"),
       format: "ULFO", // Use a different format that works better with permissions
       overwrite: true,
+      // Default naming pattern: itracksy-{version}-{arch}.dmg
     }),
-    new MakerRpm({}),
-    new MakerDeb({}),
+    new MakerZIP({
+      // Generate ZIP files for auto-updates
+      // Default naming pattern: itracksy-{platform}-{arch}-{version}.zip
+      // Examples:
+      // - itracksy-darwin-arm64-1.0.234.zip (macOS ARM)
+      // - itracksy-darwin-x64-1.0.234.zip (macOS Intel)
+      // - itracksy-win32-x64-1.0.234.zip (Windows)
+      // - itracksy-linux-x64-1.0.234.zip (Linux)
+    }),
+    new MakerRpm({
+      // Default naming pattern: itracksy-{version}-1.x86_64.rpm
+    }),
+    new MakerDeb({
+      // Default naming pattern: itracksy_{version}_amd64.deb
+    }),
   ],
   // Publishers for different platforms
+
   publishers: [
     new PublisherGithub({
       repository: {
         owner: "hunght",
-        name: "yt-dlp-gui",
+        name: "itracksy",
       },
       prerelease: false,
       draft: true,

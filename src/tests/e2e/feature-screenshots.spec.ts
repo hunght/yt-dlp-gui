@@ -89,6 +89,19 @@ test.beforeAll(async () => {
   // Get the first window
   page = await electronApp.firstWindow();
 
+  // Manually inject a user ID to bypass authentication
+  // This should work because the app uses localStorage for anonymous authentication
+  await page.evaluate(() => {
+    // Create a random user ID
+    const userId = Math.random().toString(36).substring(2, 15);
+    // Set it in localStorage - mimicking what the app would do
+    localStorage.setItem("user.currentUserId", userId);
+    console.log("Manually set userId in localStorage:", userId);
+
+    // Force refresh to make the app use the new user ID
+    window.location.reload();
+  });
+
   // Wait for the app to fully load
   await page.waitForLoadState("networkidle");
   // Extra wait for sidebar to be fully rendered

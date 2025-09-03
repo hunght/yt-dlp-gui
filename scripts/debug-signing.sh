@@ -69,9 +69,9 @@ npm run make
 
 # Verify code signing
 echo -e "\n${BLUE}Verifying code signing...${NC}"
-APP_PATH="out/yt-dlp-gui-darwin-arm64/yt-dlp-gui.app"
+APP_PATH="out/itracksy-darwin-arm64/itracksy.app"
 if [ ! -d "$APP_PATH" ]; then
-    APP_PATH="out/yt-dlp-gui-darwin-x64/yt-dlp-gui.app"
+    APP_PATH="out/itracksy-darwin-x64/itracksy.app"
 fi
 
 if [ ! -d "$APP_PATH" ]; then

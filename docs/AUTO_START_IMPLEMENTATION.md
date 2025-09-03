@@ -9,7 +9,7 @@ iTracksy now supports cross-platform auto-start functionality, allowing the appl
 ### macOS 🍎
 
 - **Method**: Uses Electron's `app.setLoginItemSettings()` API
-- **Integration**: Adds the app to macOS Login Items
+- **Integration**: Adds iTracksy to macOS Login Items
 - **User Control**: Managed through System Preferences → Users & Groups → Login Items
 - **Security**: No security warnings (app is properly signed and notarized)
 
@@ -23,7 +23,7 @@ iTracksy now supports cross-platform auto-start functionality, allowing the appl
 ### Linux 🐧
 
 - **Method**: XDG Autostart specification (.desktop files)
-- **Integration**: Creates `~/.config/autostart/yt-dlp-gui.desktop` file
+- **Integration**: Creates `~/.config/autostart/itracksy.desktop` file
 - **Standards Compliant**: Follows freedesktop.org XDG autostart specification
 - **Desktop Environment**: Works with GNOME, KDE, XFCE, and other XDG-compliant environments
 
@@ -119,10 +119,10 @@ During uninstallation, auto-start is automatically disabled to clean up system s
 
 1. Enable auto-start in Settings
 2. Restart the system
-3. Verify the app launches automatically
+3. Verify iTracksy launches automatically
 4. Disable auto-start in Settings
 5. Restart the system
-6. Verify the app does not launch automatically
+6. Verify iTracksy does not launch automatically
 
 ### Platform-Specific Verification
 
@@ -145,7 +145,7 @@ reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
 ```bash
 # Check autostart directory
 ls ~/.config/autostart/
-cat ~/.config/autostart/yt-dlp-gui.desktop
+cat ~/.config/autostart/itracksy.desktop
 ```
 
 ## Troubleshooting
@@ -230,4 +230,4 @@ const handleToggle = async () => {
 
 ---
 
-This implementation provides a robust, cross-platform auto-start solution that integrates seamlessly with the application's architecture while following platform-specific best practices and security guidelines.
+This implementation provides a robust, cross-platform auto-start solution that integrates seamlessly with iTracksy's existing architecture while following platform-specific best practices and security guidelines.

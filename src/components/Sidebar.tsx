@@ -13,6 +13,22 @@ export default function Sidebar() {
           <Link to="/">
             {({ isActive }) => (
               <Button variant={isActive ? "secondary" : "ghost"} className="w-full justify-start">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                Dashboard
+              </Button>
+            )}
+          </Link>
+          <Link to="/projects">
+            {({ isActive }) => (
+              <Button variant={isActive ? "secondary" : "ghost"} className="w-full justify-start">
+                <FolderKanban className="mr-2 h-4 w-4" />
+                Projects
+              </Button>
+            )}
+          </Link>
+          <Link to="/settings">
+            {({ isActive }) => (
+              <Button variant={isActive ? "secondary" : "ghost"} className="w-full justify-start">
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </Button>

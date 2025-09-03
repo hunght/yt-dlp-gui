@@ -1,4 +1,4 @@
-# iTracksy Release Notes
+# YT-DLP GUI Release Notes
 
 ## Latest Release - Version 1.0.189
 
@@ -59,7 +59,7 @@
 
 #### 🚀 Auto-Start on System Boot
 
-- **Cross-platform auto-start functionality** - Launch iTracksy automatically when your computer starts
+- **Cross-platform auto-start functionality** - Launch YT-DLP GUI automatically when your computer starts
 - **Native platform integration**:
   - 🍎 **macOS**: Integrates with Login Items for seamless startup
   - 🪟 **Windows**: Uses Windows Registry and Squirrel installer events
@@ -117,7 +117,7 @@ The macOS version remains properly signed and notarized - no security warnings.
 
 ### 💡 Why These Features Matter
 
-1. **System Integration**: Seamless startup ensures iTracksy is always ready to track your productivity
+1. **System Integration**: Seamless startup ensures YT-DLP GUI is always ready to track your productivity
 2. **Automated Scheduling**: Building consistent productivity habits through automation
 3. **Customizable Sessions**: Recognizing that everyone has different optimal focus durations
 4. **Notification Control**: Giving users power over when and how they're interrupted
@@ -128,7 +128,7 @@ The macOS version remains properly signed and notarized - no security warnings.
 
 ### 🚀 Getting Started
 
-1. **Download** the latest release from [GitHub Releases](https://github.com/hunght/itracksy/releases)
+1. **Download** the latest release from [GitHub Releases](https://github.com/hunght/yt-dlp-gui/releases)
 2. **Set up automated sessions** in the new Scheduling page
 3. **Explore new settings** in the Settings page
 4. **Try the Music page** to find your perfect focus soundtrack
@@ -147,7 +147,7 @@ The macOS version remains properly signed and notarized - no security warnings.
 
 ---
 
-**Download Now**: [GitHub Releases](https://github.com/hunght/itracksy/releases)
+**Download Now**: [GitHub Releases](https://github.com/hunght/yt-dlp-gui/releases)
 
 **Feedback**: Open an issue on GitHub or reach out on Discord
 
@@ -155,4 +155,4 @@ The macOS version remains properly signed and notarized - no security warnings.
 
 ---
 
-_iTracksy is an indie project focused on helping you understand and optimize your productivity. Thank you for your support!_
+_YT-DLP GUI is an indie project focused on helping you understand and optimize your productivity. Thank you for your support!_

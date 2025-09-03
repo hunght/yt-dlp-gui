@@ -1,6 +1,7 @@
-# iTracksy Design Prompts for v0.dev
+# YT-DLP GUI Design Prompts for v0.dev
 
 ## Dashboard Page
+
 ```prompt
 Create a modern time tracking dashboard with a dark theme. Include:
 - A large time display showing current tracking status at the top
@@ -16,6 +17,7 @@ Create a modern time tracking dashboard with a dark theme. Include:
 ```
 
 ## Time Entry Modal
+
 ```prompt
 Design a modal for creating/editing time entries with:
 - A clean, floating modal design
@@ -31,6 +33,7 @@ Design a modal for creating/editing time entries with:
 ```
 
 ## Projects View
+
 ```prompt
 Create a projects management view with:
 - A grid of project cards showing:
@@ -46,6 +49,7 @@ Create a projects management view with:
 ```
 
 ## Reports Page
+
 ```prompt
 Design an analytics dashboard with:
 - A date range selector at the top
@@ -60,6 +64,7 @@ Design an analytics dashboard with:
 ```
 
 ## Settings Panel
+
 ```prompt
 Create a settings interface with:
 - Sidebar categories:
@@ -76,6 +81,7 @@ Create a settings interface with:
 ```
 
 ## Bottom Timer Bar
+
 ```prompt
 Design a minimal bottom bar with:
 - Current tracking status
@@ -89,6 +95,7 @@ Design a minimal bottom bar with:
 ```
 
 ## Activity Timeline
+
 ```prompt
 Create a vertical timeline showing:
 - Time blocks with:
@@ -103,6 +110,7 @@ Create a vertical timeline showing:
 ```
 
 ## Quick Actions Menu
+
 ```prompt
 Design a quick actions popup with:
 - Recent projects list
@@ -118,6 +126,7 @@ Design a quick actions popup with:
 ## Design System Guidelines
 
 ### Colors
+
 - Primary: #6B46C1 (Deep Purple)
 - Background: #1A1A1A (Dark)
 - Secondary Background: #2D2D2D
@@ -128,11 +137,13 @@ Design a quick actions popup with:
 - Success: #38A169
 
 ### Typography
+
 - Headings: Inter
 - Body: Inter
 - Monospace: JetBrains Mono
 
 ### Components
+
 - Rounded corners: 8px
 - Shadow: 0 4px 6px rgba(0, 0, 0, 0.1)
 - Button padding: 12px 24px
@@ -140,16 +151,19 @@ Design a quick actions popup with:
 - Gap between elements: 16px
 
 ### Icons
+
 - Use Lucide icons
 - Size: 20px for normal, 16px for small
 - Stroke width: 1.5px
 
 ### Animations
+
 - Subtle hover transitions: 0.2s ease
 - Modal transitions: 0.3s ease
 - Loading states: Pulse animation
 
 ### Responsive Breakpoints
+
 - Mobile: 640px
 - Tablet: 768px
 - Desktop: 1024px

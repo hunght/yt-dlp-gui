@@ -1,14 +1,16 @@
-# iTracksy - Time Tracking Application MVP Features
+# YT-DLP GUI - Time Tracking Application MVP Features
 
 ## Core Features
 
 ### 1. Automatic Time Tracking
+
 - Automatic detection of active applications and windows
 - Track idle time vs active time
 - Background process running with minimal resource usage
 - Capture application names and window titles
 
 ### 2. Manual Time Entry
+
 - Start/stop timer functionality
 - Add manual time entries
 - Edit existing time entries
@@ -16,17 +18,20 @@
 - Add descriptions to time entries
 
 ### 3. Project Management
+
 - Create and manage projects
 - Organize time entries by projects
 - Color coding for different projects
 - Project-based reporting
 
 ### 4. Categories & Tags
+
 - Categorize activities (Work, Personal, Learning, etc.)
 - Add custom tags to time entries
 - Filter and group by categories/tags
 
 ### 5. Dashboard & Analytics
+
 - Daily/weekly/monthly time breakdown
 - Visual charts and graphs
 - Productivity scores
@@ -34,6 +39,7 @@
 - Activity patterns
 
 ### 6. Reports
+
 - Exportable reports (CSV, PDF)
 - Custom date range selection
 - Project-based reports
@@ -41,6 +47,7 @@
 - Time utilization reports
 
 ### 7. Basic Settings
+
 - Working hours configuration
 - Idle time threshold settings
 - Notification preferences
@@ -49,6 +56,7 @@
 ## Technical Requirements
 
 ### Desktop Application
+
 - Cross-platform support (Windows/Mac)
 - Lightweight and efficient
 - Offline-first functionality
@@ -56,6 +64,7 @@
 - Automatic updates
 
 ### User Experience
+
 - Clean, modern interface
 - Minimal setup required
 - Non-intrusive tracking
@@ -63,6 +72,7 @@
 - Quick access via system tray
 
 ### Data & Privacy
+
 - Local-first approach
 - Data encryption
 - Privacy-focused design
@@ -70,6 +80,7 @@
 - Regular local backups
 
 ## Future Considerations
+
 - Team collaboration features
 - Cloud sync capabilities
 - Mobile app integration

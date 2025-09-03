@@ -25,7 +25,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
         </DialogHeader>
         <div className="h-full overflow-auto">
           <iframe
-            src="https://www.itracksy.com/feedback"
+            src="https://www.yt-dlp-gui.com/feedback"
             className="h-[calc(80vh-100px)] w-full"
             title="Feedback Form"
           />

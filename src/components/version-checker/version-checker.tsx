@@ -310,7 +310,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
                   variant="default"
                   size="sm"
                   onClick={() => {
-                    window.open("https://www.itracksy.com/download", "_blank");
+                    window.open("https://www.yt-dlp-gui.com/download", "_blank");
                   }}
                 >
                   <ExternalLinkIcon className="mr-1 h-4 w-4" />
@@ -360,7 +360,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
               size="sm"
               onClick={() => {
                 window.open(
-                  `https://github.com/itracksy/itracksy/releases/tag/v${latestVersion}`,
+                  `https://github.com/yt-dlp-gui/yt-dlp-gui/releases/tag/v${latestVersion}`,
                   "_blank"
                 );
               }}
@@ -494,7 +494,7 @@ export function VersionChecker({
   // Handle opening download URL in browser
   const handleOpenDownloadLink = async () => {
     try {
-      await trpcClient.utils.openExternalUrl.mutate({ url: "https://itracksy.com/download" });
+      await trpcClient.utils.openExternalUrl.mutate({ url: "https://yt-dlp-gui.com/download" });
     } catch (error) {
       console.error("Failed to open download URL:", error);
     }

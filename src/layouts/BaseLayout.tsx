@@ -9,7 +9,7 @@ export default function BaseLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex h-screen flex-col">
       {/* Drag region for frameless window */}
-      <DragWindowRegion title="iTracksy" />
+      <DragWindowRegion title="YT-DLP GUI" />
 
       <div className="flex flex-1 overflow-hidden">
         <SidebarProvider>

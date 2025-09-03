@@ -2,7 +2,7 @@
 
 ## Overview
 
-This implementation adds comprehensive macOS system permission handling to iTracksy, enabling the `get-windows` library to access browser URLs for detailed activity tracking.
+This implementation adds comprehensive macOS system permission handling to YT-DLP GUI, enabling the `get-windows` library to access browser URLs for detailed activity tracking.
 
 ## Required Permissions
 

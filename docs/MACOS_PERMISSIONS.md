@@ -1,12 +1,12 @@
-# macOS Permissions Setup for iTracksy
+# macOS Permissions Setup for YT-DLP GUI
 
-To enable full browser URL tracking on macOS, iTracksy requires specific system permissions. This guide explains what permissions are needed and how to grant them.
+To enable full browser URL tracking on macOS, YT-DLP GUI requires specific system permissions. This guide explains what permissions are needed and how to grant them.
 
 ## Required Permissions
 
 ### 1. Accessibility Permission
 
-- **Purpose**: Allows iTracksy to detect which applications you're using and access window information
+- **Purpose**: Allows YT-DLP GUI to detect which applications you're using and access window information
 - **Required for**: Basic app tracking, window title detection
 - **Without this**: App cannot track active applications
 
@@ -20,7 +20,7 @@ To enable full browser URL tracking on macOS, iTracksy requires specific system 
 
 ### Automatic Setup
 
-When you first launch iTracksy, it will automatically:
+When you first launch YT-DLP GUI, it will automatically:
 
 1. Check if permissions are already granted
 2. Show a dialog explaining what permissions are needed
@@ -32,41 +32,37 @@ When you first launch iTracksy, it will automatically:
 If you need to grant permissions manually:
 
 1. **Open System Settings**
-
    - Click the Apple menu → System Settings
    - Or use Spotlight: Press Cmd+Space, type "System Settings"
 
 2. **Navigate to Privacy & Security**
-
    - Click "Privacy & Security" in the sidebar
 
 3. **Grant Accessibility Permission**
-
    - Click "Accessibility"
-   - Click the "+" button or toggle to add iTracksy
-   - Enable the checkbox next to iTracksy
+   - Click the "+" button or toggle to add YT-DLP GUI
+   - Enable the checkbox next to YT-DLP GUI
 
 4. **Grant Screen Recording Permission**
-
    - Click "Screen Recording"
-   - Click the "+" button or toggle to add iTracksy
-   - Enable the checkbox next to iTracksy
+   - Click the "+" button or toggle to add YT-DLP GUI
+   - Enable the checkbox next to YT-DLP GUI
 
-5. **Restart iTracksy**
+5. **Restart YT-DLP GUI**
    - Quit and relaunch the app for permissions to take effect
 
 ## Verification
 
 You can verify permissions are working by:
 
-1. Opening iTracksy Settings
+1. Opening YT-DLP GUI Settings
 2. Checking the "Permissions" section
 3. Both switches should show as enabled/green
 4. If not, click the switches to open System Settings
 
 ## Privacy & Security
 
-- **All data stays local**: iTracksy never sends your browsing data to external servers
+- **All data stays local**: YT-DLP GUI never sends your browsing data to external servers
 - **Secure storage**: All tracking data is stored locally in an encrypted database
 - **Your control**: You can review, edit, or delete any tracked data at any time
 
@@ -74,18 +70,18 @@ You can verify permissions are working by:
 
 ### Permissions not working after granting
 
-- **Solution**: Restart iTracksy completely (Quit from menu bar, then relaunch)
+- **Solution**: Restart YT-DLP GUI completely (Quit from menu bar, then relaunch)
 - **Reason**: macOS requires app restart for permission changes to take effect
 
-### Can't find iTracksy in permission lists
+### Can't find YT-DLP GUI in permission lists
 
-- **Solution**: Try running iTracksy first, then check System Settings
-- **Alternative**: Click the "+" button in System Settings to manually locate iTracksy
+- **Solution**: Try running YT-DLP GUI first, then check System Settings
+- **Alternative**: Click the "+" button in System Settings to manually locate YT-DLP GUI
 
 ### Still not tracking URLs
 
 - **Check both permissions**: Both Accessibility AND Screen Recording must be enabled
-- **Restart required**: Always restart iTracksy after granting new permissions
+- **Restart required**: Always restart YT-DLP GUI after granting new permissions
 - **Browser compatibility**: Currently supports Safari, Chrome, Firefox, and Edge
 
 ## Support
@@ -96,4 +92,4 @@ If you continue to have issues with permissions:
 2. Try toggling permissions off and on again in System Settings
 3. Ensure you're running a supported version of macOS (10.15+)
 
-For additional help, visit the iTracksy documentation or support channels.
+For additional help, visit the YT-DLP GUI documentation or support channels.

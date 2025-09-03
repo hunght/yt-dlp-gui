@@ -1,6 +1,6 @@
-# iTracksy Screenshot Integration Guide for Web Developers
+# YT-DLP GUI Screenshot Integration Guide for Web Developers
 
-This technical guide explains how to integrate the automatically generated feature screenshots into the iTracksy landing page website.
+This technical guide explains how to integrate the automatically generated feature screenshots into the YT-DLP GUI landing page website.
 
 ## Screenshot Generation Technical Details
 
@@ -28,7 +28,7 @@ The screenshots are generated using Playwright testing framework, which:
 The screenshots are automatically copied to:
 
 ```
-../itracksy-web/public/screenshots/
+../yt-dlp-gui-web/public/screenshots/
 ```
 
 This makes them available via the URL path:
@@ -45,14 +45,14 @@ Consider implementing the following optimizations:
 
 ```bash
 # Using sharp or similar tool
-npx sharp --input "../itracksy-web/public/screenshots/*.png" --output "../itracksy-web/public/screenshots/" --format webp
+npx sharp --input "../yt-dlp-gui-web/public/screenshots/*.png" --output "../yt-dlp-gui-web/public/screenshots/" --format webp
 ```
 
 2. Create responsive image variants:
 
 ```bash
 # Create mobile variants at 480px width
-npx sharp --input "../itracksy-web/public/screenshots/*.png" --output "../itracksy-web/public/screenshots/mobile/" --resize 480
+npx sharp --input "../yt-dlp-gui-web/public/screenshots/*.png" --output "../yt-dlp-gui-web/public/screenshots/mobile/" --resize 480
 ```
 
 3. Use the HTML `<picture>` element for responsive images:
@@ -117,7 +117,7 @@ const FeatureShowcase = ({
           />
           <img
             src={`/screenshots/${imageName}.png`}
-            alt={`${title} feature in iTracksy`}
+            alt={`${title} feature in YT-DLP GUI`}
             loading="lazy"
           />
         </picture>
@@ -219,14 +219,13 @@ const FeaturesSection = () => {
 
 When new features are added or UI changes are made:
 
-1. Run the screenshot script in the iTracksy app:
+1. Run the screenshot script in the YT-DLP GUI app:
 
    ```bash
    ./scripts/generate-screenshots.sh
    ```
 
 2. The script will:
-
    - Take new screenshots
    - Automatically copy them to the web project directory
    - Preserve any existing image optimizations
@@ -246,7 +245,7 @@ If screenshots don't appear or show outdated UI:
 2. Verify the copy process was successful:
 
    ```bash
-   ls -la ../itracksy-web/public/screenshots/
+   ls -la ../yt-dlp-gui-web/public/screenshots/
    ```
 
 3. Clear browser cache or use incognito mode to test

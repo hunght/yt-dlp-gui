@@ -1,7 +1,7 @@
 {
-  "name": "itracksy",
-  "productName": "itracksy",
-  "version": "1.0.238",
+  "name": "yt-dlp-gui",
+  "productName": "yt-dlp-gui",
+  "version": "1.0.001",
   "description": "A productivity app that tracks time, boosts focus, and provides insights into work habits, helping you manage time effectively and stay productive.",
   "main": ".vite/build/main.js",
   "scripts": {
@@ -15,7 +15,7 @@
     "win-make": "npm run clean:out && npm run debug-make",
     "win-build": "cross-env PLATFORM=win32 npm run make",
     "mac-build": "cross-env PLATFORM=darwin npm run make",
-    "clean:out": "powershell -Command \"Stop-Process -Name itracksy -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Path out -Force -Recurse -ErrorAction SilentlyContinue\"",
+    "clean:out": "powershell -Command \"Stop-Process -Name yt-dlp-gui -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Path out -Force -Recurse -ErrorAction SilentlyContinue\"",
     "publish": "electron-forge publish",
     "prett": "prettier . --write",
     "storybook": "storybook dev -p 6006",
@@ -50,7 +50,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hunght/itracksy.git"
+    "url": "https://github.com/hunght/yt-dlp-gui.git"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.8.3",

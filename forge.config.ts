@@ -65,18 +65,18 @@ export const EXTERNAL_DEPENDENCIES = [
 // Base packager configuration
 const packagerConfig: ForgePackagerOptions = {
   // The name of the executable
-  executableName: "itracksy",
+  executableName: "yt-dlp-gui",
   // The name of the application
-  name: "itracksy",
+  name: "yt-dlp-gui",
   // Path to the application icon
   icon: process.platform === "win32" ? "./resources/icon.ico" : "./resources/icon",
   // The bundle ID for the application
-  appBundleId: "com.itracksy.app",
+  appBundleId: "com.yt-dlp-gui.app",
   // Define custom protocols for the application
   protocols: [
     {
-      name: "iTracksy",
-      schemes: ["itracksy"],
+      name: "YT-DLP GUI",
+      schemes: ["yt-dlp-gui"],
     },
   ],
   // Include additional resources in the final build
@@ -88,10 +88,10 @@ if (process.platform === "darwin") {
   // Add Info.plist keys for Apple Events usage
   packagerConfig.extendInfo = {
     NSAppleEventsUsageDescription:
-      "iTracksy needs access to browser applications to track website URLs for time management and productivity analysis. This helps provide detailed insights into your browsing activity.",
+      "YT-DLP GUI needs access to browser applications to track website URLs for time management and productivity analysis. This helps provide detailed insights into your browsing activity.",
     // Additional Info.plist keys for better permission handling
     NSAppleScriptEnabled: true,
-    OSAScriptingDefinition: "com.itracksy.app.sdef",
+    OSAScriptingDefinition: "com.yt-dlp-gui.app.sdef",
   };
 
   // Configure codesigning and notarization for production builds
@@ -309,31 +309,31 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({
       setupIcon: path.resolve(__dirname, "resources", "icon.ico"),
-      iconUrl: "https://raw.githubusercontent.com/hunght/itracksy/main/resources/icon.ico",
+      iconUrl: "https://raw.githubusercontent.com/hunght/yt-dlp-gui/main/resources/icon.ico",
       loadingGif: path.resolve(__dirname, "resources", "icon_64x64.png"),
-      // Naming pattern: itracksy-{version}.Setup.exe
-      name: "itracksy-${version}.Setup.exe",
+      // Naming pattern: yt-dlp-gui-{version}.Setup.exe
+      name: "yt-dlp-gui-${version}.Setup.exe",
     }),
     new MakerDMG({
       icon: path.resolve(__dirname, "resources", "icon.icns"),
       format: "ULFO", // Use a different format that works better with permissions
       overwrite: true,
-      // Default naming pattern: itracksy-{version}-{arch}.dmg
+      // Default naming pattern: yt-dlp-gui-{version}-{arch}.dmg
     }),
     new MakerZIP({
       // Generate ZIP files for auto-updates
-      // Default naming pattern: itracksy-{platform}-{arch}-{version}.zip
+      // Default naming pattern: yt-dlp-gui-{platform}-{arch}-{version}.zip
       // Examples:
-      // - itracksy-darwin-arm64-1.0.234.zip (macOS ARM)
-      // - itracksy-darwin-x64-1.0.234.zip (macOS Intel)
-      // - itracksy-win32-x64-1.0.234.zip (Windows)
-      // - itracksy-linux-x64-1.0.234.zip (Linux)
+      // - yt-dlp-gui-darwin-arm64-1.0.234.zip (macOS ARM)
+      // - yt-dlp-gui-darwin-x64-1.0.234.zip (macOS Intel)
+      // - yt-dlp-gui-win32-x64-1.0.234.zip (Windows)
+      // - yt-dlp-gui-linux-x64-1.0.234.zip (Linux)
     }),
     new MakerRpm({
-      // Default naming pattern: itracksy-{version}-1.x86_64.rpm
+      // Default naming pattern: yt-dlp-gui-{version}-1.x86_64.rpm
     }),
     new MakerDeb({
-      // Default naming pattern: itracksy_{version}_amd64.deb
+      // Default naming pattern: yt-dlp-gui_{version}_amd64.deb
     }),
   ],
   // Publishers for different platforms
@@ -342,7 +342,7 @@ const config: ForgeConfig = {
     new PublisherGithub({
       repository: {
         owner: "hunght",
-        name: "itracksy",
+        name: "yt-dlp-gui",
       },
       prerelease: false,
       draft: true,

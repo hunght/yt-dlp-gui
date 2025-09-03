@@ -1,6 +1,6 @@
-# iTracksy
+# YT-DLP GUI
 
-iTracksy is a powerful desktop application for tracking your activities and managing projects efficiently. It provides real-time window activity tracking, project management with boards, and detailed time analytics to help you understand how you spend your time.
+YT-DLP GUI is a powerful desktop application for tracking your activities and managing projects efficiently. It provides real-time window activity tracking, project management with boards, and detailed time analytics to help you understand how you spend your time.
 
 ![Screenshot 2025-03-08 at 20 18 19](https://github.com/user-attachments/assets/e2255cb1-4a3c-4ab8-a83b-c95c3196caab)
 ![Screenshot 2025-03-25 at 14 40 29](https://github.com/user-attachments/assets/617b065d-88ff-4f5b-9734-518fe9e4436d)
@@ -29,7 +29,7 @@ iTracksy is a powerful desktop application for tracking your activities and mana
 
 ### Download
 
-Download the latest release for your platform from the [GitHub Releases page](https://github.com/hunght/itracksy/releases).
+Download the latest release for your platform from the [GitHub Releases page](https://github.com/hunght/yt-dlp-gui/releases).
 
 ### Windows Installation
 
@@ -47,16 +47,16 @@ The macOS version is properly signed and notarized, so you shouldn't see securit
 
 ## macOS Permissions
 
-For full functionality on macOS, iTracksy requires system permissions to track browser URLs:
+For full functionality on macOS, YT-DLP GUI requires system permissions to track browser URLs:
 
 - **Accessibility Permission**: Required to detect active applications and window information
 - **Screen Recording Permission**: Required to access browser URLs and detailed window content
 
 ### Quick Setup
-1. Launch iTracksy - it will automatically prompt for permissions
+1. Launch YT-DLP GUI - it will automatically prompt for permissions
 2. Follow the guided setup to open System Settings
 3. Grant both Accessibility and Screen Recording permissions
-4. Restart iTracksy for changes to take effect
+4. Restart YT-DLP GUI for changes to take effect
 
 ### Manual Setup
 See [`docs/MACOS_PERMISSIONS.md`](docs/MACOS_PERMISSIONS.md) for detailed instructions.
@@ -97,7 +97,7 @@ Run `npm run test-permissions` to verify your permission setup.
 
 ## Auto-Updates
 
-iTracksy automatically updates to the latest version, ensuring you always have the newest features and improvements. The app checks for updates every 24 hours and downloads them in the background.
+YT-DLP GUI automatically updates to the latest version, ensuring you always have the newest features and improvements. The app checks for updates every 24 hours and downloads them in the background.
 
 ### How It Works
 - **Automatic**: Updates are downloaded and installed automatically
@@ -112,7 +112,7 @@ You can manually check for updates by restarting the application.
 
 ## Architecture
 
-iTracksy uses tRPC for type-safe communication between the main and renderer processes:
+YT-DLP GUI uses tRPC for type-safe communication between the main and renderer processes:
 
 ```typescript
 // In main process (src/api/index.ts)
@@ -134,7 +134,7 @@ const activities = await trpcClient.getActivities.query();
 
 ## Activity Classification System
 
-iTracksy includes a powerful activity classification system that helps you visualize and improve your productivity:
+YT-DLP GUI includes a powerful activity classification system that helps you visualize and improve your productivity:
 
 - **Focus Session Tracking**: Monitor your dedicated work sessions and see your improvement over time
 - **Productivity Percentage**: Get insights into how productive your time usage is based on your own classification rules
@@ -160,7 +160,7 @@ The rule system allows you to classify your activities automatically:
 ### Development
 ```bash
 # Clone repository
-git clone https://github.com/hunght/iTracksy.git
+git clone https://github.com/hunght/YT-DLP GUI.git
 
 # Install dependencies
 npm install
@@ -204,4 +204,4 @@ Native module issues are handled via `packageAfterPrune` in `forge.config.ts`, e
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/hunght/iTracksy/blob/main/LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/hunght/YT-DLP GUI/blob/main/LICENSE) file for details.

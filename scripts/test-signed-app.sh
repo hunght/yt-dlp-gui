@@ -5,7 +5,7 @@
 
 set -e
 
-echo "🚀 Building and testing iTracksy with browser URL access..."
+echo "🚀 Building and testing YT-DLP GUI with browser URL access..."
 
 # Load environment variables from .env file
 if [ -f .env ]; then

@@ -1,6 +1,6 @@
 # Timestamp and Timezone Conventions
 
-This document establishes the canonical patterns for handling timestamps and timezones across the iTracksy application.
+This document establishes the canonical patterns for handling timestamps and timezones across the YT-DLP GUI application.
 
 ## Overview
 

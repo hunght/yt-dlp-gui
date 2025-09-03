@@ -4,9 +4,9 @@ import path from "path";
 import fs from "fs";
 
 /**
- * Test file for taking comprehensive screenshots of ALL iTracksy pages for landing page
+ * Test file for taking comprehensive screenshots of ALL YT-DLP GUI pages for landing page
  *
- * This test suite captures screenshots of every major page/feature in the iTracksy app:
+ * This test suite captures screenshots of every major page/feature in the YT-DLP GUI app:
  *
  * Core Features:
  * - Activity Tracking (Focus Sessions) - Main productivity tracking interface

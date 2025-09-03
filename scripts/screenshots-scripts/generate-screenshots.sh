@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Script to generate comprehensive screenshots of all iTracksy pages for the landing page
+# Script to generate comprehensive screenshots of all YT-DLP GUI pages for the landing page
 
-echo "🖼️ Generating comprehensive screenshots for all iTracksy pages..."
+echo "🖼️ Generating comprehensive screenshots for all YT-DLP GUI pages..."
 echo ""
 echo "📋 Pages that will be captured:"
 echo "   • Activity Tracking (Focus Sessions)"
@@ -110,24 +110,24 @@ if [ -d "./screenshots" ]; then
   echo ""
   echo "📈 Total screenshot count: $(find ./screenshots -name "*.png" | wc -l | tr -d ' ')"
 
-  # Move screenshots to itracksy-web/public
-  echo "🚚 Moving screenshots to ../itracksy-web/public/screenshots..."
+  # Move screenshots to yt-dlp-gui-web/public
+  echo "🚚 Moving screenshots to ../yt-dlp-gui-web/public/screenshots..."
 
   # Create directory if it doesn't exist
-  mkdir -p "../itracksy-web/public/screenshots"
+  mkdir -p "../yt-dlp-gui-web/public/screenshots"
 
   # Ensure the directory is empty before copying
-  rm -rf "../itracksy-web/public/screenshots/"*
+  rm -rf "../yt-dlp-gui-web/public/screenshots/"*
 
   # Copy all screenshots
-  cp -R ./screenshots/* "../itracksy-web/public/screenshots/"
+  cp -R ./screenshots/* "../yt-dlp-gui-web/public/screenshots/"
 
   # Check if copy was successful
   if [ $? -eq 0 ]; then
-    echo "✅ Screenshots successfully moved to ../itracksy-web/public/screenshots/"
-    ls -la "../itracksy-web/public/screenshots"
+    echo "✅ Screenshots successfully moved to ../yt-dlp-gui-web/public/screenshots/"
+    ls -la "../yt-dlp-gui-web/public/screenshots"
   else
-    echo "❌ Failed to move screenshots. Please check if ../itracksy-web/public directory exists."
+    echo "❌ Failed to move screenshots. Please check if ../yt-dlp-gui-web/public directory exists."
   fi
 else
   echo "❌ Failed to generate screenshots. Please check the test output for errors."

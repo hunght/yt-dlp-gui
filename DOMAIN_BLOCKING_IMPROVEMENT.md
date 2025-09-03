@@ -2,7 +2,7 @@
 
 ## Issue Description
 
-Previously, URL blocking in iTracksy used exact domain matching. This meant that blocking "youtube.com" would only block activities with the exact URL "youtube.com" but not "youtube.com/watch?v=abc123" or other subpaths/parameters.
+Previously, URL blocking in YT-DLP GUI used exact domain matching. This meant that blocking "youtube.com" would only block activities with the exact URL "youtube.com" but not "youtube.com/watch?v=abc123" or other subpaths/parameters.
 
 ## Solution Implemented
 

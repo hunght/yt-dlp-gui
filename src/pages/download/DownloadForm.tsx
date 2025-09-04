@@ -8,14 +8,7 @@ import { Download, Play, FileVideo, FileText, Music } from "lucide-react";
 import { toast } from "sonner";
 import FilenameTemplateSelector from "../../components/FilenameTemplateSelector";
 import VideoInfoCard from "./VideoInfoCard";
-
-interface VideoInfo {
-  title: string;
-  channelTitle?: string;
-  durationFormatted?: string;
-  viewCount?: number;
-  thumbnailPath?: string;
-}
+import type { VideoInfo } from "@/api/types";
 
 interface DownloadFormProps {
   url: string;
@@ -204,7 +197,7 @@ export default function DownloadForm({
         </div>
 
         {/* Video Info Display */}
-        <VideoInfoCard videoInfo={videoInfo || undefined} isLoading={isLoadingVideoInfo} />
+        <VideoInfoCard videoInfo={videoInfo} isLoading={isLoadingVideoInfo} />
 
         <Button
           onClick={handleStartDownload}

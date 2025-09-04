@@ -13,23 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Play, Eye, Heart, Calendar, User, Filter, SortAsc, SortDesc } from "lucide-react";
+import type { YoutubeVideo } from "@/api/db/schema";
+import Thumbnail from "@/components/Thumbnail";
 
-interface Video {
-  id: string;
-  videoId: string;
-  title: string;
-  description: string | null;
-  channelId: string | null;
-  channelTitle: string | null;
-  durationSeconds: number | null;
-  viewCount: number | null;
-  likeCount: number | null;
-  thumbnailUrl: string | null;
-  publishedAt: number | null;
-  tags: string | null;
-  createdAt: number;
-  updatedAt: number | null;
-}
+// Use the proper type from schema
+type Video = YoutubeVideo;
 
 interface Channel {
   channelId: string | null;
@@ -292,21 +280,12 @@ const YouTubeVideosPage: React.FC = () => {
             {videosData.videos.map((video: Video) => (
               <Card key={video.id} className="cursor-pointer transition-shadow hover:shadow-lg">
                 <div className="relative">
-                  {video.thumbnailUrl ? (
-                    <img
-                      src={video.thumbnailUrl}
-                      alt={video.title}
-                      className="aspect-video w-full rounded-t-lg object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <div className="flex aspect-video w-full items-center justify-center rounded-t-lg bg-gray-200">
-                      <Play className="h-12 w-12 text-gray-400" />
-                    </div>
-                  )}
+                  <Thumbnail
+                    thumbnailPath={video.thumbnailPath}
+                    alt={video.title}
+                    className="aspect-video w-full rounded-t-lg object-cover"
+                    fallbackIcon={<Play className="h-12 w-12 text-gray-400" />}
+                  />
 
                   {video.durationSeconds && (
                     <Badge className="absolute bottom-2 right-2 bg-black/80 text-white">

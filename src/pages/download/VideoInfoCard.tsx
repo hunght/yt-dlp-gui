@@ -1,42 +1,15 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, Play } from "lucide-react";
-import { trpcClient } from "@/utils/trpc";
-import { useQuery } from "@tanstack/react-query";
-
-interface VideoInfo {
-  title: string;
-  channelTitle?: string;
-  durationFormatted?: string;
-  viewCount?: number;
-  thumbnailPath?: string;
-}
+import { VideoInfo } from "@/api/types";
+import Thumbnail from "@/components/Thumbnail";
 
 interface VideoInfoCardProps {
-  videoInfo: VideoInfo | undefined;
+  videoInfo: VideoInfo | null;
   isLoading: boolean;
 }
 
 export default function VideoInfoCard({ videoInfo, isLoading }: VideoInfoCardProps) {
-  // Use useQuery to convert image to data URL with caching and loading states
-  const {
-    data: thumbnailDataUrl,
-    isLoading: isThumbnailLoading,
-    error: thumbnailError,
-  } = useQuery({
-    queryKey: ["thumbnail", videoInfo?.thumbnailPath],
-    queryFn: async () => {
-      if (!videoInfo?.thumbnailPath) return null;
-
-      return await trpcClient.download.convertImageToDataUrl.query({
-        imagePath: videoInfo.thumbnailPath,
-      });
-    },
-    enabled: !!videoInfo?.thumbnailPath,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    retry: 1,
-  });
-
   if (isLoading) {
     return (
       <Card className="border-blue-200 bg-blue-50">
@@ -59,23 +32,12 @@ export default function VideoInfoCard({ videoInfo, isLoading }: VideoInfoCardPro
       <CardContent className="p-4">
         <div className="space-y-3">
           <div className="flex items-start space-x-3">
-            <div className="flex h-16 w-28 items-center justify-center rounded bg-gray-200">
-              {isThumbnailLoading ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent"></div>
-              ) : thumbnailDataUrl ? (
-                <img
-                  src={thumbnailDataUrl}
-                  alt="Video thumbnail"
-                  className="h-16 w-28 rounded object-cover"
-                  onError={(e) => {
-                    console.error("Failed to load thumbnail image");
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-              ) : (
-                <div className="text-center text-xs text-gray-400">No thumbnail</div>
-              )}
-            </div>
+            <Thumbnail
+              thumbnailPath={videoInfo.thumbnailPath}
+              alt="Video thumbnail"
+              className="h-16 w-28 rounded"
+              fallbackIcon={<div className="text-center text-xs text-gray-400">No thumbnail</div>}
+            />
             <div className="flex-1 space-y-1">
               <h3 className="line-clamp-2 font-medium text-green-800">{videoInfo.title}</h3>
               {videoInfo.channelTitle && (

@@ -300,11 +300,22 @@ export const downloadRouter = t.router({
           logger.info(`Video info already exists for ${videoId}: ${existingVideo[0].title}`);
 
           // Check if thumbnail exists locally, if not download it
-          let thumbnailPath = null;
-          if (existingVideo[0].thumbnailUrl) {
+          let thumbnailPath = existingVideo[0].thumbnailPath;
+          if (!thumbnailPath && existingVideo[0].thumbnailUrl) {
             thumbnailPath = await downloadThumbnail(existingVideo[0].thumbnailUrl, videoId);
+
+            // Update the database with the new thumbnail path
+            if (thumbnailPath) {
+              await ctx
+                .db!.update(youtubeVideos)
+                .set({
+                  thumbnailPath: thumbnailPath,
+                  updatedAt: Date.now(),
+                })
+                .where(eq(youtubeVideos.videoId, videoId));
+            }
           }
-          console.log(`Downloaded thumbnail to ${thumbnailPath}`);
+
           return {
             success: true,
             videoInfo: {
@@ -339,6 +350,7 @@ export const downloadRouter = t.router({
           viewCount: videoInfo.view_count || null,
           likeCount: videoInfo.like_count || null,
           thumbnailUrl: videoInfo.thumbnail || null,
+          thumbnailPath: thumbnailPath, // Store the local thumbnail path
           publishedAt: videoInfo.upload_date
             ? (() => {
                 const date = new Date(videoInfo.upload_date);
@@ -365,6 +377,7 @@ export const downloadRouter = t.router({
               viewCount: videoData.viewCount,
               likeCount: videoData.likeCount,
               thumbnailUrl: videoData.thumbnailUrl,
+              thumbnailPath: videoData.thumbnailPath, // Update thumbnail path on conflict
               publishedAt: videoData.publishedAt,
               tags: videoData.tags,
               raw: videoData.raw,

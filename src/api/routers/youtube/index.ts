@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { publicProcedure, t } from "../trpc";
+import { publicProcedure, t } from "@/api/trpc";
 import { eq, desc, asc, like, and, or, sql } from "drizzle-orm";
-import { youtubeVideos } from "../db/schema";
-import db from "../db";
-import { logger } from "../../helpers/logger";
+import { youtubeVideos } from "@/api/db/schema";
+import db from "@/api/db";
+import { logger } from "@/helpers/logger";
 
 export const youtubeRouter = t.router({
   // Get all videos with pagination and optional filtering

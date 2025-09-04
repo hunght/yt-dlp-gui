@@ -1,8 +1,8 @@
 import { t } from "./trpc";
-import { utilsRouter } from "./routers/utils";
-import { windowRouter } from "./routers/window";
-import { youtubeRouter } from "./routers/youtube";
-import { downloadRouter } from "./routers/download";
+import { utilsRouter } from "@/api/routers/utils";
+import { windowRouter } from "@/api/routers/window";
+import { youtubeRouter } from "@/api/routers/youtube";
+import { downloadRouter } from "@/api/routers/download/index";
 
 // Create the root router
 export const router = t.router({

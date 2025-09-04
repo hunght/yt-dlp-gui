@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { publicProcedure, t } from "../trpc";
+import { publicProcedure, t } from "@/api/trpc";
 import { BrowserWindow, Tray } from "electron";
-import { logger } from "../../helpers/logger";
-import { hideClockWindow } from "../../main/windows/clock";
+import { logger } from "@/helpers/logger";
+import { hideClockWindow } from "@/main/windows/clock";
 
 // Global references to main window and tray
 let mainWindowRef: BrowserWindow | null = null;

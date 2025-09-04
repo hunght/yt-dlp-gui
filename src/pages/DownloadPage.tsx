@@ -110,26 +110,16 @@ export default function DownloadPage() {
     enabled: !!url && showFormats,
   });
 
-  // Test format mutation
-  const testFormatMutation = useMutation({
-    mutationFn: (data: { url: string; format: string }) =>
-      trpcClient.download.getAvailableFormats.query({ url: data.url }),
-    onSuccess: (data) => {
-      if (data.success) {
-        toast.success("Format test successful! This format should work for downloading.");
-      } else {
-        toast.error(`Format test failed: ${(data as { success: false; error: string }).error}`);
-      }
-    },
-    onError: (error) => {
-      toast.error(`Format test failed: ${error.message}`);
-    },
-  });
-
   // Mutations
   const startDownloadMutation = useMutation({
-    mutationFn: (data: { url: string; format: string; quality?: string }) =>
-      trpcClient.download.startDownload.mutate(data),
+    mutationFn: (data: {
+      url: string;
+      format: string;
+      quality?: string;
+      outputFilename?: string;
+      outputFormat?: "default" | "mp4" | "mp3";
+      videoInfo?: any;
+    }) => trpcClient.download.startDownload.mutate(data),
     onSuccess: () => {
       toast.success("Download started successfully!");
       queryClient.invalidateQueries({ queryKey: ["downloads"] });
@@ -214,6 +204,7 @@ export default function DownloadPage() {
       format,
       quality: undefined,
       outputFilename: outputFilename,
+      outputFormat: outputFormat,
       videoInfo: videoInfo || undefined,
     } as any);
   };

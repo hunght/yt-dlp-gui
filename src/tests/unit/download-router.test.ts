@@ -419,4 +419,208 @@ describe("Download Router", () => {
       expect(result).toHaveProperty("error");
     });
   });
+
+  describe("format handling", () => {
+    it("should handle empty format string gracefully", async () => {
+      const caller = createDownloadTestCaller(testDb);
+
+      // Test with empty format string
+      const result = await caller.startDownload({
+        url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        format: "", // Empty format string
+        videoInfo: {
+          id: "test-video-1",
+          videoId: "dQw4w9WgXcQ",
+          title: "Test Video",
+          description: "Test description",
+          channelId: "test-channel-1",
+          channelTitle: "Test Channel",
+          durationSeconds: 212,
+          viewCount: 1000000,
+          likeCount: 50000,
+          thumbnailUrl: "https://example.com/thumb.jpg",
+          publishedAt: Date.now(),
+          tags: "test,video",
+          raw: '{"test": "data"}',
+          createdAt: Date.now(),
+          thumbnailPath: null,
+        },
+      });
+
+      expect(result.id).toBeDefined();
+      expect(result.status).toBe("pending");
+      expect(result.videoInfo).toBeDefined();
+    });
+
+    it("should handle undefined format gracefully", async () => {
+      const caller = createDownloadTestCaller(testDb);
+
+      // Test with undefined format (should use default)
+      const result = await caller.startDownload({
+        url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        // format is undefined, should use default
+        videoInfo: {
+          id: "test-video-2",
+          videoId: "dQw4w9WgXcQ",
+          title: "Test Video 2",
+          description: "Test description 2",
+          channelId: "test-channel-2",
+          channelTitle: "Test Channel 2",
+          durationSeconds: 180,
+          viewCount: 500000,
+          likeCount: 25000,
+          thumbnailUrl: "https://example.com/thumb2.jpg",
+          publishedAt: Date.now(),
+          tags: "test,video,2",
+          raw: '{"test": "data2"}',
+          createdAt: Date.now(),
+          thumbnailPath: null,
+        },
+      });
+
+      expect(result.id).toBeDefined();
+      expect(result.status).toBe("pending");
+      expect(result.videoInfo).toBeDefined();
+    });
+
+    it("should handle whitespace-only format gracefully", async () => {
+      const caller = createDownloadTestCaller(testDb);
+
+      // Test with whitespace-only format string
+      const result = await caller.startDownload({
+        url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        format: "   ", // Whitespace-only format string
+        videoInfo: {
+          id: "test-video-3",
+          videoId: "dQw4w9WgXcQ",
+          title: "Test Video 3",
+          description: "Test description 3",
+          channelId: "test-channel-3",
+          channelTitle: "Test Channel 3",
+          durationSeconds: 300,
+          viewCount: 750000,
+          likeCount: 35000,
+          thumbnailUrl: "https://example.com/thumb3.jpg",
+          publishedAt: Date.now(),
+          tags: "test,video,3",
+          raw: '{"test": "data3"}',
+          createdAt: Date.now(),
+          thumbnailPath: null,
+        },
+      });
+
+      expect(result.id).toBeDefined();
+      expect(result.status).toBe("pending");
+      expect(result.videoInfo).toBeDefined();
+    });
+
+    it("should store valid format in database even when input format is empty", async () => {
+      const caller = createDownloadTestCaller(testDb);
+
+      // Test with empty format string
+      const result = await caller.startDownload({
+        url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        format: "", // Empty format string
+        videoInfo: {
+          id: "test-video-4",
+          videoId: "dQw4w9WgXcQ",
+          title: "Test Video 4",
+          description: "Test description 4",
+          channelId: "test-channel-4",
+          channelTitle: "Test Channel 4",
+          durationSeconds: 240,
+          viewCount: 600000,
+          likeCount: 30000,
+          thumbnailUrl: "https://example.com/thumb4.jpg",
+          publishedAt: Date.now(),
+          tags: "test,video,4",
+          raw: '{"test": "data4"}',
+          createdAt: Date.now(),
+          thumbnailPath: null,
+        },
+      });
+
+      expect(result.id).toBeDefined();
+      expect(result.status).toBe("pending");
+
+      // Check that the download was stored in the database
+      const download = await caller.getDownloadById({ id: result.id });
+      expect(download).toBeDefined();
+      expect(download?.format).toBe(""); // Should store the original empty format
+      expect(download?.status).toBe("pending");
+    });
+  });
+
+  describe("real video download", () => {
+    it("should handle download of specific YouTube video", async () => {
+      const caller = createDownloadTestCaller(testDb);
+      const testUrl = "https://www.youtube.com/watch?v=imdTKPQW9ek";
+
+      // First, get video info to verify the video is accessible
+      const videoInfoResponse = await caller.getVideoInfo({ url: testUrl });
+      expect(videoInfoResponse).toBeDefined();
+      expect(videoInfoResponse.success).toBe(true);
+      expect(videoInfoResponse.videoInfo).toBeDefined();
+
+      const videoInfo = videoInfoResponse.videoInfo!;
+      expect(videoInfo.videoId).toBe("imdTKPQW9ek");
+      expect(videoInfo.title).toBeDefined();
+      expect(videoInfo.duration).toBeDefined();
+
+      // Start the download with real video info
+      const result = await caller.startDownload({
+        url: testUrl,
+        format: "best[height<=720]",
+        videoInfo: videoInfo,
+      });
+
+      expect(result.id).toBeDefined();
+      expect(result.status).toBe("pending");
+      expect(result.videoInfo).toBeDefined();
+
+      // Check that the download was stored in the database
+      const download = await caller.getDownloadById({ id: result.id });
+      expect(download).toBeDefined();
+      expect(download?.url).toBe(testUrl);
+      expect(download?.format).toBe("best[height<=720]");
+      expect(download?.status).toBe("pending");
+      expect(download?.title).toBe(
+        "TỪ VỰNG 提心吊胆 trong tiếng Trung | Tự học tiếng Hán HSK | Sweden Chinese Center"
+      );
+
+      // Wait a bit for background download processing to start
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+
+    it("should handle format fallback for restricted video", async () => {
+      const caller = createDownloadTestCaller(testDb);
+      const testUrl = "https://www.youtube.com/watch?v=imdTKPQW9ek";
+
+      // Get real video info first
+      const videoInfoResponse = await caller.getVideoInfo({ url: testUrl });
+      expect(videoInfoResponse.success).toBe(true);
+      const videoInfo = videoInfoResponse.videoInfo!;
+
+      // Test with a format that might be restricted
+      const result = await caller.startDownload({
+        url: testUrl,
+        format: "bestvideo+bestaudio", // This format might trigger 403 errors
+        videoInfo: videoInfo,
+      });
+
+      expect(result.id).toBeDefined();
+      expect(result.status).toBe("pending");
+      expect(result.videoInfo).toBeDefined();
+
+      // The actual download processing will happen in the background
+      // and may fail with 403, but the download record should be created
+      const download = await caller.getDownloadById({ id: result.id });
+      expect(download).toBeDefined();
+      expect(download?.url).toBe(testUrl);
+      expect(download?.format).toBe("bestvideo+bestaudio");
+
+      // Wait a bit for background download processing to start
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+  });
 });

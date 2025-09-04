@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { publicProcedure, t } from "../trpc";
+import { publicProcedure, t } from "@/api/trpc";
 import { shell, net, app } from "electron";
 import {
   createNotificationWindow,
   closeNotificationWindow as closeWindow,
-} from "../../main/windows/notification";
-import { sendNotificationToWindow } from "../../helpers/notification/notification-window-utils";
-import { buildAppLinks } from "../../config/app-links";
+} from "@/main/windows/notification";
+import { sendNotificationToWindow } from "@/helpers/notification/notification-window-utils";
+import { buildAppLinks } from "@/config/app-links";
 
-import { logger } from "../../helpers/logger";
+import { logger } from "@/helpers/logger";
 import path from "path";
 import fs from "fs";
 import os from "os";

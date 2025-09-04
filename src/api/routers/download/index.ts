@@ -25,6 +25,7 @@ const YTDlpWrap = YTDlpWrapModule.default;
 import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs";
+import { readFileSync } from "fs";
 
 export const downloadRouter = t.router({
   // Get all downloads with pagination and filtering
@@ -710,4 +711,49 @@ export const downloadRouter = t.router({
       }
     }
   ),
+
+  // Convert image file to data URL
+  convertImageToDataUrl: publicProcedure
+    .input(
+      z.object({
+        imagePath: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        // Read the image file
+        const imageBuffer = readFileSync(input.imagePath);
+
+        // Get file extension to determine MIME type
+        const ext = input.imagePath.split(".").pop()?.toLowerCase();
+        let mimeType = "image/jpeg"; // default
+
+        switch (ext) {
+          case "png":
+            mimeType = "image/png";
+            break;
+          case "gif":
+            mimeType = "image/gif";
+            break;
+          case "webp":
+            mimeType = "image/webp";
+            break;
+          case "svg":
+            mimeType = "image/svg+xml";
+            break;
+          case "jpg":
+          case "jpeg":
+          default:
+            mimeType = "image/jpeg";
+            break;
+        }
+
+        // Convert to base64 data URL
+        const base64 = imageBuffer.toString("base64");
+        return `data:${mimeType};base64,${base64}`;
+      } catch (error) {
+        logger.error("Failed to convert image to data URL:", error);
+        throw new Error(`Failed to convert image to data URL: ${error}`);
+      }
+    }),
 });

@@ -31,6 +31,16 @@ import { toast } from "sonner";
 import { formatBytes, formatDuration } from "../helpers/format-utils";
 import FilenameTemplateSelector from "../components/FilenameTemplateSelector";
 
+// Helper function to validate URL
+function isValidUrl(string: string): boolean {
+  try {
+    new URL(string);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 export default function DownloadPage() {
   const [url, setUrl] = useState("");
   const [outputType, setOutputType] = useState<"video" | "audio">("video");
@@ -41,6 +51,8 @@ export default function DownloadPage() {
   });
   const [outputFilename, setOutputFilename] = useState("%(title)s.%(ext)s");
   const [showFormats, setShowFormats] = useState(false);
+  const [videoInfo, setVideoInfo] = useState<any>(null);
+  const [isLoadingVideoInfo, setIsLoadingVideoInfo] = useState(false);
   const queryClient = useQueryClient();
 
   // Auto-update output format when output type changes
@@ -51,6 +63,34 @@ export default function DownloadPage() {
       setOutputFormat("mp4");
     }
   }, [outputType]);
+
+  // Debounced video info fetching
+  useEffect(() => {
+    const timeoutId = setTimeout(async () => {
+      if (url.trim() && isValidUrl(url.trim())) {
+        setIsLoadingVideoInfo(true);
+        try {
+          const result = await trpcClient.download.getVideoInfo.mutate({
+            url: url.trim(),
+          });
+          if (result.success && "videoInfo" in result) {
+            setVideoInfo(result.videoInfo);
+          } else {
+            setVideoInfo(null);
+          }
+        } catch (error) {
+          console.error("Failed to get video info:", error);
+          setVideoInfo(null);
+        } finally {
+          setIsLoadingVideoInfo(false);
+        }
+      } else {
+        setVideoInfo(null);
+      }
+    }, 1000); // 1 second debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [url]);
 
   // Queries
   const { data: downloads, isLoading: downloadsLoading } = useQuery({
@@ -173,7 +213,9 @@ export default function DownloadPage() {
       url: url.trim(),
       format,
       quality: undefined,
-    });
+      outputFilename: outputFilename,
+      videoInfo: videoInfo || undefined,
+    } as any);
   };
 
   const getStatusColor = (status: string) => {
@@ -414,6 +456,56 @@ export default function DownloadPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Video Info Display */}
+          {isLoadingVideoInfo && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+                  <span className="text-sm text-blue-600">Loading video information...</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {videoInfo && !isLoadingVideoInfo && (
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3">
+                    {videoInfo.thumbnailPath && (
+                      <img
+                        src={`file://${videoInfo.thumbnailPath}`}
+                        alt="Video thumbnail"
+                        className="h-16 w-28 rounded object-cover"
+                      />
+                    )}
+                    <div className="flex-1 space-y-1">
+                      <h3 className="line-clamp-2 font-medium text-green-800">{videoInfo.title}</h3>
+                      {videoInfo.channelTitle && (
+                        <p className="text-sm text-green-600">by {videoInfo.channelTitle}</p>
+                      )}
+                      <div className="flex items-center space-x-4 text-xs text-green-600">
+                        {videoInfo.durationFormatted && (
+                          <div className="flex items-center space-x-1">
+                            <Clock className="h-3 w-3" />
+                            <span>{videoInfo.durationFormatted}</span>
+                          </div>
+                        )}
+                        {videoInfo.viewCount && (
+                          <div className="flex items-center space-x-1">
+                            <Play className="h-3 w-3" />
+                            <span>{videoInfo.viewCount.toLocaleString()} views</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           <Button

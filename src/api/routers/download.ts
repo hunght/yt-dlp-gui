@@ -119,72 +119,39 @@ export const downloadRouter = t.router({
           .default("best[height<=720]/best[height<=480]/best[height<=360]/best"),
         quality: z.string().optional(),
         outputPath: z.string().optional(),
-        getVideoInfoFirst: z.boolean().default(true), // New option to get video info first
+        outputFilename: z.string().optional(),
+        videoInfo: z
+          .object({
+            id: z.string(),
+            videoId: z.string(),
+            title: z.string(),
+            description: z.string().nullable(),
+            channelId: z.string().nullable(),
+            channelTitle: z.string().nullable(),
+            durationSeconds: z.number().nullable(),
+            viewCount: z.number().nullable(),
+            likeCount: z.number().nullable(),
+            thumbnailUrl: z.string().nullable(),
+            publishedAt: z.number().nullable(),
+            tags: z.string().nullable(),
+            raw: z.string(),
+            createdAt: z.number(),
+            thumbnailPath: z.string().nullable(),
+          })
+          .optional(), // Video info from frontend
       })
     )
     .mutation(async ({ input }) => {
       try {
-        const { url, format, quality, outputPath, getVideoInfoFirst } = input;
+        const { url, format, quality, outputPath, outputFilename, videoInfo } = input;
         const downloadId = randomUUID();
         const timestamp = Date.now();
 
-        // Get video info first if requested
-        let videoInfo = null;
-        if (getVideoInfoFirst) {
-          try {
-            const videoId = extractVideoId(url);
-            if (videoId) {
-              // Check if we already have video info in database
-              const existingVideo = await db
-                .select()
-                .from(youtubeVideos)
-                .where(eq(youtubeVideos.videoId, videoId))
-                .limit(1);
-
-              if (existingVideo.length > 0) {
-                videoInfo = existingVideo[0];
-                logger.info(`Using existing video info for ${videoId}: ${videoInfo.title}`);
-              } else {
-                // Get fresh video info
-                const ytDlpWrap = new YTDlpWrap();
-                const output = await ytDlpWrap.execPromise([url, "--dump-json"]);
-                const freshVideoInfo = JSON.parse(output);
-
-                // Download thumbnail if available
-                let thumbnailPath = null;
-                if (freshVideoInfo.thumbnail) {
-                  thumbnailPath = await downloadThumbnail(freshVideoInfo.thumbnail, videoId);
-                }
-
-                // Save video info to database
-                const videoData = {
-                  id: randomUUID(),
-                  videoId,
-                  title: freshVideoInfo.title || "Unknown Title",
-                  description: freshVideoInfo.description || null,
-                  channelId: freshVideoInfo.channel_id || null,
-                  channelTitle: freshVideoInfo.channel || freshVideoInfo.uploader || null,
-                  durationSeconds: freshVideoInfo.duration || null,
-                  viewCount: freshVideoInfo.view_count || null,
-                  likeCount: freshVideoInfo.like_count || null,
-                  thumbnailUrl: freshVideoInfo.thumbnail || null,
-                  publishedAt: freshVideoInfo.upload_date
-                    ? new Date(freshVideoInfo.upload_date).getTime()
-                    : null,
-                  tags: freshVideoInfo.tags ? JSON.stringify(freshVideoInfo.tags) : null,
-                  raw: JSON.stringify(freshVideoInfo),
-                  createdAt: Date.now(),
-                };
-
-                await db.insert(youtubeVideos).values(videoData);
-                videoInfo = videoData;
-                logger.info(`Video info saved for ${videoId}: ${videoInfo.title}`);
-              }
-            }
-          } catch (error) {
-            logger.warn(`Failed to get video info for ${url}, proceeding with download:`, error);
-            // Continue with download even if we can't get video info
-          }
+        // Use video info passed from frontend
+        if (videoInfo) {
+          logger.info(
+            `Using video info from frontend for ${videoInfo.videoId}: ${videoInfo.title}`
+          );
         }
 
         // Create download record with video info if available
@@ -204,7 +171,7 @@ export const downloadRouter = t.router({
         // Start download in background
         setImmediate(async () => {
           try {
-            await processDownload(downloadId, url, format, quality, outputPath);
+            await processDownload(downloadId, url, format, quality, outputPath, outputFilename);
           } catch (error) {
             logger.error(`Download ${downloadId} failed:`, error);
             await db
@@ -514,6 +481,7 @@ export const downloadRouter = t.router({
             download[0].url,
             download[0].format || "best",
             download[0].quality || undefined,
+            undefined,
             undefined
           );
         } catch (error) {
@@ -630,7 +598,8 @@ async function processDownload(
   url: string,
   format: string,
   quality?: string,
-  outputPath?: string
+  outputPath?: string,
+  outputFilename?: string
 ) {
   const ytDlpWrap = new YTDlpWrap();
   const timestamp = Date.now();
@@ -674,8 +643,16 @@ async function processDownload(
     }
 
     // Prepare output path
-    const finalOutputPath =
-      outputPath || path.join(downloadsDir, `${title.replace(/[^a-zA-Z0-9]/g, "_")}.%(ext)s`);
+    let finalOutputPath;
+    if (outputPath) {
+      finalOutputPath = outputPath;
+    } else if (outputFilename) {
+      // Use the custom filename template from frontend
+      finalOutputPath = path.join(downloadsDir, outputFilename);
+    } else {
+      // Fallback to default naming
+      finalOutputPath = path.join(downloadsDir, `${title.replace(/[^a-zA-Z0-9]/g, "_")}.%(ext)s`);
+    }
 
     // Start download with intelligent format fallback handling
     // First, try to get available formats to build a smarter fallback list

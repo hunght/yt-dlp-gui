@@ -108,32 +108,6 @@ const NotificationApp: React.FC = () => {
     }
   };
 
-  const handleExtendSession = async (minutesToAdd: number) => {
-    try {
-      console.log("Extending session by", minutesToAdd, "minutes");
-      if (window.electronNotification?.extendSession) {
-        const result = await window.electronNotification.extendSession(minutesToAdd);
-        console.log("Session extended successfully", result);
-
-        // Update the session end time in the countdown
-        if (notificationData?.sessionEndTime) {
-          const newEndTime = notificationData.sessionEndTime + minutesToAdd * 60 * 1000;
-          const newTimeLeft = Math.max(0, Math.floor((newEndTime - Date.now()) / 1000));
-          setSessionTimeLeft(newTimeLeft);
-
-          // Update the notification data to reflect the new end time
-          setNotificationData({
-            ...notificationData,
-            sessionEndTime: newEndTime,
-          });
-        }
-      } else {
-        console.error("extendSession function not available");
-      }
-    } catch (error) {
-      console.error("Failed to extend session:", error);
-    }
-  };
   if (!notificationData) {
     console.log("NotificationApp: No notification data, rendering placeholder");
     return null;
@@ -286,103 +260,6 @@ const NotificationApp: React.FC = () => {
             {notificationData?.body || "This is a notification window."}
           </div>
         </div>
-
-        {notificationData?.actions && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              gap: "8px",
-              marginTop: "16px",
-              flex: "0 0 auto",
-              justifyContent: "center",
-            }}
-          >
-            {notificationData.actions.map((action: NotificationAction, index: number) => {
-              // Handle extend session actions specially
-              if (action.label === "+ 5 minutes") {
-                return (
-                  <button
-                    key={index}
-                    onClick={() => handleExtendSession(5)}
-                    style={{
-                      padding: "10px 16px",
-                      background: "#28a745",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      transition: "all 0.2s",
-                      minWidth: "120px",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background = "#218838";
-                      e.currentTarget.style.transform = "translateY(-1px)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background = "#28a745";
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }}
-                  >
-                    {action.label}
-                  </button>
-                );
-              } else if (action.label === "+ 25 minutes") {
-                return (
-                  <button
-                    key={index}
-                    onClick={() => handleExtendSession(25)}
-                    style={{
-                      padding: "10px 16px",
-                      background: "#007bff",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      transition: "all 0.2s",
-                      minWidth: "120px",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background = "#0056b3";
-                      e.currentTarget.style.transform = "translateY(-1px)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background = "#007bff";
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }}
-                  >
-                    {action.label}
-                  </button>
-                );
-              } else {
-                // Handle other actions normally
-                return (
-                  <button
-                    key={index}
-                    onClick={() => handleAction(action.action)}
-                    style={{
-                      padding: "10px 16px",
-                      background: "#6c757d",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    {action.label}
-                  </button>
-                );
-              }
-            })}
-          </div>
-        )}
 
         {/* Show dismiss button if no actions are available */}
         {!notificationData?.actions && (

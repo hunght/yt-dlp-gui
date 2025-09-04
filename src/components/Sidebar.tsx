@@ -18,15 +18,15 @@ export default function Sidebar() {
               </Button>
             )}
           </Link>
-          <Link to="/projects">
+          <Link to="/videos">
             {({ isActive }) => (
               <Button variant={isActive ? "secondary" : "ghost"} className="w-full justify-start">
                 <FolderKanban className="mr-2 h-4 w-4" />
-                Projects
+                Videos
               </Button>
             )}
           </Link>
-          <Link to="/settings">
+          <Link to="/">
             {({ isActive }) => (
               <Button variant={isActive ? "secondary" : "ghost"} className="w-full justify-start">
                 <Settings className="mr-2 h-4 w-4" />

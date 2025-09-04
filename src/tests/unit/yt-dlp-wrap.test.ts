@@ -137,7 +137,7 @@ describe("yt-dlp-wrap Integration Tests", () => {
           expect(true).toBe(true);
           return;
         } catch (error) {
-          console.log(`❌ Format "${formatOption}" failed:`, error.message);
+          console.log(`❌ Format "${formatOption}" failed:`, error);
         }
       }
 

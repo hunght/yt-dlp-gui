@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { createTestDatabase, seedTestDatabase, type TestDatabase } from "./test-db-setup";
 import {
-  createTestCaller,
+  createDownloadTestCaller,
   createMockVideoInfo,
   createMockDownload,
   expectDownloadExists,
@@ -27,7 +27,7 @@ describe("Download Router", () => {
 
   describe("getDownloads", () => {
     it("should return paginated downloads with default parameters", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.getDownloads({});
 
@@ -43,7 +43,7 @@ describe("Download Router", () => {
     });
 
     it("should return downloads with custom pagination", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.getDownloads({
         page: 1,
@@ -60,7 +60,7 @@ describe("Download Router", () => {
     });
 
     it("should filter downloads by status", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.getDownloads({
         status: "completed",
@@ -72,7 +72,7 @@ describe("Download Router", () => {
     });
 
     it("should sort downloads by different fields", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       // Test sorting by title ascending
       const resultAsc = await caller.getDownloads({
@@ -99,7 +99,7 @@ describe("Download Router", () => {
       // Clear the database
       await testDb.db.delete(downloads);
 
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.getDownloads({});
 
@@ -111,7 +111,7 @@ describe("Download Router", () => {
 
   describe("getDownloadById", () => {
     it("should return download by ID", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.getDownloadById({ id: "test-download-1" });
 
@@ -122,7 +122,7 @@ describe("Download Router", () => {
     });
 
     it("should return null for non-existent download", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.getDownloadById({ id: "non-existent" });
 
@@ -134,7 +134,7 @@ describe("Download Router", () => {
   /*
   describe("startDownload", () => {
     it("should create a new download with video info", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
       const videoInfo = createMockVideoInfo({
         videoId: "new-test-video",
         title: "New Test Video",
@@ -161,7 +161,7 @@ describe("Download Router", () => {
     });
 
     it("should create a new download without video info", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.startDownload({
         url: "https://www.youtube.com/watch?v=no-video-info",
@@ -182,7 +182,7 @@ describe("Download Router", () => {
     });
 
     it("should validate URL format", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       await expect(
         caller.download.startDownload({
@@ -198,7 +198,7 @@ describe("Download Router", () => {
   /*
   describe("cancelDownload", () => {
     it("should cancel an existing download", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.cancelDownload({ id: "test-download-3" });
 
@@ -211,7 +211,7 @@ describe("Download Router", () => {
     });
 
     it("should handle cancelling non-existent download", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.cancelDownload({ id: "non-existent" });
 
@@ -224,7 +224,7 @@ describe("Download Router", () => {
   /*
   describe("deleteDownload", () => {
     it("should delete an existing download", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.deleteDownload({ id: "test-download-1" });
 
@@ -235,7 +235,7 @@ describe("Download Router", () => {
     });
 
     it("should handle deleting non-existent download", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.deleteDownload({ id: "non-existent" });
 
@@ -248,7 +248,7 @@ describe("Download Router", () => {
   /*
   describe("retryDownload", () => {
     it("should retry a failed download", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.retryDownload({ id: "test-download-2" });
 
@@ -266,7 +266,7 @@ describe("Download Router", () => {
     });
 
     it("should not retry a non-failed download", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       await expect(
         caller.download.retryDownload({ id: "test-download-1" })
@@ -280,7 +280,7 @@ describe("Download Router", () => {
         .set({ isRetryable: false })
         .where(eq(downloads.id, "test-download-2"));
 
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       await expect(
         caller.download.retryDownload({ id: "test-download-2" })
@@ -288,7 +288,7 @@ describe("Download Router", () => {
     });
 
     it("should handle retrying non-existent download", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       await expect(
         caller.download.retryDownload({ id: "non-existent" })
@@ -301,7 +301,7 @@ describe("Download Router", () => {
   /*
   describe("getDownloadDetails", () => {
     it("should return download details with video info", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.getDownloadDetails({ id: "test-download-1" });
 
@@ -314,7 +314,7 @@ describe("Download Router", () => {
     });
 
     it("should return download details without video info", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.getDownloadDetails({ id: "test-download-2" });
 
@@ -325,7 +325,7 @@ describe("Download Router", () => {
     });
 
     it("should handle non-existent download", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       await expect(
         caller.download.getDownloadDetails({ id: "non-existent" })
@@ -339,7 +339,7 @@ describe("Download Router", () => {
   /*
   describe("getDownloadStats", () => {
     it("should return correct download statistics", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.getDownloadStats();
 
@@ -355,7 +355,7 @@ describe("Download Router", () => {
       // Clear the database
       await testDb.db.delete(downloads);
 
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.getDownloadStats();
 
@@ -373,7 +373,7 @@ describe("Download Router", () => {
   /*
   describe("getVideoInfo", () => {
     it("should handle invalid URL", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.getVideoInfo({
         url: "invalid-url",
@@ -384,7 +384,7 @@ describe("Download Router", () => {
     });
 
     it("should handle network errors gracefully", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.getVideoInfo({
         url: "https://www.youtube.com/watch?v=non-existent-video",
@@ -397,7 +397,7 @@ describe("Download Router", () => {
 
   describe("checkVideoAccessibility", () => {
     it("should handle invalid URL", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.checkVideoAccessibility({
         url: "invalid-url",
@@ -409,7 +409,7 @@ describe("Download Router", () => {
     });
 
     it("should handle network errors gracefully", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.checkVideoAccessibility({
         url: "https://www.youtube.com/watch?v=non-existent-video",
@@ -423,7 +423,7 @@ describe("Download Router", () => {
 
   describe("getAvailableFormats", () => {
     it("should handle invalid URL", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.getAvailableFormats({
         url: "invalid-url",
@@ -434,7 +434,7 @@ describe("Download Router", () => {
     });
 
     it("should handle network errors gracefully", async () => {
-      const caller = createTestCaller(testDb);
+      const caller = createDownloadTestCaller(testDb);
 
       const result = await caller.download.getAvailableFormats({
         url: "https://www.youtube.com/watch?v=non-existent-video",

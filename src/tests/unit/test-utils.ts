@@ -8,15 +8,16 @@ import {
 } from "./test-db-setup";
 import { downloadRouter } from "../../api/routers/download";
 import { youtubeRouter } from "../../api/routers/youtube";
+import { t } from "../../api/trpc";
 import { eq } from "drizzle-orm";
 import { downloads, youtubeVideos } from "../../api/db/schema";
 
 /**
  * Test helper to create a tRPC caller with test database for download router
  */
-export function createTestCaller(testDb: TestDatabase) {
+export function createDownloadTestCaller(testDb: TestDatabase) {
   const ctx = createTestContext(testDb.db);
-  return downloadRouter.createCaller(ctx);
+  return t.createCallerFactory(downloadRouter)(ctx);
 }
 
 /**
@@ -24,7 +25,7 @@ export function createTestCaller(testDb: TestDatabase) {
  */
 export function createYouTubeTestCaller(testDb: TestDatabase) {
   const ctx = createTestContext(testDb.db);
-  return youtubeRouter.createCaller(ctx);
+  return t.createCallerFactory(youtubeRouter)(ctx);
 }
 
 /**

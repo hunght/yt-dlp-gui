@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { createTestDatabase, seedTestDatabase, type TestDatabase } from "./test-db-setup";
 import {
-  createTestCaller,
+  createDownloadTestCaller,
   createYouTubeTestCaller,
   createMockVideoInfo,
   createMockDownload,
@@ -33,7 +33,7 @@ describe("Example tRPC Procedure Tests", () => {
    */
   it("getDownloadById returns download", async () => {
     // Create a test caller with the test database context
-    const caller = createTestCaller(testDb);
+    const caller = createDownloadTestCaller(testDb);
 
     // Call the tRPC procedure
     const result = await caller.getDownloadById({ id: "test-download-1" });
@@ -53,7 +53,7 @@ describe("Example tRPC Procedure Tests", () => {
    * Example test for a query procedure that returns null (similar to the user's "throws if not found" example)
    */
   it("getDownloadById returns null if download not found", async () => {
-    const caller = createTestCaller(testDb);
+    const caller = createDownloadTestCaller(testDb);
 
     const result = await caller.getDownloadById({ id: "non-existent-id" });
 
@@ -116,7 +116,7 @@ describe("Example tRPC Procedure Tests", () => {
    * Example test for a query procedure with pagination
    */
   it("getDownloads returns paginated results", async () => {
-    const caller = createTestCaller(testDb);
+    const caller = createDownloadTestCaller(testDb);
 
     const result = await caller.getDownloads({
       page: 1,
@@ -138,7 +138,7 @@ describe("Example tRPC Procedure Tests", () => {
    * Example test for a query procedure with filtering
    */
   it("getDownloads filters by status", async () => {
-    const caller = createTestCaller(testDb);
+    const caller = createDownloadTestCaller(testDb);
 
     const result = await caller.getDownloads({
       status: "completed",

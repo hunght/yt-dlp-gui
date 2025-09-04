@@ -7,9 +7,10 @@
   "scripts": {
     "rebuild": "./node_modules/.bin/electron-rebuild; npm rebuild",
     "clear": "rm -rf .vite dist out node_modules",
+    "restart": "./scripts/restart.sh --start",
     "type-check": "tsc --noEmit",
     "dev": "electron-forge start",
-    "start": "electron-forge start",
+    "start": "npm run restart",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "win-make": "npm run clean:out && npm run debug-make",

@@ -26,3 +26,32 @@ export const youtubeVideos = sqliteTable(
     unique().on(table.videoId), // one entry per video
   ]
 );
+
+export const downloads = sqliteTable(
+  "downloads",
+  {
+    id: text("id").primaryKey(),
+    url: text("url").notNull(),
+    title: text("title"),
+    status: text("status", { enum: ["pending", "downloading", "completed", "failed", "cancelled"] })
+      .notNull()
+      .default("pending"),
+    progress: integer("progress").default(0), // 0-100
+    format: text("format"), // video format (mp4, webm, etc.)
+    quality: text("quality"), // video quality (720p, 1080p, etc.)
+    filePath: text("file_path"), // local file path after download
+    fileSize: integer("file_size"), // file size in bytes
+    errorMessage: text("error_message"),
+    errorType: text("error_type"), // 'restricted' | 'network' | 'format' | 'unknown'
+    isRetryable: integer("is_retryable", { mode: "boolean" }).default(true), // whether the download can be retried
+    metadata: text("metadata"), // JSON string of video metadata
+
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at"),
+    completedAt: integer("completed_at"),
+  },
+  (table) => [
+    index("downloads_status_idx").on(table.status),
+    index("downloads_created_at_idx").on(table.createdAt),
+  ]
+);

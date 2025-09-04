@@ -3,6 +3,7 @@ import BaseLayout from "@/layouts/BaseLayout";
 import { Outlet, createRootRoute, useMatches } from "@tanstack/react-router";
 import { ConfirmationDialogProvider } from "@/components/providers/ConfirmationDialog";
 import { analytics } from "@/helpers/analytics";
+import { Toaster } from "sonner";
 
 export const RootRoute = createRootRoute({
   component: Root,
@@ -45,6 +46,7 @@ function Root() {
           <Outlet />
         </BaseLayout>
       )}
+      <Toaster />
     </ConfirmationDialogProvider>
   );
 }

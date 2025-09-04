@@ -2,6 +2,7 @@ import { createRoute } from "@tanstack/react-router";
 import { RootRoute } from "./__root";
 import SettingsPage from "@/pages/settings-page/SettingsPage";
 import YouTubeVideosPage from "@/pages/YouTubeVideosPage";
+import DownloadPage from "@/pages/DownloadPage";
 
 export const SettingsRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -15,4 +16,10 @@ export const YouTubeVideosRoute = createRoute({
   component: YouTubeVideosPage,
 });
 
-export const rootTree = RootRoute.addChildren([SettingsRoute, YouTubeVideosRoute]);
+export const DownloadRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/download",
+  component: DownloadPage,
+});
+
+export const rootTree = RootRoute.addChildren([SettingsRoute, YouTubeVideosRoute, DownloadRoute]);

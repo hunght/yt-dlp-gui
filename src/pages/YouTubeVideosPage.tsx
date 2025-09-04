@@ -31,6 +31,12 @@ interface Video {
   updatedAt: number | null;
 }
 
+interface Channel {
+  channelId: string | null;
+  channelTitle: string | null;
+  videoCount: number;
+}
+
 const YouTubeVideosPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,9 +85,13 @@ const YouTubeVideosPage: React.FC = () => {
   });
 
   // Fetch channels for filtering
-  const { data: channels } = useQuery({
+  const { data: channelsData } = useQuery({
     queryKey: ["channels"],
-    queryFn: async () => await trpcClient.youtube.getChannels.query(),
+    queryFn: async () =>
+      await trpcClient.youtube.getChannels.query({
+        page: 1,
+        limit: 100, // Get all channels for filtering
+      }),
   });
 
   // Handle search
@@ -218,7 +228,7 @@ const YouTubeVideosPage: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All channels</SelectItem>
-                {channels?.map((channel) => (
+                {channelsData?.channels?.map((channel: Channel) => (
                   <SelectItem key={channel.channelId} value={channel.channelId || "unknown"}>
                     {channel.channelTitle || "Unknown Channel"} ({channel.videoCount})
                   </SelectItem>

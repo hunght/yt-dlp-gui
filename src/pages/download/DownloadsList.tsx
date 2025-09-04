@@ -5,22 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Download, Play, Pause, Trash2, ExternalLink, FileVideo, Clock } from "lucide-react";
 import { formatBytes } from "../../helpers/format-utils";
-
-interface Download {
-  id: string;
-  title?: string | null;
-  url: string;
-  status: string;
-  progress?: number | null;
-  format?: string | null;
-  fileSize?: number | null;
-  filePath?: string | null;
-  createdAt: string | number;
-  errorMessage?: string | null;
-}
+import { DownloadWithVideo } from "@/api/db/schema";
 
 interface DownloadsListProps {
-  downloads: Download[] | undefined;
+  downloads: DownloadWithVideo[] | undefined;
   isLoading: boolean;
   onCancelDownload: (id: string) => void;
   onDeleteDownload: (id: string) => void;
@@ -115,80 +103,83 @@ export default function DownloadsList({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {downloads.map((download) => (
-            <div key={download.id} className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-start justify-between">
-                <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-sm font-medium">
-                    {download.title || "Unknown Title"}
-                  </h3>
-                  <p className="truncate text-xs text-muted-foreground">{download.url}</p>
-                </div>
-                <div className="ml-4 flex items-center gap-2">
-                  <Badge className={getStatusColor(download.status)}>
-                    <div className="flex items-center gap-1">
-                      {getStatusIcon(download.status)}
-                      {download.status}
-                    </div>
-                  </Badge>
-                  {download.status === "downloading" && (
+          {downloads.map((downloadItem) => {
+            const download = downloadItem.downloads;
+            return (
+              <div key={download.id} className="space-y-3 rounded-lg border p-4">
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-medium">
+                      {downloadItem.video?.title || "Unknown Title"}
+                    </h3>
+                    <p className="truncate text-xs text-muted-foreground">{download.url}</p>
+                  </div>
+                  <div className="ml-4 flex items-center gap-2">
+                    <Badge className={getStatusColor(download.status)}>
+                      <div className="flex items-center gap-1">
+                        {getStatusIcon(download.status)}
+                        {download.status}
+                      </div>
+                    </Badge>
+                    {download.status === "downloading" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onCancelDownload(download.id)}
+                        disabled={isCancelling}
+                      >
+                        <Pause className="h-3 w-3" />
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => onCancelDownload(download.id)}
-                      disabled={isCancelling}
+                      onClick={() => onDeleteDownload(download.id)}
+                      disabled={isDeleting}
                     >
-                      <Pause className="h-3 w-3" />
+                      <Trash2 className="h-3 w-3" />
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onDeleteDownload(download.id)}
-                    disabled={isDeleting}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-
-              {download.status === "downloading" && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Progress</span>
-                    <span>{download.progress}%</span>
                   </div>
-                  <Progress value={download.progress} className="h-2" />
                 </div>
-              )}
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <div className="flex items-center gap-4">
-                  {download.format && <span>Format: {download.format}</span>}
-                  {download.fileSize && <span>Size: {formatBytes(download.fileSize)}</span>}
+                {download.status === "downloading" && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Progress</span>
+                      <span>{download.progress}%</span>
+                    </div>
+                    <Progress value={download.progress} className="h-2" />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center gap-4">
+                    {download.format && <span>Format: {download.format}</span>}
+                    {download.fileSize && <span>Size: {formatBytes(download.fileSize)}</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {download.filePath && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onOpenFile(download.filePath!)}
+                        disabled={isOpening}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    )}
+                    <span>{new Date(download.createdAt).toLocaleDateString()}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {download.filePath && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onOpenFile(download.filePath!)}
-                      disabled={isOpening}
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  )}
-                  <span>{new Date(download.createdAt).toLocaleDateString()}</span>
-                </div>
+
+                {download.errorMessage && (
+                  <div className="rounded bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20">
+                    Error: {download.errorMessage}
+                  </div>
+                )}
               </div>
-
-              {download.errorMessage && (
-                <div className="rounded bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20">
-                  Error: {download.errorMessage}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Tips Section */}

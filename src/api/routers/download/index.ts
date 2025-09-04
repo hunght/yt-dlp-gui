@@ -7,14 +7,13 @@ import {
 } from "./service";
 import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
-import { eq, desc, asc, and, or, sql } from "drizzle-orm";
+import { eq, desc, asc, and, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import {
   downloads,
   youtubeVideos,
   type Download,
   type DownloadWithVideo,
-  type VideoInfo,
-  type DownloadInfo,
   type DownloadStatus,
   type ErrorType,
 } from "@/api/db/schema";
@@ -26,6 +25,7 @@ import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs";
 import { readFileSync } from "fs";
+import { VideoInfo } from "@/api/types";
 
 export const downloadRouter = t.router({
   // Get all downloads with pagination and filtering
@@ -44,7 +44,7 @@ export const downloadRouter = t.router({
         input,
         ctx,
       }): Promise<{
-        downloads: Download[];
+        downloads: DownloadWithVideo[];
         pagination: {
           page: number;
           limit: number;
@@ -92,17 +92,28 @@ export const downloadRouter = t.router({
 
           const totalCount = countResult[0]?.count || 0;
 
-          // Get downloads
+          // Get downloads with video information using leftJoin (following Drizzle docs pattern)
           const downloadsList = await ctx
             .db!.select()
             .from(downloads)
+            .leftJoin(youtubeVideos, eq(downloads.videoId, youtubeVideos.videoId))
             .where(whereClause)
             .orderBy(orderByClause)
             .limit(limit)
             .offset(offset);
 
+          // Transform to match DownloadInfo type - add formatted duration when video exists
+          const downloadsWithVideoInfo = downloadsList.map((row) => ({
+            ...row,
+            video: row.youtube_videos
+              ? {
+                  ...row.youtube_videos,
+                }
+              : null,
+          }));
+
           return {
-            downloads: downloadsList,
+            downloads: downloadsWithVideoInfo,
             pagination: {
               page,
               limit,
@@ -122,15 +133,18 @@ export const downloadRouter = t.router({
   // Get a single download by ID
   getDownloadById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input, ctx }): Promise<Download | null> => {
+    .query(async ({ input, ctx }): Promise<DownloadWithVideo | null> => {
       try {
-        const download = await ctx
+        const result = await ctx
           .db!.select()
           .from(downloads)
+          .leftJoin(alias(youtubeVideos, "video"), eq(downloads.videoId, youtubeVideos.videoId))
           .where(eq(downloads.id, input.id))
-          .limit(1);
+          .get();
 
-        return download[0] || null;
+        if (!result) return null;
+
+        return result;
       } catch (error) {
         logger.error("Failed to fetch download by ID:", error);
         throw error;
@@ -619,65 +633,23 @@ export const downloadRouter = t.router({
   // Get download details with thumbnail info
   getDownloadDetails: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input, ctx }): Promise<DownloadInfo> => {
+    .query(async ({ input, ctx }): Promise<DownloadWithVideo> => {
       try {
         const { id } = input;
 
-        // Get download record
-        const download = await ctx
+        // Get download record with video info using join
+        const result = await ctx
           .db!.select()
           .from(downloads)
+          .leftJoin(alias(youtubeVideos, "video"), eq(downloads.videoId, youtubeVideos.videoId))
           .where(eq(downloads.id, id))
-          .limit(1);
+          .get();
 
-        if (!download[0]) {
+        if (!result) {
           throw new Error("Download not found");
         }
 
-        // Get video info if available
-        let videoInfo = null;
-        if (download[0].videoId) {
-          try {
-            // Check if we have video info in database
-            const videoRecord = await ctx
-              .db!.select()
-              .from(youtubeVideos)
-              .where(eq(youtubeVideos.videoId, download[0].videoId))
-              .limit(1);
-
-            if (videoRecord[0]) {
-              videoInfo = {
-                id: videoRecord[0].id,
-                videoId: videoRecord[0].videoId,
-                title: videoRecord[0].title,
-                description: videoRecord[0].description,
-                channelId: videoRecord[0].channelId,
-                channelTitle: videoRecord[0].channelTitle,
-                durationSeconds: videoRecord[0].durationSeconds,
-                duration: videoRecord[0].durationSeconds,
-                durationFormatted: formatDuration(videoRecord[0].durationSeconds),
-                viewCount: videoRecord[0].viewCount,
-                likeCount: videoRecord[0].likeCount,
-                thumbnailUrl: videoRecord[0].thumbnailUrl,
-                thumbnailPath: videoRecord[0].thumbnailUrl
-                  ? path.join(process.cwd(), "thumbnails", `${download[0].videoId}.jpg`)
-                  : null,
-                publishedAt: videoRecord[0].publishedAt,
-                tags: videoRecord[0].tags,
-                raw: videoRecord[0].raw,
-                createdAt: videoRecord[0].createdAt,
-                updatedAt: videoRecord[0].updatedAt,
-              };
-            }
-          } catch (error) {
-            logger.warn("Failed to get video info:", error);
-          }
-        }
-
-        return {
-          ...download[0],
-          videoInfo,
-        };
+        return result;
       } catch (error) {
         logger.error("Failed to get download details:", error);
         throw error;

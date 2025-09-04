@@ -82,13 +82,11 @@ export type YoutubeVideoWithDownloads = YoutubeVideo & {
   downloads: Download[];
 };
 
-export type DownloadWithVideo = Download & {
+export type DownloadWithVideo = {
+  downloads: Download;
   video: YoutubeVideo | null;
 };
 
 // Status enums for better type safety
 export type DownloadStatus = "pending" | "downloading" | "completed" | "failed" | "cancelled";
 export type ErrorType = "restricted" | "network" | "format" | "unknown";
-
-// Re-export API types from types.ts
-export type { VideoInfo, DownloadInfo } from "../types";

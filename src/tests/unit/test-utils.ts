@@ -6,11 +6,12 @@ import {
   createTestContext,
   type TestDatabase,
 } from "./test-db-setup";
-import { downloadRouter } from "../../api/routers/download";
+
 import { youtubeRouter } from "../../api/routers/youtube";
 import { t } from "../../api/trpc";
 import { eq } from "drizzle-orm";
 import { downloads, youtubeVideos } from "../../api/db/schema";
+import { downloadRouter } from "@/api/routers/download/index";
 
 /**
  * Test helper to create a tRPC caller with test database for download router

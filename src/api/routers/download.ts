@@ -147,7 +147,7 @@ export const downloadRouter = t.router({
           .optional(), // Video info from frontend
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
         const { url, format, quality, outputPath, outputFilename, videoInfo } = input;
         const downloadId = randomUUID();
@@ -161,7 +161,7 @@ export const downloadRouter = t.router({
         }
 
         // Create download record with video info if available
-        await db.insert(downloads).values({
+        await ctx.db!.insert(downloads).values({
           id: downloadId,
           url,
           title: videoInfo?.title || null,
@@ -174,22 +174,32 @@ export const downloadRouter = t.router({
           updatedAt: timestamp,
         });
 
-        // Start download in background
-        setImmediate(async () => {
-          try {
-            await processDownload(downloadId, url, format, quality, outputPath, outputFilename);
-          } catch (error) {
-            logger.error(`Download ${downloadId} failed:`, error);
-            await db
-              .update(downloads)
-              .set({
-                status: "failed",
-                errorMessage: error instanceof Error ? error.message : "Unknown error",
-                updatedAt: Date.now(),
-              })
-              .where(eq(downloads.id, downloadId));
-          }
-        });
+        // Start download in background (skip in test environment)
+        if (process.env.NODE_ENV !== "test") {
+          setImmediate(async () => {
+            try {
+              await processDownload({
+                downloadId,
+                url,
+                format,
+                quality,
+                outputPath,
+                outputFilename,
+                db: ctx.db!,
+              });
+            } catch (error) {
+              logger.error(`Download ${downloadId} failed:`, error);
+              await ctx
+                .db!.update(downloads)
+                .set({
+                  status: "failed",
+                  errorMessage: error instanceof Error ? error.message : "Unknown error",
+                  updatedAt: Date.now(),
+                })
+                .where(eq(downloads.id, downloadId));
+            }
+          });
+        }
 
         return {
           id: downloadId,
@@ -210,7 +220,7 @@ export const downloadRouter = t.router({
   // Cancel a download
   cancelDownload: publicProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
         const { id } = input;
 
@@ -222,8 +232,8 @@ export const downloadRouter = t.router({
         }
 
         // Update status in database
-        await db
-          .update(downloads)
+        await ctx
+          .db!.update(downloads)
           .set({
             status: "cancelled",
             updatedAt: Date.now(),
@@ -240,19 +250,23 @@ export const downloadRouter = t.router({
   // Delete a download record
   deleteDownload: publicProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
         const { id } = input;
 
         // Get download info to delete file if exists
-        const download = await db.select().from(downloads).where(eq(downloads.id, id)).limit(1);
+        const download = await ctx
+          .db!.select()
+          .from(downloads)
+          .where(eq(downloads.id, id))
+          .limit(1);
 
         if (download[0]?.filePath && fs.existsSync(download[0].filePath)) {
           fs.unlinkSync(download[0].filePath);
         }
 
         // Delete from database
-        await db.delete(downloads).where(eq(downloads.id, id));
+        await ctx.db!.delete(downloads).where(eq(downloads.id, id));
 
         return { success: true };
       } catch (error) {
@@ -444,81 +458,95 @@ export const downloadRouter = t.router({
     }),
 
   // Retry a failed download
-  retryDownload: publicProcedure.input(z.object({ id: z.string() })).mutation(async ({ input }) => {
-    try {
-      const { id } = input;
+  retryDownload: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const { id } = input;
 
-      // Get the failed download
-      const download = await db.select().from(downloads).where(eq(downloads.id, id)).limit(1);
+        // Get the failed download
+        const download = await ctx
+          .db!.select()
+          .from(downloads)
+          .where(eq(downloads.id, id))
+          .limit(1);
 
-      if (!download[0]) {
-        throw new Error("Download not found");
-      }
-
-      if (download[0].status !== "failed") {
-        throw new Error("Can only retry failed downloads");
-      }
-
-      // Check if the download is retryable
-      if (download[0].isRetryable === false) {
-        throw new Error(
-          "This download cannot be retried. The video may be restricted or region-locked."
-        );
-      }
-
-      // Reset download status
-      await db
-        .update(downloads)
-        .set({
-          status: "pending",
-          progress: 0,
-          errorMessage: null,
-          errorType: null,
-          isRetryable: true,
-          updatedAt: Date.now(),
-        })
-        .where(eq(downloads.id, id));
-
-      // Start download in background (video info should already be in database)
-      setImmediate(async () => {
-        try {
-          await processDownload(
-            id,
-            download[0].url,
-            download[0].format || "best",
-            download[0].quality || undefined,
-            undefined,
-            undefined
-          );
-        } catch (error) {
-          logger.error(`Retry download ${id} failed:`, error);
-          await db
-            .update(downloads)
-            .set({
-              status: "failed",
-              errorMessage: error instanceof Error ? error.message : "Unknown error",
-              updatedAt: Date.now(),
-            })
-            .where(eq(downloads.id, id));
+        if (!download[0]) {
+          throw new Error("Download not found");
         }
-      });
 
-      return { success: true, message: "Download retry started" };
-    } catch (error) {
-      logger.error("Failed to retry download:", error);
-      throw error;
-    }
-  }),
+        if (download[0].status !== "failed") {
+          throw new Error("Can only retry failed downloads");
+        }
+
+        // Check if the download is retryable
+        if (download[0].isRetryable === false) {
+          throw new Error(
+            "This download cannot be retried. The video may be restricted or region-locked."
+          );
+        }
+
+        // Reset download status
+        await ctx
+          .db!.update(downloads)
+          .set({
+            status: "pending",
+            progress: 0,
+            errorMessage: null,
+            errorType: null,
+            isRetryable: true,
+            updatedAt: Date.now(),
+          })
+          .where(eq(downloads.id, id));
+
+        // Start download in background (video info should already be in database)
+        // Skip in test environment
+        if (process.env.NODE_ENV !== "test") {
+          setImmediate(async () => {
+            try {
+              await processDownload({
+                downloadId: id,
+                url: download[0].url,
+                format: download[0].format || "best",
+                quality: download[0].quality || undefined,
+                outputPath: undefined,
+                outputFilename: undefined,
+                db: ctx.db!,
+              });
+            } catch (error) {
+              logger.error(`Retry download ${id} failed:`, error);
+              await ctx
+                .db!.update(downloads)
+                .set({
+                  status: "failed",
+                  errorMessage: error instanceof Error ? error.message : "Unknown error",
+                  updatedAt: Date.now(),
+                })
+                .where(eq(downloads.id, id));
+            }
+          });
+        }
+
+        return { success: true, message: "Download retry started" };
+      } catch (error) {
+        logger.error("Failed to retry download:", error);
+        throw error;
+      }
+    }),
 
   // Get download details with thumbnail info
   getDownloadDetails: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
         const { id } = input;
 
         // Get download record
-        const download = await db.select().from(downloads).where(eq(downloads.id, id)).limit(1);
+        const download = await ctx
+          .db!.select()
+          .from(downloads)
+          .where(eq(downloads.id, id))
+          .limit(1);
 
         if (!download[0]) {
           throw new Error("Download not found");
@@ -533,8 +561,8 @@ export const downloadRouter = t.router({
 
             if (videoId) {
               // Check if we have video info in database
-              const videoRecord = await db
-                .select()
+              const videoRecord = await ctx
+                .db!.select()
                 .from(youtubeVideos)
                 .where(eq(youtubeVideos.videoId, videoId))
                 .limit(1);
@@ -568,10 +596,10 @@ export const downloadRouter = t.router({
     }),
 
   // Get download statistics
-  getDownloadStats: publicProcedure.query(async () => {
+  getDownloadStats: publicProcedure.query(async ({ ctx }) => {
     try {
-      const stats = await db
-        .select({
+      const stats = await ctx
+        .db!.select({
           totalDownloads: sql<number>`count(*)`,
           completedDownloads: sql<number>`count(case when status = 'completed' then 1 end)`,
           failedDownloads: sql<number>`count(case when status = 'failed' then 1 end)`,
@@ -599,20 +627,29 @@ export const downloadRouter = t.router({
 });
 
 // Background download processing function
-async function processDownload(
-  downloadId: string,
-  url: string,
-  format: string,
-  quality?: string,
-  outputPath?: string,
-  outputFilename?: string
-) {
+async function processDownload({
+  downloadId,
+  url,
+  format,
+  quality,
+  outputPath,
+  outputFilename,
+  db: database,
+}: {
+  downloadId: string;
+  url: string;
+  format: string;
+  quality?: string;
+  outputPath?: string;
+  outputFilename?: string;
+  db: NonNullable<typeof db>;
+}) {
   const ytDlpWrap = new YTDlpWrap();
   const timestamp = Date.now();
 
   try {
     // Update status to downloading
-    await db
+    await database
       .update(downloads)
       .set({
         status: "downloading",
@@ -635,7 +672,7 @@ async function processDownload(
       metadata = JSON.stringify(videoInfo);
 
       // Update with video info
-      await db
+      await database
         .update(downloads)
         .set({
           title,
@@ -747,7 +784,7 @@ async function processDownload(
       const errorAnalysis = analyzeDownloadError(formatOptions, url);
 
       // Update download record with error analysis
-      await db
+      await database
         .update(downloads)
         .set({
           status: "failed",
@@ -770,7 +807,8 @@ async function processDownload(
       activeDownloads.get(downloadId)!.progress = progressPercent;
 
       // Update progress in database
-      db.update(downloads)
+      database
+        .update(downloads)
         .set({
           progress: progressPercent,
           updatedAt: Date.now(),
@@ -830,7 +868,7 @@ async function processDownload(
       const stats = fs.statSync(filePath);
 
       // Update with completion info
-      await db
+      await database
         .update(downloads)
         .set({
           status: "completed",

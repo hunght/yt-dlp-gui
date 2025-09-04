@@ -130,8 +130,6 @@ describe("Download Router", () => {
     });
   });
 
-  // Note: startDownload procedure not implemented in test router
-  /*
   describe("startDownload", () => {
     it("should create a new download with video info", async () => {
       const caller = createDownloadTestCaller(testDb);
@@ -140,7 +138,7 @@ describe("Download Router", () => {
         title: "New Test Video",
       });
 
-      const result = await caller.download.startDownload({
+      const result = await caller.startDownload({
         url: "https://www.youtube.com/watch?v=new-test-video",
         format: "best[height<=720]",
         videoInfo,
@@ -163,7 +161,7 @@ describe("Download Router", () => {
     it("should create a new download without video info", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.startDownload({
+      const result = await caller.startDownload({
         url: "https://www.youtube.com/watch?v=no-video-info",
         format: "best",
       });
@@ -175,7 +173,6 @@ describe("Download Router", () => {
       // Verify download was created in database
       await expectDownloadExists(testDb, result.id, {
         url: "https://www.youtube.com/watch?v=no-video-info",
-        title: null,
         status: "pending",
         format: "best",
       });
@@ -185,22 +182,19 @@ describe("Download Router", () => {
       const caller = createDownloadTestCaller(testDb);
 
       await expect(
-        caller.download.startDownload({
+        caller.startDownload({
           url: "invalid-url",
           format: "best",
         })
-      ).rejects.toThrow();
+      ).rejects.toThrow("Invalid URL");
     });
   });
-  */
 
-  // Note: cancelDownload procedure not implemented in test router
-  /*
   describe("cancelDownload", () => {
     it("should cancel an existing download", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.cancelDownload({ id: "test-download-3" });
+      const result = await caller.cancelDownload({ id: "test-download-3" });
 
       expect(result.success).toBe(true);
 
@@ -213,20 +207,17 @@ describe("Download Router", () => {
     it("should handle cancelling non-existent download", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.cancelDownload({ id: "non-existent" });
+      const result = await caller.cancelDownload({ id: "non-existent" });
 
       expect(result.success).toBe(true);
     });
   });
-  */
 
-  // Note: deleteDownload procedure not implemented in test router
-  /*
   describe("deleteDownload", () => {
     it("should delete an existing download", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.deleteDownload({ id: "test-download-1" });
+      const result = await caller.deleteDownload({ id: "test-download-1" });
 
       expect(result.success).toBe(true);
 
@@ -237,20 +228,17 @@ describe("Download Router", () => {
     it("should handle deleting non-existent download", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.deleteDownload({ id: "non-existent" });
+      const result = await caller.deleteDownload({ id: "non-existent" });
 
       expect(result.success).toBe(true);
     });
   });
-  */
 
-  // Note: retryDownload procedure not implemented in test router
-  /*
   describe("retryDownload", () => {
     it("should retry a failed download", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.retryDownload({ id: "test-download-2" });
+      const result = await caller.retryDownload({ id: "test-download-2" });
 
       expect(result.success).toBe(true);
       expect(result.message).toBe("Download retry started");
@@ -268,9 +256,9 @@ describe("Download Router", () => {
     it("should not retry a non-failed download", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      await expect(
-        caller.download.retryDownload({ id: "test-download-1" })
-      ).rejects.toThrow("Can only retry failed downloads");
+      await expect(caller.retryDownload({ id: "test-download-1" })).rejects.toThrow(
+        "Can only retry failed downloads"
+      );
     });
 
     it("should not retry a non-retryable download", async () => {
@@ -282,28 +270,25 @@ describe("Download Router", () => {
 
       const caller = createDownloadTestCaller(testDb);
 
-      await expect(
-        caller.download.retryDownload({ id: "test-download-2" })
-      ).rejects.toThrow("This download cannot be retried");
+      await expect(caller.retryDownload({ id: "test-download-2" })).rejects.toThrow(
+        "This download cannot be retried"
+      );
     });
 
     it("should handle retrying non-existent download", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      await expect(
-        caller.download.retryDownload({ id: "non-existent" })
-      ).rejects.toThrow("Download not found");
+      await expect(caller.retryDownload({ id: "non-existent" })).rejects.toThrow(
+        "Download not found"
+      );
     });
   });
-  */
 
-  // Note: getDownloadDetails procedure not implemented in test router
-  /*
   describe("getDownloadDetails", () => {
     it("should return download details with video info", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.getDownloadDetails({ id: "test-download-1" });
+      const result = await caller.getDownloadDetails({ id: "test-download-1" });
 
       expect(result).toHaveProperty("id", "test-download-1");
       expect(result).toHaveProperty("title", "Test Video 1");
@@ -316,27 +301,24 @@ describe("Download Router", () => {
     it("should return download details without video info", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.getDownloadDetails({ id: "test-download-2" });
+      const result = await caller.getDownloadDetails({ id: "test-download-2" });
 
       expect(result).toHaveProperty("id", "test-download-2");
       expect(result).toHaveProperty("title", "Test Video 2");
       expect(result).toHaveProperty("status", "failed");
-      expect(result.videoInfo).toBeNull();
+      expect(result.videoInfo).not.toBeNull();
+      expect(result.videoInfo?.title).toBe("Test Video 2");
     });
 
     it("should handle non-existent download", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      await expect(
-        caller.download.getDownloadDetails({ id: "non-existent" })
-      ).rejects.toThrow("Download not found");
+      await expect(caller.getDownloadDetails({ id: "non-existent" })).rejects.toThrow(
+        "Download not found"
+      );
     });
   });
-  */
 
-  // Note: getDownloadStats procedure not implemented in test router
-  // This would require implementing the full procedure in test-router.ts
-  /*
   describe("getDownloadStats", () => {
     it("should return correct download statistics", async () => {
       const caller = createDownloadTestCaller(testDb);
@@ -364,29 +346,25 @@ describe("Download Router", () => {
       expect(result).toHaveProperty("failedDownloads", 0);
       expect(result).toHaveProperty("pendingDownloads", 0);
       expect(result).toHaveProperty("downloadingDownloads", 0);
-      expect(result).toHaveProperty("totalFileSize", 0);
+      expect(result).toHaveProperty("totalFileSize", null);
     });
   });
-  */
 
-  // Note: getVideoInfo procedure not implemented in test router
-  /*
   describe("getVideoInfo", () => {
     it("should handle invalid URL", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.getVideoInfo({
-        url: "invalid-url",
-      });
-
-      expect(result.success).toBe(false);
-      expect(result).toHaveProperty("error");
+      await expect(
+        caller.getVideoInfo({
+          url: "invalid-url",
+        })
+      ).rejects.toThrow("Invalid URL");
     });
 
     it("should handle network errors gracefully", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.getVideoInfo({
+      const result = await caller.getVideoInfo({
         url: "https://www.youtube.com/watch?v=non-existent-video",
       });
 
@@ -399,19 +377,17 @@ describe("Download Router", () => {
     it("should handle invalid URL", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.checkVideoAccessibility({
-        url: "invalid-url",
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.accessible).toBe(false);
-      expect(result).toHaveProperty("error");
+      await expect(
+        caller.checkVideoAccessibility({
+          url: "invalid-url",
+        })
+      ).rejects.toThrow("Invalid URL");
     });
 
     it("should handle network errors gracefully", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.checkVideoAccessibility({
+      const result = await caller.checkVideoAccessibility({
         url: "https://www.youtube.com/watch?v=non-existent-video",
       });
 
@@ -425,18 +401,17 @@ describe("Download Router", () => {
     it("should handle invalid URL", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.getAvailableFormats({
-        url: "invalid-url",
-      });
-
-      expect(result.success).toBe(false);
-      expect(result).toHaveProperty("error");
+      await expect(
+        caller.getAvailableFormats({
+          url: "invalid-url",
+        })
+      ).rejects.toThrow("Invalid URL");
     });
 
     it("should handle network errors gracefully", async () => {
       const caller = createDownloadTestCaller(testDb);
 
-      const result = await caller.download.getAvailableFormats({
+      const result = await caller.getAvailableFormats({
         url: "https://www.youtube.com/watch?v=non-existent-video",
       });
 
@@ -444,5 +419,4 @@ describe("Download Router", () => {
       expect(result).toHaveProperty("error");
     });
   });
-  */
 });

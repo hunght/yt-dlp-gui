@@ -108,20 +108,22 @@ export const youtubeRouter = t.router({
     }),
 
   // Get a single video by ID
-  getVideoById: publicProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
-    try {
-      const video = await db
-        .select()
-        .from(youtubeVideos)
-        .where(eq(youtubeVideos.id, input.id))
-        .limit(1);
+  getVideoById: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        const video = await ctx
+          .db!.select()
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.id, input.id))
+          .limit(1);
 
-      return video[0] || null;
-    } catch (error) {
-      logger.error("Failed to fetch video by ID:", error);
-      throw error;
-    }
-  }),
+        return video[0] || null;
+      } catch (error) {
+        logger.error("Failed to fetch video by ID:", error);
+        throw error;
+      }
+    }),
 
   // Get videos by channel ID
   getVideosByChannel: publicProcedure
@@ -131,10 +133,10 @@ export const youtubeRouter = t.router({
         limit: z.number().min(1).max(100).default(20),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
-        const videos = await db
-          .select()
+        const videos = await ctx
+          .db!.select()
           .from(youtubeVideos)
           .where(eq(youtubeVideos.channelId, input.channelId))
           .orderBy(desc(youtubeVideos.publishedAt))
@@ -148,14 +150,14 @@ export const youtubeRouter = t.router({
     }),
 
   // Get video statistics
-  getVideoStats: publicProcedure.query(async () => {
+  getVideoStats: publicProcedure.query(async ({ ctx }) => {
     try {
-      const stats = await db
-        .select({
+      const stats = await ctx
+        .db!.select({
           totalVideos: sql<number>`count(*)`,
-          totalViews: sql<number>`sum(${youtubeVideos.viewCount})`,
-          totalLikes: sql<number>`sum(${youtubeVideos.likeCount})`,
-          totalDuration: sql<number>`sum(${youtubeVideos.durationSeconds})`,
+          totalViews: sql<number>`coalesce(sum(${youtubeVideos.viewCount}), 0)`,
+          totalLikes: sql<number>`coalesce(sum(${youtubeVideos.likeCount}), 0)`,
+          totalDuration: sql<number>`coalesce(sum(${youtubeVideos.durationSeconds}), 0)`,
           uniqueChannels: sql<number>`count(distinct ${youtubeVideos.channelId})`,
         })
         .from(youtubeVideos);

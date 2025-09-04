@@ -17,11 +17,14 @@ const config: Config = {
   setupFilesAfterEnv: ["<rootDir>/src/tests/unit/setup.ts"],
   roots: ["<rootDir>/src"],
 
-  testEnvironment: "jsdom",
+  testEnvironment: "node",
 
   transform: {
     "^.+\\.(t|j)sx?$": "@swc/jest",
   },
+
+  // Set NODE_ENV for tests
+  setupFiles: ["<rootDir>/src/tests/unit/test-env.ts"],
 };
 
 export default config;

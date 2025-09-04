@@ -59,9 +59,6 @@ describe("YouTube Router", () => {
     it("should filter videos by search term", async () => {
       const caller = createYouTubeTestCaller(testDb);
 
-      // Note: search functionality not implemented in test router
-      // This test is commented out until search is implemented
-      /*
       const result = await caller.getVideos({
         search: "Test Video 1",
       });
@@ -69,11 +66,6 @@ describe("YouTube Router", () => {
       expect(result.videos).toHaveLength(1);
       expect(result.videos[0].title).toBe("Test Video 1");
       expect(result.pagination.totalCount).toBe(1);
-      */
-
-      // For now, just test that getVideos works without search
-      const result = await caller.getVideos({});
-      expect(result.videos).toHaveLength(2);
     });
 
     it("should filter videos by channel ID", async () => {
@@ -91,9 +83,6 @@ describe("YouTube Router", () => {
     it("should filter videos by both search and channel", async () => {
       const caller = createYouTubeTestCaller(testDb);
 
-      // Note: search functionality not implemented in test router
-      // This test is commented out until search is implemented
-      /*
       const result = await caller.getVideos({
         search: "Test Video 1",
         channelId: "test-channel-1",
@@ -103,14 +92,6 @@ describe("YouTube Router", () => {
       expect(result.videos[0].title).toBe("Test Video 1");
       expect(result.videos[0].channelId).toBe("test-channel-1");
       expect(result.pagination.totalCount).toBe(1);
-      */
-
-      // For now, just test channel filtering
-      const result = await caller.getVideos({
-        channelId: "test-channel-1",
-      });
-      expect(result.videos).toHaveLength(1);
-      expect(result.videos[0].channelId).toBe("test-channel-1");
     });
 
     it("should sort videos by different fields", async () => {
@@ -150,9 +131,6 @@ describe("YouTube Router", () => {
     it("should sort videos by like count", async () => {
       const caller = createYouTubeTestCaller(testDb);
 
-      // Note: likeCount sorting not implemented in test router
-      // This test is commented out until likeCount sorting is implemented
-      /*
       const result = await caller.getVideos({
         sortBy: "likeCount",
         sortOrder: "desc",
@@ -160,38 +138,17 @@ describe("YouTube Router", () => {
 
       expect(result.videos[0].likeCount).toBe(50000);
       expect(result.videos[1].likeCount).toBe(25000);
-      */
-
-      // For now, just test that sorting works with available options
-      const result = await caller.getVideos({
-        sortBy: "viewCount",
-        sortOrder: "desc",
-      });
-      expect(result.videos[0].viewCount).toBe(1000000);
-      expect(result.videos[1].viewCount).toBe(500000);
     });
 
     it("should sort videos by published date", async () => {
       const caller = createYouTubeTestCaller(testDb);
 
-      // Note: publishedAt sorting not implemented in test router
-      // This test is commented out until publishedAt sorting is implemented
-      /*
       const result = await caller.getVideos({
         sortBy: "publishedAt",
         sortOrder: "desc",
       });
 
       // First video should be more recent (1 day ago vs 2 days ago)
-      expect(result.videos[0].title).toBe("Test Video 1");
-      expect(result.videos[1].title).toBe("Test Video 2");
-      */
-
-      // For now, just test that sorting works with available options
-      const result = await caller.getVideos({
-        sortBy: "title",
-        sortOrder: "asc",
-      });
       expect(result.videos[0].title).toBe("Test Video 1");
       expect(result.videos[1].title).toBe("Test Video 2");
     });
@@ -212,26 +169,16 @@ describe("YouTube Router", () => {
     it("should handle search with no matches", async () => {
       const caller = createYouTubeTestCaller(testDb);
 
-      // Note: search functionality not implemented in test router
-      // This test is commented out until search is implemented
-      /*
       const result = await caller.getVideos({
         search: "non-existent video",
       });
 
       expect(result.videos).toHaveLength(0);
       expect(result.pagination.totalCount).toBe(0);
-      */
-
-      // For now, just test that getVideos works
-      const result = await caller.getVideos({});
-      expect(result.videos).toHaveLength(2);
     });
   });
 
   describe("getVideoById", () => {
-    // Note: getVideoById not implemented in test router
-    /*
     it("should return video by ID", async () => {
       const caller = createYouTubeTestCaller(testDb);
 
@@ -250,12 +197,9 @@ describe("YouTube Router", () => {
 
       expect(result).toBeNull();
     });
-    */
   });
 
   describe("getVideosByChannel", () => {
-    // Note: getVideosByChannel not implemented in test router
-    /*
     it("should return videos for a specific channel", async () => {
       const caller = createYouTubeTestCaller(testDb);
 
@@ -322,16 +266,13 @@ describe("YouTube Router", () => {
       // Should be ordered by publishedAt desc (most recent first)
       expect(result[0].title).toBe("Test Video 1");
     });
-    */
   });
 
   describe("getVideoStats", () => {
-    // Note: getVideoStats not implemented in test router
-    /*
     it("should return correct video statistics", async () => {
       const caller = createYouTubeTestCaller(testDb);
 
-      const result = await caller.youtube.getVideoStats();
+      const result = await caller.getVideoStats();
 
       expect(result).toHaveProperty("totalVideos", 2);
       expect(result).toHaveProperty("totalViews", 1500000); // 1000000 + 500000
@@ -346,7 +287,7 @@ describe("YouTube Router", () => {
 
       const caller = createYouTubeTestCaller(testDb);
 
-      const result = await caller.youtube.getVideoStats();
+      const result = await caller.getVideoStats();
 
       expect(result).toHaveProperty("totalVideos", 0);
       expect(result).toHaveProperty("totalViews", 0);
@@ -370,7 +311,7 @@ describe("YouTube Router", () => {
 
       const caller = createYouTubeTestCaller(testDb);
 
-      const result = await caller.youtube.getVideoStats();
+      const result = await caller.getVideoStats();
 
       expect(result).toHaveProperty("totalVideos", 3);
       expect(result).toHaveProperty("totalViews", 1500000); // Should not include null values
@@ -378,7 +319,6 @@ describe("YouTube Router", () => {
       expect(result).toHaveProperty("totalDuration", 392); // Should not include null values
       expect(result).toHaveProperty("uniqueChannels", 3);
     });
-    */
   });
 
   describe("getChannels", () => {
@@ -469,6 +409,150 @@ describe("YouTube Router", () => {
       expect(nullChannel).toBeDefined();
       expect(nullChannel?.channelTitle).toBeNull();
       expect(nullChannel?.videoCount).toBe(1);
+    });
+
+    it("should handle pagination for channels", async () => {
+      // Add more channels to test pagination
+      await testDb.db.insert(youtubeVideos).values([
+        createMockVideoInfo({
+          id: "test-video-3",
+          videoId: "test-video-3-id",
+          title: "Test Video 3",
+          channelId: "test-channel-3",
+          channelTitle: "Test Channel 3",
+        }),
+        createMockVideoInfo({
+          id: "test-video-4",
+          videoId: "test-video-4-id",
+          title: "Test Video 4",
+          channelId: "test-channel-4",
+          channelTitle: "Test Channel 4",
+        }),
+      ]);
+
+      const caller = createYouTubeTestCaller(testDb);
+
+      // Test first page
+      const result1 = await caller.getChannels({ page: 1, limit: 2 });
+      expect(result1.channels).toHaveLength(2);
+      expect(result1.pagination.page).toBe(1);
+      expect(result1.pagination.limit).toBe(2);
+      expect(result1.pagination.totalCount).toBe(4);
+      expect(result1.pagination.totalPages).toBe(2);
+      expect(result1.pagination.hasNextPage).toBe(true);
+      expect(result1.pagination.hasPrevPage).toBe(false);
+
+      // Test second page
+      const result2 = await caller.getChannels({ page: 2, limit: 2 });
+      expect(result2.channels).toHaveLength(2);
+      expect(result2.pagination.page).toBe(2);
+      expect(result2.pagination.hasNextPage).toBe(false);
+      expect(result2.pagination.hasPrevPage).toBe(true);
+    });
+  });
+
+  describe("Edge cases and error handling", () => {
+    it("should handle invalid pagination parameters gracefully", async () => {
+      const caller = createYouTubeTestCaller(testDb);
+
+      // Test with very large page number
+      const result = await caller.getVideos({ page: 999, limit: 10 });
+      expect(result.videos).toHaveLength(0);
+      expect(result.pagination.page).toBe(999);
+      expect(result.pagination.totalCount).toBe(2);
+    });
+
+    it("should handle search with special characters", async () => {
+      const caller = createYouTubeTestCaller(testDb);
+
+      // Test search with special characters that won't match any seeded data
+      const result = await caller.getVideos({
+        search: "xyz@#$%^&*()",
+      });
+
+      expect(result.videos).toHaveLength(0); // Should not match due to special characters
+    });
+
+    it("should handle case-insensitive search", async () => {
+      const caller = createYouTubeTestCaller(testDb);
+
+      const result = await caller.getVideos({
+        search: "test video 1",
+      });
+
+      expect(result.videos).toHaveLength(1);
+      expect(result.videos[0].title).toBe("Test Video 1");
+    });
+
+    it("should handle search in description", async () => {
+      const caller = createYouTubeTestCaller(testDb);
+
+      const result = await caller.getVideos({
+        search: "test video description",
+      });
+
+      expect(result.videos).toHaveLength(1);
+      expect(result.videos[0].title).toBe("Test Video 1");
+    });
+
+    it("should handle search in channel title", async () => {
+      const caller = createYouTubeTestCaller(testDb);
+
+      const result = await caller.getVideos({
+        search: "Test Channel 1",
+      });
+
+      expect(result.videos).toHaveLength(1);
+      expect(result.videos[0].channelTitle).toBe("Test Channel 1");
+    });
+
+    it("should handle sorting with null values", async () => {
+      // Add a video with null view count
+      await testDb.db.insert(youtubeVideos).values(
+        createMockVideoInfo({
+          id: "test-video-null-views",
+          videoId: "test-video-null-views-id",
+          title: "Test Video with Null Views",
+          viewCount: null,
+        })
+      );
+
+      const caller = createYouTubeTestCaller(testDb);
+
+      const result = await caller.getVideos({
+        sortBy: "viewCount",
+        sortOrder: "desc",
+      });
+
+      // Should handle null values gracefully
+      expect(result.videos).toHaveLength(3);
+      // The video with null view count should be at the end
+      expect(result.videos[2].viewCount).toBeNull();
+    });
+
+    it("should handle default sorting when no sortBy is specified", async () => {
+      const caller = createYouTubeTestCaller(testDb);
+
+      const result = await caller.getVideos({});
+
+      expect(result.videos).toHaveLength(2);
+      // Should be sorted by createdAt desc by default
+      expect(result.videos[0].id).toBe("test-video-1");
+      expect(result.videos[1].id).toBe("test-video-2");
+    });
+
+    it("should handle limit parameter edge cases", async () => {
+      const caller = createYouTubeTestCaller(testDb);
+
+      // Test with limit of 1
+      const result1 = await caller.getVideos({ limit: 1 });
+      expect(result1.videos).toHaveLength(1);
+      expect(result1.pagination.limit).toBe(1);
+
+      // Test with limit of 100 (max allowed)
+      const result2 = await caller.getVideos({ limit: 100 });
+      expect(result2.videos).toHaveLength(2);
+      expect(result2.pagination.limit).toBe(100);
     });
   });
 });

@@ -2,8 +2,8 @@ import { z } from "zod";
 import { publicProcedure, t } from "../trpc";
 import { eq, desc, asc, and, or, sql } from "drizzle-orm";
 import { downloads, youtubeVideos } from "../db/schema";
-import db from "../db";
 import { logger } from "../../helpers/logger";
+import db from "../db";
 const YTDlpWrapModule = require("yt-dlp-wrap");
 const YTDlpWrap = YTDlpWrapModule.default;
 import { randomUUID } from "crypto";
@@ -32,7 +32,7 @@ export const downloadRouter = t.router({
         sortOrder: z.enum(["asc", "desc"]).default("desc"),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
         const { page, limit, status, sortBy, sortOrder } = input;
         const offset = (page - 1) * limit;
@@ -63,16 +63,16 @@ export const downloadRouter = t.router({
         }
 
         // Get total count for pagination
-        const countResult = await db
-          .select({ count: sql<number>`count(*)` })
+        const countResult = await ctx
+          .db!.select({ count: sql<number>`count(*)` })
           .from(downloads)
           .where(whereClause);
 
         const totalCount = countResult[0]?.count || 0;
 
         // Get downloads
-        const downloadsList = await db
-          .select()
+        const downloadsList = await ctx
+          .db!.select()
           .from(downloads)
           .where(whereClause)
           .orderBy(orderByClause)
@@ -97,16 +97,22 @@ export const downloadRouter = t.router({
     }),
 
   // Get a single download by ID
-  getDownloadById: publicProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
-    try {
-      const download = await db.select().from(downloads).where(eq(downloads.id, input.id)).limit(1);
+  getDownloadById: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        const download = await ctx
+          .db!.select()
+          .from(downloads)
+          .where(eq(downloads.id, input.id))
+          .limit(1);
 
-      return download[0] || null;
-    } catch (error) {
-      logger.error("Failed to fetch download by ID:", error);
-      throw error;
-    }
-  }),
+        return download[0] || null;
+      } catch (error) {
+        logger.error("Failed to fetch download by ID:", error);
+        throw error;
+      }
+    }),
 
   // Start a new download
   startDownload: publicProcedure

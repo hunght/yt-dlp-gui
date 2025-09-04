@@ -1,12 +1,17 @@
 import { initTRPC } from "@trpc/server";
 import { logger } from "../helpers/logger";
+import db from "./db";
 
 // Define context type
-export interface Context {}
+export interface Context {
+  db?: typeof db;
+}
 
 // Create context for each request
-export const createContext = async (): Promise<{}> => {
-  return {};
+export const createContext = async (): Promise<Context> => {
+  return {
+    db,
+  };
 };
 
 const t = initTRPC.context<Context>().create();

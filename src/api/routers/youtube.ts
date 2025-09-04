@@ -20,7 +20,7 @@ export const youtubeRouter = t.router({
         sortOrder: z.enum(["asc", "desc"]).default("desc"),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
         const { page, limit, search, channelId, sortBy, sortOrder } = input;
         const offset = (page - 1) * limit;
@@ -74,16 +74,16 @@ export const youtubeRouter = t.router({
         }
 
         // Get total count for pagination
-        const countResult = await db
-          .select({ count: sql<number>`count(*)` })
+        const countResult = await ctx
+          .db!.select({ count: sql<number>`count(*)` })
           .from(youtubeVideos)
           .where(whereClause);
 
         const totalCount = countResult[0]?.count || 0;
 
         // Get videos
-        const videos = await db
-          .select()
+        const videos = await ctx
+          .db!.select()
           .from(youtubeVideos)
           .where(whereClause)
           .orderBy(orderByClause)
@@ -176,22 +176,52 @@ export const youtubeRouter = t.router({
   }),
 
   // Get unique channels
-  getChannels: publicProcedure.query(async () => {
-    try {
-      const channels = await db
-        .select({
-          channelId: youtubeVideos.channelId,
-          channelTitle: youtubeVideos.channelTitle,
-          videoCount: sql<number>`count(*)`,
-        })
-        .from(youtubeVideos)
-        .groupBy(youtubeVideos.channelId, youtubeVideos.channelTitle)
-        .orderBy(desc(sql`count(*)`));
+  getChannels: publicProcedure
+    .input(
+      z.object({
+        page: z.number().min(1).default(1),
+        limit: z.number().min(1).max(100).default(20),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const { page, limit } = input;
+        const offset = (page - 1) * limit;
 
-      return channels;
-    } catch (error) {
-      logger.error("Failed to fetch channels:", error);
-      throw error;
-    }
-  }),
+        // Get total count
+        const countResult = await ctx
+          .db!.select({ count: sql<number>`count(distinct ${youtubeVideos.channelId})` })
+          .from(youtubeVideos);
+
+        const totalCount = countResult[0]?.count || 0;
+
+        // Get channels with pagination
+        const channels = await ctx
+          .db!.select({
+            channelId: youtubeVideos.channelId,
+            channelTitle: youtubeVideos.channelTitle,
+            videoCount: sql<number>`count(*)`,
+          })
+          .from(youtubeVideos)
+          .groupBy(youtubeVideos.channelId, youtubeVideos.channelTitle)
+          .orderBy(desc(sql`count(*)`))
+          .limit(limit)
+          .offset(offset);
+
+        return {
+          channels,
+          pagination: {
+            page,
+            limit,
+            totalCount,
+            totalPages: Math.ceil(totalCount / limit),
+            hasNextPage: page < Math.ceil(totalCount / limit),
+            hasPrevPage: page > 1,
+          },
+        };
+      } catch (error) {
+        logger.error("Failed to fetch channels:", error);
+        throw error;
+      }
+    }),
 });

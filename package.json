@@ -23,6 +23,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:unit": "jest",
+    "test:database": "jest --config jest.database.config.ts",
+    "test:database:watch": "jest --config jest.database.config.ts --watch",
     "test:e2e": "playwright test",
     "test:all": "jest && playwright test",
     "screenshots": "./scripts/screenshots-scripts/generate-screenshots.sh",

@@ -50,7 +50,6 @@ export default function DownloadPage() {
     return outputType === "audio" ? "mp3" : "mp4";
   });
   const [outputFilename, setOutputFilename] = useState("%(title)s.%(ext)s");
-  const [showFormats, setShowFormats] = useState(false);
   const [videoInfo, setVideoInfo] = useState<any>(null);
   const [isLoadingVideoInfo, setIsLoadingVideoInfo] = useState(false);
   const queryClient = useQueryClient();
@@ -101,13 +100,6 @@ export default function DownloadPage() {
   const { data: stats } = useQuery({
     queryKey: ["downloadStats"],
     queryFn: () => trpcClient.download.getDownloadStats.query(),
-  });
-
-  // Get available formats for the current URL
-  const { data: availableFormats, isLoading: formatsLoading } = useQuery({
-    queryKey: ["availableFormats", url],
-    queryFn: () => trpcClient.download.getAvailableFormats.query({ url }),
-    enabled: !!url && showFormats,
   });
 
   // Mutations
@@ -404,50 +396,6 @@ export default function DownloadPage() {
               placeholder="e.g., %(title)s.%(ext)s, MyVideo.%(ext)s"
             />
           </div>
-
-          {/* Available Formats Section */}
-          {url && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Available Formats</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowFormats(!showFormats)}
-                  disabled={!url.trim()}
-                >
-                  {showFormats ? "Hide" : "Show"} Formats
-                </Button>
-              </div>
-
-              {showFormats && (
-                <div className="rounded-md border bg-muted/50 p-3">
-                  {formatsLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-tracksy-blue"></div>
-                      Loading available formats...
-                    </div>
-                  ) : availableFormats?.success ? (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Available formats for this video:</p>
-                      <pre className="max-h-40 overflow-auto text-xs text-muted-foreground">
-                        {"formats" in availableFormats
-                          ? availableFormats.formats
-                          : "No formats available"}
-                      </pre>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground">
-                      {availableFormats && "error" in availableFormats
-                        ? availableFormats.error
-                        : "Failed to load formats"}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Video Info Display */}
           {isLoadingVideoInfo && (

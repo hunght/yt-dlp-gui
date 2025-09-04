@@ -175,7 +175,7 @@ export const downloadRouter = t.router({
             await processDownload({
               downloadId,
               url,
-              format: format || "best",
+              format: format,
               quality,
               outputPath,
               outputFilename,
@@ -498,34 +498,30 @@ export const downloadRouter = t.router({
           })
           .where(eq(downloads.id, id));
 
-        // Start download in background (video info should already be in database)
-        // Skip in test environment
-        if (process.env.NODE_ENV !== "test") {
-          setImmediate(async () => {
-            try {
-              await processDownload({
-                downloadId: id,
-                url: download[0].url,
-                format: download[0].format || "best",
-                quality: download[0].quality || undefined,
-                outputPath: undefined,
-                outputFilename: undefined,
-                outputFormat: undefined, // Not stored in retry, use default
-                db: ctx.db!,
-              });
-            } catch (error) {
-              logger.error(`Retry download ${id} failed:`, error);
-              await ctx
-                .db!.update(downloads)
-                .set({
-                  status: "failed",
-                  errorMessage: error instanceof Error ? error.message : "Unknown error",
-                  updatedAt: Date.now(),
-                })
-                .where(eq(downloads.id, id));
-            }
-          });
-        }
+        setImmediate(async () => {
+          try {
+            await processDownload({
+              downloadId: id,
+              url: download[0].url,
+              format: download[0].format || undefined,
+              quality: download[0].quality || undefined,
+              outputPath: undefined,
+              outputFilename: undefined,
+              outputFormat: undefined, // Not stored in retry, use default
+              db: ctx.db!,
+            });
+          } catch (error) {
+            logger.error(`Retry download ${id} failed:`, error);
+            await ctx
+              .db!.update(downloads)
+              .set({
+                status: "failed",
+                errorMessage: error instanceof Error ? error.message : "Unknown error",
+                updatedAt: Date.now(),
+              })
+              .where(eq(downloads.id, id));
+          }
+        });
 
         return { success: true, message: "Download retry started" };
       } catch (error) {

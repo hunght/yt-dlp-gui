@@ -134,7 +134,7 @@ export async function processDownload({
 }: {
   downloadId: string;
   url: string;
-  format: string;
+  format?: string;
   quality?: string;
   outputPath?: string;
   outputFilename?: string;
@@ -182,107 +182,41 @@ export async function processDownload({
       finalOutputPath = path.join(downloadsDir, `${title.replace(/[^a-zA-Z0-9]/g, "_")}.%(ext)s`);
     }
 
-    // Start download with intelligent format fallback handling
-    // First, try to get available formats to build a smarter fallback list
-    let availableFormats: string[] = [];
-    try {
-      const formatsOutput = await ytDlpWrap.execPromise([url, "--list-formats", "--no-warnings"]);
-      // Extract format IDs from the output
-      const lines = formatsOutput.split("\n");
-      for (const line of lines) {
-        const match = line.match(/^(\d+(?:-\d+)?)\s+/);
-        if (match) {
-          availableFormats.push(match[1]);
-        }
-      }
-      logger.info(
-        `Available formats for ${url}: ${availableFormats.slice(0, 10).join(", ")}${availableFormats.length > 10 ? "..." : ""}`
-      );
-    } catch (error) {
-      logger.warn(`Could not get format list for ${url}, using default fallbacks`);
+    // Use the user's selected format, or use no format (let yt-dlp decide)
+    const selectedFormat = format && format.trim() !== "" ? format.trim() : "";
+
+    if (selectedFormat) {
+      logger.info(`Using format: ${selectedFormat} for download ${downloadId}`);
+    } else {
+      logger.info(`Using default format selection for download ${downloadId}`);
     }
 
-    // Use the user's selected format or default to "best"
-    const formatOptions = [format || "best"];
+    // Start the actual download
+    const downloadArgs = [url];
 
-    let downloadProcess: any;
-    let usedFormat = format || "best";
-    let downloadSuccessful = false;
-
-    // Try each format option until one works
-    for (const formatOption of formatOptions) {
-      try {
-        logger.info(`Trying format: ${formatOption} for download ${downloadId}`);
-
-        // First, test if this format is available by doing a dry run
-        try {
-          await ytDlpWrap.execPromise([
-            url,
-            "-f",
-            formatOption,
-            "--simulate", // Dry run to test format availability
-            "--no-warnings",
-          ]);
-        } catch (formatError) {
-          logger.warn(
-            `Format ${formatOption} not available for download ${downloadId}:`,
-            formatError
-          );
-          continue; // Try next format
-        }
-
-        // If we get here, the format is available, so start the actual download
-        const downloadArgs = [
-          url,
-          "-f",
-          formatOption,
-          "-o",
-          finalOutputPath,
-          "--progress",
-          "--newline",
-          "--no-warnings", // Suppress warnings for cleaner output
-        ];
-
-        // Add merge output format if specified (for mp4/mp3)
-        if (outputFormat && outputFormat !== "default") {
-          downloadArgs.push("--merge-output-format", outputFormat);
-        }
-
-        // Start the download process
-        downloadProcess = ytDlpWrap.exec(downloadArgs);
-        usedFormat = formatOption;
-        downloadSuccessful = true;
-        break; // If we get here without error, this format works
-      } catch (error) {
-        logger.warn(`Format ${formatOption} failed for download ${downloadId}:`, error);
-
-        // Check if this is a 403 Forbidden error - if so, don't try other formats
-        if (error instanceof Error && error.message.includes("HTTP Error 403: Forbidden")) {
-          logger.error(`Video is restricted or region-locked. Cannot download with any format.`);
-          break; // Stop trying other formats
-        }
-
-        // Continue to next format option
-      }
+    // Add format option only if format is specified
+    if (selectedFormat) {
+      downloadArgs.push("-f", selectedFormat);
     }
 
-    if (!downloadSuccessful) {
-      // Analyze the error to determine if it's retryable
-      const errorAnalysis = analyzeDownloadError(formatOptions, url);
+    downloadArgs.push(
+      "-o",
+      finalOutputPath,
+      "--progress",
+      "--newline",
+      "--no-warnings" // Suppress warnings for cleaner output
+    );
 
-      // Update download record with error analysis
-      await database
-        .update(downloads)
-        .set({
-          status: "failed",
-          errorMessage: errorAnalysis.message,
-          errorType: errorAnalysis.type,
-          isRetryable: errorAnalysis.retryable,
-          updatedAt: Date.now(),
-        })
-        .where(eq(downloads.id, downloadId));
+    // Add merge output format if specified (for mp4/mp3)
+    if (outputFormat && outputFormat !== "default") {
+      downloadArgs.push("--merge-output-format", outputFormat);
+    }
+    logger.info(`Starting download with args: ${downloadArgs.join(" ")}`);
+    // Start the download process
+    const downloadProcess = ytDlpWrap.exec(downloadArgs);
 
-      throw new Error(errorAnalysis.message);
+    if (!downloadProcess) {
+      throw new Error("Failed to start download process");
     }
 
     // Store active download
@@ -362,7 +296,7 @@ export async function processDownload({
           progress: 100,
           filePath,
           fileSize: stats.size,
-          format: usedFormat, // Update with the format that actually worked
+          format: selectedFormat || "default", // Update with the format that was used or "default"
           completedAt: Date.now(),
           updatedAt: Date.now(),
         })

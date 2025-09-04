@@ -39,14 +39,8 @@ function initializeConnection(): DatabaseConnection {
     const client = createDatabaseClient();
     const db = drizzle(client, {
       schema,
-      logger:
-        process.env.NODE_ENV === "development"
-          ? {
-              logQuery: (query, params) => {
-                logger.debug("Database Query:", { query, params });
-              },
-            }
-          : undefined,
+      // Disable query logging to reduce console noise
+      logger: undefined,
     });
 
     const connection: DatabaseConnection = {

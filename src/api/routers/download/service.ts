@@ -145,7 +145,7 @@ export async function processDownload({
   const timestamp = Date.now();
 
   try {
-    // Get existing download record to retrieve title and metadata
+    // Get existing download record
     const existingDownload = await database
       .select()
       .from(downloads)
@@ -157,15 +157,16 @@ export async function processDownload({
       throw new Error(`Download record not found for ID: ${downloadId}`);
     }
 
-    // Use existing title and metadata from database
-    const title = downloadRecord.title || "Unknown Title";
-    const metadata = downloadRecord.metadata;
+    // Extract video ID from URL for filename generation
+    const videoId = extractVideoId(url);
+    const title = videoId ? `video_${videoId}` : "Unknown Title";
 
-    // Update status to downloading
+    // Update status to downloading and set videoId if available
     await database
       .update(downloads)
       .set({
         status: "downloading",
+        videoId: videoId,
         updatedAt: timestamp,
       })
       .where(eq(downloads.id, downloadId));

@@ -79,7 +79,7 @@ describe("getVideoInfo API Tests", () => {
         expect(typeof videoInfo.raw).toBe("string");
 
         // Parse and verify raw data structure
-        const rawData = JSON.parse(videoInfo.raw);
+        const rawData = JSON.parse(videoInfo.raw ?? "{}");
         expect(rawData).toBeDefined();
         expect(rawData.title).toBe(videoInfo.title);
       } else {

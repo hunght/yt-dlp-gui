@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, index, unique } from "drizzle-orm/sqlite-core";
+import { relations } from "drizzle-orm";
 
 export const youtubeVideos = sqliteTable(
   "youtube_videos",
@@ -13,6 +14,7 @@ export const youtubeVideos = sqliteTable(
     viewCount: integer("view_count"),
     likeCount: integer("like_count"),
     thumbnailUrl: text("thumbnail_url"),
+    thumbnailPath: text("thumbnail_path"), // local file path after download
     publishedAt: integer("published_at"),
     tags: text("tags"), // comma-separated or JSON
     raw: text("raw_json"), // raw JSON metadata string
@@ -32,7 +34,7 @@ export const downloads = sqliteTable(
   {
     id: text("id").primaryKey(),
     url: text("url").notNull(),
-    title: text("title"),
+    videoId: text("video_id").references(() => youtubeVideos.videoId), // Reference to youtube_videos table
     status: text("status", { enum: ["pending", "downloading", "completed", "failed", "cancelled"] })
       .notNull()
       .default("pending"),
@@ -44,7 +46,6 @@ export const downloads = sqliteTable(
     errorMessage: text("error_message"),
     errorType: text("error_type"), // 'restricted' | 'network' | 'format' | 'unknown'
     isRetryable: integer("is_retryable", { mode: "boolean" }).default(true), // whether the download can be retried
-    metadata: text("metadata"), // JSON string of video metadata
 
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at"),
@@ -53,5 +54,41 @@ export const downloads = sqliteTable(
   (table) => [
     index("downloads_status_idx").on(table.status),
     index("downloads_created_at_idx").on(table.createdAt),
+    index("downloads_video_id_idx").on(table.videoId),
   ]
 );
+
+// Define relations
+export const youtubeVideosRelations = relations(youtubeVideos, ({ many }) => ({
+  downloads: many(downloads),
+}));
+
+export const downloadsRelations = relations(downloads, ({ one }) => ({
+  video: one(youtubeVideos, {
+    fields: [downloads.videoId],
+    references: [youtubeVideos.videoId],
+  }),
+}));
+
+// TypeScript types derived from Drizzle schema
+export type YoutubeVideo = typeof youtubeVideos.$inferSelect;
+export type NewYoutubeVideo = typeof youtubeVideos.$inferInsert;
+
+export type Download = typeof downloads.$inferSelect;
+export type NewDownload = typeof downloads.$inferInsert;
+
+// Extended types with relations
+export type YoutubeVideoWithDownloads = YoutubeVideo & {
+  downloads: Download[];
+};
+
+export type DownloadWithVideo = Download & {
+  video: YoutubeVideo | null;
+};
+
+// Status enums for better type safety
+export type DownloadStatus = "pending" | "downloading" | "completed" | "failed" | "cancelled";
+export type ErrorType = "restricted" | "network" | "format" | "unknown";
+
+// Re-export API types from types.ts
+export type { VideoInfo, DownloadInfo } from "../types";

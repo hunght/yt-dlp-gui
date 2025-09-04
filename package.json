@@ -41,7 +41,7 @@
     "db:verify": "tsx src/api/db/migrate.ts --verify-only",
     "db:debug": "DEBUG=drizzle:* npm run db:migrate",
     "db:migrate:force": "tsx src/api/db/migrate.ts --force",
-    "db:migrate:no-backup": "tsx src/api/db/migrate.ts --no-backup",
+    "db:migrate:no-backup": "npx tsx src/api/db/migrate.ts --no-backup",
     "db:reset": "rm -f local.db* && npm run db:apply",
     "db:backup": "tsx scripts/db-backup.ts",
     "db:health": "tsx scripts/db-health.ts",

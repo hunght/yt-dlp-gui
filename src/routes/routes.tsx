@@ -2,7 +2,7 @@ import { createRoute } from "@tanstack/react-router";
 import { RootRoute } from "./__root";
 import SettingsPage from "@/pages/settings-page/SettingsPage";
 import YouTubeVideosPage from "@/pages/YouTubeVideosPage";
-import DownloadPage from "@/pages/DownloadPage";
+import DownloadPage from "@/pages/download";
 
 export const SettingsRoute = createRoute({
   getParentRoute: () => RootRoute,

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { formatBytes } from "../../helpers/format-utils";
 import DownloadForm from "./DownloadForm";
 import DownloadsList from "./DownloadsList";
+import { DownloadFormat, OutputFormat } from "@/api/types";
 
 // Helper function to validate URL
 function isValidUrl(string: string): boolean {
@@ -20,21 +21,20 @@ function isValidUrl(string: string): boolean {
 export default function DownloadPage() {
   const [url, setUrl] = useState("");
   const [outputType, setOutputType] = useState<"video" | "audio">("video");
-  const [downloadType, setDownloadType] = useState("basic");
-  const [outputFormat, setOutputFormat] = useState<"default" | "mp4" | "mp3">(() => {
-    // Auto-select based on output type
-    return outputType === "audio" ? "mp3" : "mp4";
-  });
+  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("best");
+  const [outputFormat, setOutputFormat] = useState<OutputFormat>("default");
   const [outputFilename, setOutputFilename] = useState("%(title)s.%(ext)s");
   const [videoInfo, setVideoInfo] = useState<any>(null);
   const [isLoadingVideoInfo, setIsLoadingVideoInfo] = useState(false);
   const queryClient = useQueryClient();
 
-  // Auto-update output format when output type changes
+  // Auto-update download format when output type changes
   useEffect(() => {
     if (outputType === "audio") {
+      setDownloadFormat("audioonly");
       setOutputFormat("mp3");
     } else {
+      setDownloadFormat("best");
       setOutputFormat("mp4");
     }
   }, [outputType]);
@@ -82,22 +82,14 @@ export default function DownloadPage() {
   const startDownloadMutation = useMutation({
     mutationFn: (data: {
       url: string;
-      format?:
-        | "best"
-        | "best720p"
-        | "best480p"
-        | "best1080p"
-        | "audioonly"
-        | "mp4best"
-        | "webmbest";
+      format?: DownloadFormat;
       outputFilename?: string;
-      outputFormat?: "default" | "mp4" | "mp3";
+      outputFormat?: OutputFormat;
     }) => trpcClient.download.startDownload.mutate(data),
     onSuccess: () => {
       toast.success("Download started successfully!");
       queryClient.invalidateQueries({ queryKey: ["downloads"] });
       queryClient.invalidateQueries({ queryKey: ["downloadStats"] });
-      setUrl("");
     },
     onError: (error) => {
       toast.error(`Failed to start download: ${error.message}`);
@@ -138,38 +130,10 @@ export default function DownloadPage() {
     },
   });
 
-  const getFormatForDownloadType = ():
-    | "best"
-    | "best720p"
-    | "best480p"
-    | "best1080p"
-    | "audioonly"
-    | "mp4best"
-    | "webmbest"
-    | undefined => {
-    // If output type is audio, override download type
-    if (outputType === "audio") {
-      return "audioonly";
-    }
-
-    switch (downloadType) {
-      case "basic":
-        return "best"; // Use best quality
-      case "best-merge":
-        return "best"; // Best quality with merge
-      case "limit-720p":
-        return "best720p"; // Limit to 720p
-      default:
-        return "best";
-    }
-  };
-
   const handleStartDownload = () => {
-    const format = getFormatForDownloadType();
-
     startDownloadMutation.mutate({
       url: url.trim(),
-      format,
+      format: downloadFormat,
       outputFilename: outputFilename,
       outputFormat: outputFormat,
     });
@@ -207,8 +171,8 @@ export default function DownloadPage() {
         setUrl={setUrl}
         outputType={outputType}
         setOutputType={setOutputType}
-        downloadType={downloadType}
-        setDownloadType={setDownloadType}
+        downloadFormat={downloadFormat}
+        setDownloadFormat={setDownloadFormat}
         outputFormat={outputFormat}
         setOutputFormat={setOutputFormat}
         outputFilename={outputFilename}

@@ -1,7 +1,25 @@
 import type { YoutubeVideo, Download } from "./db/schema";
 
 // Re-export download-specific types for convenience
-export type { DownloadFormat, OutputFormat, SortBy, SortOrder } from "./routers/download/types";
+export type {
+  DownloadFormat,
+  OutputFormat,
+  SortBy,
+  SortOrder,
+  FormatOption,
+  OutputFormatOption,
+} from "./routers/download/types";
+
+// Re-export format utilities for UI components
+export {
+  formatOptions,
+  outputFormatOptions,
+  getPopularFormats,
+  getFormatsByCategory,
+  getFormatByValue,
+  getOutputFormatByValue,
+  formatToYtDlpSelector,
+} from "./routers/download/types";
 
 // API response types
 

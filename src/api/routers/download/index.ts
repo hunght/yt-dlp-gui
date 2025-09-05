@@ -156,15 +156,16 @@ export const downloadRouter = t.router({
         const timestamp = Date.now();
 
         // Get video info first (reuse existing logic)
-        const { videoInfo } = await getVideoInfoInternal({ url, db: ctx.db! });
-        if (!videoInfo) {
+        const result = await getVideoInfoInternal({ url, db: ctx.db! });
+        if (!result.success || !result.videoInfo) {
           throw new Error("Failed to retrieve video information");
         }
+        const videoInfo = result.videoInfo;
         // Create download record with video ID
         await ctx.db!.insert(downloads).values({
           id: downloadId,
           url,
-          videoId: videoInfo.id,
+          videoId: videoInfo.videoId,
           status: "pending",
           progress: 0,
           format,
@@ -172,43 +173,41 @@ export const downloadRouter = t.router({
           updatedAt: timestamp,
         });
 
-        // Start download in background
-        setImmediate(async () => {
-          try {
-            await processDownload({
-              downloadId,
-              url,
-              format: format,
-              outputPath,
-              outputFilename,
-              outputFormat,
-              db: ctx.db!,
-            });
-          } catch (error) {
-            logger.error(`Download ${downloadId} failed:`, error);
+        // Process download directly in main process
+        try {
+          await processDownload({
+            downloadId,
+            url,
+            format: format,
+            outputPath,
+            outputFilename,
+            outputFormat,
+            db: ctx.db!,
+          });
+        } catch (error) {
+          logger.error(`Download ${downloadId} failed:`, error);
 
-            // Log detailed error information for debugging
-            logger.error(`Failed download details:`, {
-              downloadId,
-              url,
-              format,
-              outputPath,
-              outputFilename,
-              outputFormat,
+          // Log detailed error information for debugging
+          logger.error(`Failed download details:`, {
+            downloadId,
+            url,
+            format,
+            outputPath,
+            outputFilename,
+            outputFormat,
+            errorMessage: error instanceof Error ? error.message : "Unknown error",
+            errorStack: error instanceof Error ? error.stack : undefined,
+          });
+
+          await ctx
+            .db!.update(downloads)
+            .set({
+              status: "failed",
               errorMessage: error instanceof Error ? error.message : "Unknown error",
-              errorStack: error instanceof Error ? error.stack : undefined,
-            });
-
-            await ctx
-              .db!.update(downloads)
-              .set({
-                status: "failed",
-                errorMessage: error instanceof Error ? error.message : "Unknown error",
-                updatedAt: Date.now(),
-              })
-              .where(eq(downloads.id, downloadId));
-          }
-        });
+              updatedAt: Date.now(),
+            })
+            .where(eq(downloads.id, downloadId));
+        }
 
         return {
           id: downloadId,
@@ -459,37 +458,36 @@ export const downloadRouter = t.router({
           })
           .where(eq(downloads.id, id));
 
-        setImmediate(async () => {
-          try {
-            await processDownload({
-              downloadId: id,
-              url: download.url,
-              format: download.format as
-                | "best"
-                | "best720p"
-                | "best480p"
-                | "best1080p"
-                | "audioonly"
-                | "mp4best"
-                | "webmbest"
-                | undefined,
-              outputPath: undefined,
-              outputFilename: undefined,
-              outputFormat: undefined, // Not stored in retry, use default
-              db: ctx.db!,
-            });
-          } catch (error) {
-            logger.error(`Retry download ${id} failed:`, error);
-            await ctx
-              .db!.update(downloads)
-              .set({
-                status: "failed",
-                errorMessage: error instanceof Error ? error.message : "Unknown error",
-                updatedAt: Date.now(),
-              })
-              .where(eq(downloads.id, id));
-          }
-        });
+        // Process download retry directly in main process
+        try {
+          await processDownload({
+            downloadId: id,
+            url: download.url,
+            format: download.format as
+              | "best"
+              | "best720p"
+              | "best480p"
+              | "best1080p"
+              | "audioonly"
+              | "mp4best"
+              | "webmbest"
+              | undefined,
+            outputPath: undefined,
+            outputFilename: undefined,
+            outputFormat: undefined, // Not stored in retry, use default
+            db: ctx.db!,
+          });
+        } catch (error) {
+          logger.error(`Retry download ${id} failed:`, error);
+          await ctx
+            .db!.update(downloads)
+            .set({
+              status: "failed",
+              errorMessage: error instanceof Error ? error.message : "Unknown error",
+              updatedAt: Date.now(),
+            })
+            .where(eq(downloads.id, id));
+        }
 
         return { success: true, message: "Download retry started" };
       } catch (error) {

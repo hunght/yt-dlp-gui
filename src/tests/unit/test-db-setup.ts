@@ -44,9 +44,18 @@ export async function createTestDatabase(testName: string): Promise<TestDatabase
   const cleanup = async () => {
     try {
       await client.close();
-      if (fs.existsSync(testDbPath)) {
-        fs.unlinkSync(testDbPath);
-      }
+      // Remove all SQLite related files (main db, WAL, SHM)
+      const filesToRemove = [
+        testDbPath,
+        `${testDbPath}-wal`,
+        `${testDbPath}-shm`
+      ];
+      
+      filesToRemove.forEach(filePath => {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      });
     } catch (error) {
       console.warn("Error cleaning up test database:", error);
     }
@@ -84,9 +93,18 @@ export async function createSharedTestDatabase(): Promise<TestDatabase> {
   const cleanup = async () => {
     try {
       await client.close();
-      if (fs.existsSync(testDbPath)) {
-        fs.unlinkSync(testDbPath);
-      }
+      // Remove all SQLite related files (main db, WAL, SHM)
+      const filesToRemove = [
+        testDbPath,
+        `${testDbPath}-wal`,
+        `${testDbPath}-shm`
+      ];
+      
+      filesToRemove.forEach(filePath => {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      });
     } catch (error) {
       console.warn("Error cleaning up shared test database:", error);
     }
@@ -133,9 +151,18 @@ export async function createTestDatabaseWithRealData(testName: string): Promise<
   const cleanup = async () => {
     try {
       await client.close();
-      if (fs.existsSync(testDbPath)) {
-        fs.unlinkSync(testDbPath);
-      }
+      // Remove all SQLite related files (main db, WAL, SHM)
+      const filesToRemove = [
+        testDbPath,
+        `${testDbPath}-wal`,
+        `${testDbPath}-shm`
+      ];
+      
+      filesToRemove.forEach(filePath => {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      });
     } catch (error) {
       console.warn("Error cleaning up test database with real data:", error);
     }

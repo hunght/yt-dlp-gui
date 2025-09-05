@@ -120,3 +120,8 @@ local.db*.backup
 thumbnails/
 local.db-shm
 local.db-wal
+
+# Test database files
+test-*.db
+test-*.db-shm
+test-*.db-wal

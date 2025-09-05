@@ -98,65 +98,49 @@ describe("Download Router - startDownload", () => {
         expect(result).toMatchObject({
           id: expect.any(String),
           status: "pending",
-          videoInfo: null,
+          videoInfo: expect.objectContaining({
+            videoId: "dQw4w9WgXcQ",
+            title: expect.stringContaining("Rick Astley"),
+          }),
         });
 
-        // Verify download was created in database initially with correct parameters
-        const initialDownload = await realDataTestDb.db
+        // Verify download was completed successfully with correct parameters
+        const completedDownload = await realDataTestDb.db
           .select()
           .from(downloads)
           .where(eq(downloads.id, result.id))
           .get();
 
-        expect(initialDownload).toMatchObject({
+        expect(completedDownload).toBeDefined();
+        expect(completedDownload).toMatchObject({
           url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", // Rick Roll - same as direct test
-          status: "pending",
-          progress: 0,
-          format: "best",
-          videoId: null,
+          status: "completed", // Should be completed since download runs synchronously now
+          progress: 100, // Should be 100% complete
+          videoId: "dQw4w9WgXcQ", // Should have the actual video ID, not null
         });
 
-        console.log(`Starting download with robust format selection for video: ${result.id}`);
+        // Verify the download has expected properties for a completed download
+        expect(completedDownload!.filePath).toBeDefined();
+        expect(completedDownload!.fileSize).toBeGreaterThan(0);
+        expect(completedDownload!.updatedAt).toBeGreaterThan(completedDownload!.createdAt);
+
+        // Test completed successfully! We've verified that:
+        // 1. Video info is fetched and returned immediately
+        // 2. Download record is created with proper videoId (not null)
+        // 3. Download completes synchronously in main process
+        // 4. The co-located test structure works correctly
+        console.log("✅ Test completed successfully - video info properly fetched and stored");
+        console.log("✅ Download completed synchronously in main process");
         console.log(
-          `Expected command args: -f bv*+ba/b -o /Users/owner/source/youtube-downloader/yt-dlp-gui/downloads/%(title)s.%(ext)s --newline --no-warnings --merge-output-format mp4`
+          `✅ Downloaded file: ${completedDownload!.filePath} (${completedDownload!.fileSize} bytes)`
         );
-
-        // Wait for the background process to complete
-        console.log(`Waiting for download ${result.id} to complete...`);
-        const finalDownload = await waitForDownloadCompletion(realDataTestDb, result.id, 90000); // Longer timeout for real download
-
-        // Check the final state
-        console.log(`Download ${result.id} final status: ${finalDownload.status}`);
-
-        // The download should either complete successfully or fail with a specific error
-        // With robust format selection, it should handle various scenarios gracefully
-        expect(finalDownload.status).toMatch(/^(completed|failed)$/);
-
-        if (finalDownload.status === "completed") {
-          // If completed, should have file path and size
-          expect(finalDownload.filePath).toBeDefined();
-          expect(finalDownload.fileSize).toBeGreaterThan(0);
-          expect(finalDownload.progress).toBe(100);
-          console.log(
-            `Download completed successfully. File: ${finalDownload.filePath}, Size: ${finalDownload.fileSize} bytes`
-          );
-
-          // Verify the download is using the correct format and path settings
-          expect(finalDownload.filePath).toContain(
-            "/Users/owner/source/youtube-downloader/yt-dlp-gui/downloads"
-          );
-          expect(finalDownload.filePath).toMatch(/\.(mp4|webm|mkv)$/); // Should end with common video format
-        } else if (finalDownload.status === "failed") {
-          // If failed, should have error message
-          expect(finalDownload.errorMessage).toBeDefined();
-          console.log(`Download failed with error: ${finalDownload.errorMessage}`);
-
-          // With robust format "bv*+ba/b", failure indicates external issues (403, network, etc.)
-          // not format-related problems, which validates our format selection is correct
-        }
-
-        // Should have updated timestamp
-        expect(finalDownload.updatedAt).toBeGreaterThan(finalDownload.createdAt);
+        
+        // Verify the file is in the downloads folder
+        expect(completedDownload!.filePath).toContain("/downloads/");
+        
+      } catch (error) {
+        console.error("Test failed:", error);
+        throw error;
       } finally {
         // Always cleanup the real data test database
         await realDataTestDb.cleanup();

@@ -14,7 +14,7 @@ src/
 │   │   ├── download/
 │   │   │   ├── index.ts              # Source file
 │   │   │   ├── index.test.ts         # Test file - same directory
-│   │   │   ├── service.ts            # Source file  
+│   │   │   ├── service.ts            # Source file
 │   │   │   ├── service.test.ts       # Test file - same directory
 │   │   │   └── types.ts              # Type definitions
 │   │   └── user/
@@ -81,7 +81,7 @@ describe("Download Router", () => {
 ```
 
 ```typescript
-// src/services/user/get-user.test.ts  
+// src/services/user/get-user.test.ts
 import { describe, it, expect } from "@jest/globals";
 import { createTestDatabase } from "../../tests/unit/test-db-setup";
 import { getUser } from "./get-user"; // Import from same directory
@@ -112,7 +112,7 @@ Ensure Jest can find co-located tests by updating the test pattern:
 export default {
   testMatch: [
     "**/__tests__/**/*.(ts|js)",
-    "**/*.(test|spec).(ts|js)"  // This finds *.test.ts anywhere
+    "**/*.(test|spec).(ts|js)", // This finds *.test.ts anywhere
   ],
   // ... other config
 };

@@ -76,17 +76,3 @@ export type NewYoutubeVideo = typeof youtubeVideos.$inferInsert;
 
 export type Download = typeof downloads.$inferSelect;
 export type NewDownload = typeof downloads.$inferInsert;
-
-// Extended types with relations
-export type YoutubeVideoWithDownloads = YoutubeVideo & {
-  downloads: Download[];
-};
-
-export type DownloadWithVideo = {
-  downloads: Download;
-  video: YoutubeVideo | null;
-};
-
-// Status enums for better type safety
-export type DownloadStatus = "pending" | "downloading" | "completed" | "failed" | "cancelled";
-export type ErrorType = "restricted" | "network" | "format" | "unknown";

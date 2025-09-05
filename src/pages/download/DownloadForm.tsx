@@ -8,7 +8,7 @@ import { Download, Play, FileVideo, FileText, Music } from "lucide-react";
 import { toast } from "sonner";
 import FilenameTemplateSelector from "../../components/FilenameTemplateSelector";
 import VideoInfoCard from "./VideoInfoCard";
-import type { VideoInfo } from "@/api/types";
+import { YoutubeVideo } from "@/api/db/schema";
 
 interface DownloadFormProps {
   url: string;
@@ -21,7 +21,7 @@ interface DownloadFormProps {
   setOutputFormat: (format: "default" | "mp4" | "mp3") => void;
   outputFilename: string;
   setOutputFilename: (filename: string) => void;
-  videoInfo: VideoInfo | null;
+  videoInfo: YoutubeVideo | null;
   isLoadingVideoInfo: boolean;
   onStartDownload: () => void;
   isStartingDownload: boolean;

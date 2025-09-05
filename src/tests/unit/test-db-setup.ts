@@ -145,14 +145,14 @@ export async function seedTestDatabase(db: ReturnType<typeof drizzle>) {
     {
       id: "test-download-1",
       url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      title: "Test Video 1",
+
       status: "completed",
       progress: 100,
       format: "best[height<=720]",
       quality: "720p",
       filePath: "/downloads/test-video-1.mp4",
       fileSize: 50000000,
-      metadata: JSON.stringify({ videoId: "dQw4w9WgXcQ" }),
+
       createdAt: timestamp - 3600000, // 1 hour ago
       updatedAt: timestamp - 1800000, // 30 minutes ago
       completedAt: timestamp - 1800000,
@@ -160,25 +160,25 @@ export async function seedTestDatabase(db: ReturnType<typeof drizzle>) {
     {
       id: "test-download-2",
       url: "https://www.youtube.com/watch?v=test-video-2-id",
-      title: "Test Video 2",
+
       status: "failed",
       progress: 50,
       format: "best",
       errorMessage: "Test error message",
       errorType: "network",
       isRetryable: true,
-      metadata: JSON.stringify({ videoId: "test-video-2-id" }),
+
       createdAt: timestamp - 7200000, // 2 hours ago
       updatedAt: timestamp - 3600000, // 1 hour ago
     },
     {
       id: "test-download-3",
       url: "https://www.youtube.com/watch?v=test-video-3-id",
-      title: "Test Video 3",
+
       status: "downloading",
       progress: 75,
       format: "bestaudio",
-      metadata: JSON.stringify({ videoId: "test-video-3-id" }),
+
       createdAt: timestamp - 1800000, // 30 minutes ago
       updatedAt: timestamp - 900000, // 15 minutes ago
     },

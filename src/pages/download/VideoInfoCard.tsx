@@ -1,11 +1,13 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, Play } from "lucide-react";
-import { VideoInfo } from "@/api/types";
+
 import Thumbnail from "@/components/Thumbnail";
+import { YoutubeVideo } from "@/api/db/schema";
+import { formatDuration } from "@/utils/formatTime";
 
 interface VideoInfoCardProps {
-  videoInfo: VideoInfo | null;
+  videoInfo: YoutubeVideo | null;
   isLoading: boolean;
 }
 
@@ -44,10 +46,10 @@ export default function VideoInfoCard({ videoInfo, isLoading }: VideoInfoCardPro
                 <p className="text-sm text-green-600">by {videoInfo.channelTitle}</p>
               )}
               <div className="flex items-center space-x-4 text-xs text-green-600">
-                {videoInfo.durationFormatted && (
+                {videoInfo.durationSeconds && (
                   <div className="flex items-center space-x-1">
                     <Clock className="h-3 w-3" />
-                    <span>{videoInfo.durationFormatted}</span>
+                    <span>{formatDuration(videoInfo.durationSeconds)}</span>
                   </div>
                 )}
                 {videoInfo.viewCount && (

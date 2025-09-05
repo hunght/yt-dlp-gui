@@ -12,6 +12,7 @@ export const formatDuration = (seconds: number | null): string => {
 };
 
 // Format view count
+
 export const formatViewCount = (count: number | null): string => {
   if (!count) return "0";
   if (count >= 1000000) {

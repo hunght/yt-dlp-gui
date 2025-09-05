@@ -9,14 +9,7 @@ import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { eq, desc, asc, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
-import {
-  downloads,
-  youtubeVideos,
-  type Download,
-  type DownloadWithVideo,
-  type DownloadStatus,
-  type ErrorType,
-} from "@/api/db/schema";
+import { downloads, youtubeVideos, YoutubeVideo } from "@/api/db/schema";
 import { logger } from "@/helpers/logger";
 
 const YTDlpWrapModule = require("yt-dlp-wrap");
@@ -25,7 +18,7 @@ import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs";
 import { readFileSync } from "fs";
-import { VideoInfo } from "@/api/types";
+import { DownloadWithVideo, DownloadStatus } from "@/api/types";
 
 export const downloadRouter = t.router({
   // Get all downloads with pagination and filtering
@@ -170,7 +163,7 @@ export const downloadRouter = t.router({
       }): Promise<{
         id: string;
         status: DownloadStatus;
-        videoInfo: VideoInfo | null;
+        videoInfo: YoutubeVideo | null;
       }> => {
         try {
           const { url, format, quality, outputPath, outputFilename, outputFormat } = input;
@@ -293,7 +286,7 @@ export const downloadRouter = t.router({
       ctx,
     }): Promise<{
       success: boolean;
-      videoInfo?: VideoInfo;
+      videoInfo?: YoutubeVideo;
       error?: string;
     }> => {
       try {
@@ -308,15 +301,15 @@ export const downloadRouter = t.router({
           .db!.select()
           .from(youtubeVideos)
           .where(eq(youtubeVideos.videoId, videoId))
-          .limit(1);
+          .get();
 
-        if (existingVideo[0]) {
-          logger.info(`Video info already exists for ${videoId}: ${existingVideo[0].title}`);
+        if (existingVideo) {
+          logger.info(`Video info already exists for ${videoId}: ${existingVideo.title}`);
 
           // Check if thumbnail exists locally, if not download it
-          let thumbnailPath = existingVideo[0].thumbnailPath;
-          if (!thumbnailPath && existingVideo[0].thumbnailUrl) {
-            thumbnailPath = await downloadThumbnail(existingVideo[0].thumbnailUrl, videoId);
+          let thumbnailPath = existingVideo.thumbnailPath;
+          if (!thumbnailPath && existingVideo.thumbnailUrl) {
+            thumbnailPath = await downloadThumbnail(existingVideo.thumbnailUrl, videoId);
 
             // Update the database with the new thumbnail path
             if (thumbnailPath) {
@@ -333,10 +326,8 @@ export const downloadRouter = t.router({
           return {
             success: true,
             videoInfo: {
-              ...existingVideo[0],
+              ...existingVideo,
               thumbnailPath,
-              duration: existingVideo[0].durationSeconds,
-              durationFormatted: formatDuration(existingVideo[0].durationSeconds),
             },
           };
         }
@@ -377,7 +368,7 @@ export const downloadRouter = t.router({
         };
 
         // Save or update video info in database
-        const result = await ctx
+        await ctx
           .db!.insert(youtubeVideos)
           .values(videoData)
           .onConflictDoUpdate({
@@ -406,8 +397,6 @@ export const downloadRouter = t.router({
           videoInfo: {
             ...videoData,
             thumbnailPath,
-            duration: videoData.durationSeconds,
-            durationFormatted: formatDuration(videoData.durationSeconds),
             updatedAt: Date.now(),
           },
         };

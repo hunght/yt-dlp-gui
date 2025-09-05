@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Download, Play, Pause, Trash2, ExternalLink, FileVideo, Clock } from "lucide-react";
 import { formatBytes } from "../../helpers/format-utils";
-import { DownloadWithVideo } from "@/api/db/schema";
+import { DownloadWithVideo } from "@/api/types";
 
 interface DownloadsListProps {
   downloads: DownloadWithVideo[] | undefined;

@@ -156,27 +156,15 @@ export const downloadRouter = t.router({
         const timestamp = Date.now();
 
         // Get video info first (reuse existing logic)
-        let videoInfo: YoutubeVideo | null = null;
-        const videoId = extractVideoId(url);
-
-        if (videoId) {
-          try {
-            // Call the same logic used in getVideoInfo procedure
-            const videoInfoResult = await getVideoInfoInternal({ url, db: ctx.db! });
-            if (videoInfoResult.success && videoInfoResult.videoInfo) {
-              videoInfo = videoInfoResult.videoInfo;
-            }
-          } catch (videoInfoError) {
-            logger.warn(`Failed to get video info for ${videoId}:`, videoInfoError);
-            // Continue with download even if video info extraction fails
-          }
+        const { videoInfo } = await getVideoInfoInternal({ url, db: ctx.db! });
+        if (!videoInfo) {
+          throw new Error("Failed to retrieve video information");
         }
-
         // Create download record with video ID
         await ctx.db!.insert(downloads).values({
           id: downloadId,
           url,
-          videoId: videoId,
+          videoId: videoInfo.id,
           status: "pending",
           progress: 0,
           format,

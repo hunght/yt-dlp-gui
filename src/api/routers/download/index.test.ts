@@ -4,10 +4,10 @@ import {
   createTestDatabaseWithRealData,
   seedTestDatabase,
   type TestDatabase,
-} from "./test-db-setup";
-import { createDownloadTestCaller } from "./test-utils";
+} from "../../../tests/unit/test-db-setup";
+import { createDownloadTestCaller } from "../../../tests/unit/test-utils";
 import { eq } from "drizzle-orm";
-import { downloads } from "../../api/db/schema";
+import { downloads } from "../../db/schema";
 
 // Helper function to wait for a condition to be true
 const waitForCondition = async (

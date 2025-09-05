@@ -2,13 +2,123 @@ import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs";
 import { eq } from "drizzle-orm";
-import { downloads } from "@/api/db/schema";
+import { downloads, YoutubeVideo, youtubeVideos } from "@/api/db/schema";
 import { logger } from "@/helpers/logger";
 import { ProcessDownloadParams, formatToYtDlpSelector } from "./types";
+import { Database } from "@/api/db";
 
 const YTDlpWrapModule = require("yt-dlp-wrap");
 const YTDlpWrap = YTDlpWrapModule.default;
 
+// Shared internal function for getting video info
+export const getVideoInfoInternal = async ({
+  url,
+  db,
+}: {
+  url: string;
+  db: Database;
+}): Promise<{
+  success: boolean;
+  videoInfo?: YoutubeVideo;
+  error?: string;
+}> => {
+  try {
+    // Extract video ID from URL first
+    const videoId = extractVideoId(url);
+    if (!videoId) {
+      throw new Error("Could not extract video ID from URL");
+    }
+
+    // Check if video already exists in database
+    const existingVideo = await db
+      .select()
+      .from(youtubeVideos)
+      .where(eq(youtubeVideos.videoId, videoId))
+      .get();
+
+    if (existingVideo) {
+      return {
+        success: true,
+        videoInfo: existingVideo,
+      };
+    }
+
+    // Video doesn't exist, fetch from yt-dlp
+    const ytDlpWrap = new YTDlpWrap();
+    const output = await ytDlpWrap.execPromise([url, "--dump-json"]);
+    const videoInfo = JSON.parse(output);
+
+    // Download thumbnail if available
+    let thumbnailPath = null;
+    if (videoInfo.thumbnail) {
+      thumbnailPath = await downloadThumbnail(videoInfo.thumbnail, videoId);
+    }
+
+    // Prepare video data for database
+    const videoData = {
+      id: randomUUID(),
+      videoId,
+      title: videoInfo.title || "Unknown Title",
+      description: videoInfo.description || null,
+      channelId: videoInfo.channel_id || null,
+      channelTitle: videoInfo.channel || videoInfo.uploader || null,
+      durationSeconds: videoInfo.duration || null,
+      viewCount: videoInfo.view_count || null,
+      likeCount: videoInfo.like_count || null,
+      thumbnailUrl: videoInfo.thumbnail || null,
+      thumbnailPath: thumbnailPath,
+      publishedAt: videoInfo.upload_date
+        ? (() => {
+            const date = new Date(videoInfo.upload_date);
+            return isNaN(date.getTime()) ? null : date.getTime();
+          })()
+        : null,
+      tags: videoInfo.tags ? JSON.stringify(videoInfo.tags) : null,
+      raw: JSON.stringify(videoInfo),
+      createdAt: Date.now(),
+    };
+
+    // Save or update video info in database
+    await db
+      .insert(youtubeVideos)
+      .values(videoData)
+      .onConflictDoUpdate({
+        target: youtubeVideos.videoId,
+        set: {
+          title: videoData.title,
+          description: videoData.description,
+          channelId: videoData.channelId,
+          channelTitle: videoData.channelTitle,
+          durationSeconds: videoData.durationSeconds,
+          viewCount: videoData.viewCount,
+          likeCount: videoData.likeCount,
+          thumbnailUrl: videoData.thumbnailUrl,
+          thumbnailPath: videoData.thumbnailPath,
+          publishedAt: videoData.publishedAt,
+          tags: videoData.tags,
+          raw: videoData.raw,
+          updatedAt: Date.now(),
+        },
+      });
+
+    logger.info(`Video info saved for ${videoId}: ${videoData.title}`);
+
+    return {
+      success: true,
+      videoInfo: {
+        ...videoData,
+        thumbnailPath,
+        updatedAt: Date.now(),
+      },
+    };
+  } catch (error) {
+    logger.error("Failed to get video info:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+};
 // Create downloads directory if it doesn't exist
 export const downloadsDir = path.join(process.cwd(), "downloads");
 if (!fs.existsSync(downloadsDir)) {
@@ -203,7 +313,13 @@ export async function processDownload({
     if (outputFormat && outputFormat !== "default") {
       downloadArgs.push("--merge-output-format", outputFormat);
     }
-    logger.info(`Starting download with args: ${downloadArgs.join(" ")}`);
+
+    // Log the exact command that will be executed
+
+    logger.info(
+      `Full yt-dlp command: yt-dlp ${downloadArgs.map((arg) => (arg.includes(" ") ? `"${arg}"` : arg)).join(" ")}`
+    );
+
     // Start the download process
     const downloadProcess = ytDlpWrap.exec(downloadArgs);
 

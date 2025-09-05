@@ -4,6 +4,7 @@ import {
   downloadThumbnail,
   activeDownloads,
   formatDuration,
+  getVideoInfoInternal,
 } from "./service";
 import {
   startDownloadInputSchema,
@@ -154,11 +155,28 @@ export const downloadRouter = t.router({
         const downloadId = randomUUID();
         const timestamp = Date.now();
 
-        // Create download record
+        // Get video info first (reuse existing logic)
+        let videoInfo: YoutubeVideo | null = null;
+        const videoId = extractVideoId(url);
+
+        if (videoId) {
+          try {
+            // Call the same logic used in getVideoInfo procedure
+            const videoInfoResult = await getVideoInfoInternal({ url, db: ctx.db! });
+            if (videoInfoResult.success && videoInfoResult.videoInfo) {
+              videoInfo = videoInfoResult.videoInfo;
+            }
+          } catch (videoInfoError) {
+            logger.warn(`Failed to get video info for ${videoId}:`, videoInfoError);
+            // Continue with download even if video info extraction fails
+          }
+        }
+
+        // Create download record with video ID
         await ctx.db!.insert(downloads).values({
           id: downloadId,
           url,
-          videoId: null, // Will be populated when video info is extracted from URL
+          videoId: videoId,
           status: "pending",
           progress: 0,
           format,
@@ -180,6 +198,19 @@ export const downloadRouter = t.router({
             });
           } catch (error) {
             logger.error(`Download ${downloadId} failed:`, error);
+
+            // Log detailed error information for debugging
+            logger.error(`Failed download details:`, {
+              downloadId,
+              url,
+              format,
+              outputPath,
+              outputFilename,
+              outputFormat,
+              errorMessage: error instanceof Error ? error.message : "Unknown error",
+              errorStack: error instanceof Error ? error.stack : undefined,
+            });
+
             await ctx
               .db!.update(downloads)
               .set({
@@ -194,7 +225,7 @@ export const downloadRouter = t.router({
         return {
           id: downloadId,
           status: "pending",
-          videoInfo: null, // Will be populated when video info is extracted during download
+          videoInfo: videoInfo,
         };
       } catch (error) {
         logger.error("Failed to start download:", error);
@@ -262,135 +293,11 @@ export const downloadRouter = t.router({
     }),
 
   // Get video info and save to database
-  getVideoInfo: publicProcedure.input(z.object({ url: z.string().url("Invalid URL") })).mutation(
-    async ({
-      input,
-      ctx,
-    }): Promise<{
-      success: boolean;
-      videoInfo?: YoutubeVideo;
-      error?: string;
-    }> => {
-      try {
-        // Extract video ID from URL first
-        const videoId = extractVideoId(input.url);
-        if (!videoId) {
-          throw new Error("Could not extract video ID from URL");
-        }
-
-        // Check if video already exists in database
-        const existingVideo = await ctx
-          .db!.select()
-          .from(youtubeVideos)
-          .where(eq(youtubeVideos.videoId, videoId))
-          .get();
-
-        if (existingVideo) {
-          logger.info(`Video info already exists for ${videoId}: ${existingVideo.title}`);
-
-          // Check if thumbnail exists locally, if not download it
-          let thumbnailPath = existingVideo.thumbnailPath;
-          if (!thumbnailPath && existingVideo.thumbnailUrl) {
-            thumbnailPath = await downloadThumbnail(existingVideo.thumbnailUrl, videoId);
-
-            // Update the database with the new thumbnail path
-            if (thumbnailPath) {
-              await ctx
-                .db!.update(youtubeVideos)
-                .set({
-                  thumbnailPath: thumbnailPath,
-                  updatedAt: Date.now(),
-                })
-                .where(eq(youtubeVideos.videoId, videoId));
-            }
-          }
-
-          return {
-            success: true,
-            videoInfo: {
-              ...existingVideo,
-              thumbnailPath,
-            },
-          };
-        }
-
-        // Video doesn't exist, fetch from yt-dlp
-        const ytDlpWrap = new YTDlpWrap();
-        const output = await ytDlpWrap.execPromise([input.url, "--dump-json"]);
-        const videoInfo = JSON.parse(output);
-
-        // Download thumbnail if available
-        let thumbnailPath = null;
-        if (videoInfo.thumbnail) {
-          thumbnailPath = await downloadThumbnail(videoInfo.thumbnail, videoId);
-        }
-        console.log(`Downloaded thumbnail to ${thumbnailPath}`);
-        // Prepare video data for database
-        const videoData = {
-          id: randomUUID(),
-          videoId,
-          title: videoInfo.title || "Unknown Title",
-          description: videoInfo.description || null,
-          channelId: videoInfo.channel_id || null,
-          channelTitle: videoInfo.channel || videoInfo.uploader || null,
-          durationSeconds: videoInfo.duration || null,
-          viewCount: videoInfo.view_count || null,
-          likeCount: videoInfo.like_count || null,
-          thumbnailUrl: videoInfo.thumbnail || null,
-          thumbnailPath: thumbnailPath, // Store the local thumbnail path
-          publishedAt: videoInfo.upload_date
-            ? (() => {
-                const date = new Date(videoInfo.upload_date);
-                return isNaN(date.getTime()) ? null : date.getTime();
-              })()
-            : null,
-          tags: videoInfo.tags ? JSON.stringify(videoInfo.tags) : null,
-          raw: JSON.stringify(videoInfo),
-          createdAt: Date.now(),
-        };
-
-        // Save or update video info in database
-        await ctx
-          .db!.insert(youtubeVideos)
-          .values(videoData)
-          .onConflictDoUpdate({
-            target: youtubeVideos.videoId,
-            set: {
-              title: videoData.title,
-              description: videoData.description,
-              channelId: videoData.channelId,
-              channelTitle: videoData.channelTitle,
-              durationSeconds: videoData.durationSeconds,
-              viewCount: videoData.viewCount,
-              likeCount: videoData.likeCount,
-              thumbnailUrl: videoData.thumbnailUrl,
-              thumbnailPath: videoData.thumbnailPath, // Update thumbnail path on conflict
-              publishedAt: videoData.publishedAt,
-              tags: videoData.tags,
-              raw: videoData.raw,
-              updatedAt: Date.now(),
-            },
-          });
-
-        logger.info(`Video info saved for ${videoId}: ${videoData.title}`);
-
-        return {
-          success: true,
-          videoInfo: {
-            ...videoData,
-            thumbnailPath,
-            updatedAt: Date.now(),
-          },
-        };
-      } catch (error) {
-        logger.error("Failed to get video info:", error);
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
-      }
-    }
-  ),
+  getVideoInfo: publicProcedure
+    .input(z.object({ url: z.string().url("Invalid URL") }))
+    .mutation(async ({ input, ctx }) => {
+      return getVideoInfoInternal({ url: input.url, db: ctx.db! });
+    }),
 
   // Check if a video is accessible and downloadable
   checkVideoAccessibility: publicProcedure

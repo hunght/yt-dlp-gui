@@ -97,6 +97,84 @@ describe("yt-dlp-wrap Integration Tests", () => {
     }
   }, 60000); // 60 second timeout
 
+  test("should download short video directly with mp4 format", async () => {
+    const ytDlpWrap = new YTDlpWrap();
+    const testUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"; // Rick Roll - reliable short video
+    const outputPath =
+      "/Users/owner/source/youtube-downloader/yt-dlp-gui/downloads/test-direct-download.%(ext)s";
+
+    try {
+      // Clean up any existing test file first
+      const fs = require("fs");
+      const path = require("path");
+      const possibleFiles = [
+        "/Users/owner/source/youtube-downloader/yt-dlp-gui/downloads/test-direct-download.mp4",
+        "/Users/owner/source/youtube-downloader/yt-dlp-gui/downloads/test-direct-download.webm",
+        "/Users/owner/source/youtube-downloader/yt-dlp-gui/downloads/test-direct-download.mkv",
+      ];
+
+      for (const filePath of possibleFiles) {
+        try {
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log(`Removed existing test file: ${filePath}`);
+          }
+        } catch (e) {
+          console.log(
+            `Could not remove ${filePath}:`,
+            e instanceof Error ? e.message : "Unknown error"
+          );
+        }
+      }
+
+      // Use robust format selection with mp4 output
+      const downloadArgs = [
+        testUrl,
+        "-f",
+        "bv*+ba/b", // Best video + best audio, fallback to best combined
+        "-o",
+        outputPath,
+        "--merge-output-format",
+        "mp4", // Force mp4 output
+        "--progress",
+        "--newline",
+        "--no-warnings",
+      ];
+
+      console.log("Starting direct mp4 download with args:", downloadArgs.join(" "));
+      console.log(
+        `Full command: yt-dlp ${downloadArgs.map((arg) => (arg.includes(" ") ? `"${arg}"` : arg)).join(" ")}`
+      );
+
+      const output = await ytDlpWrap.execPromise(downloadArgs);
+
+      console.log("Direct mp4 download completed successfully");
+      console.log("Download output:", output);
+      expect(output).toBeDefined();
+
+      // Verify the file was created
+      const expectedFile =
+        "/Users/owner/source/youtube-downloader/yt-dlp-gui/downloads/test-direct-download.mp4";
+      if (fs.existsSync(expectedFile)) {
+        const stats = fs.statSync(expectedFile);
+        console.log(`✅ MP4 file created successfully: ${expectedFile}`);
+        console.log(`File size: ${stats.size} bytes`);
+        expect(stats.size).toBeGreaterThan(0);
+      } else {
+        console.log("❌ Expected MP4 file not found");
+        // List what files were actually created
+        const downloadDir = "/Users/owner/source/youtube-downloader/yt-dlp-gui/downloads";
+        const files = fs
+          .readdirSync(downloadDir)
+          .filter((f: string) => f.includes("test-direct-download"));
+        console.log("Files created:", files);
+      }
+    } catch (error) {
+      console.error("Direct mp4 download failed:", error);
+      throw error;
+    }
+  }, 90000); // 90 second timeout for video download
+
   test("should find working format for Khan Academy video", async () => {
     const ytDlpWrap = new YTDlpWrap();
     const testUrl = "https://www.youtube.com/watch?v=OzeHAwjaG60"; // The failing video from the logs

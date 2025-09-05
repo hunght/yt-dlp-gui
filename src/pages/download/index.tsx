@@ -86,7 +86,6 @@ export default function DownloadPage() {
       quality?: string;
       outputFilename?: string;
       outputFormat?: "default" | "mp4" | "mp3";
-      videoInfo?: any;
     }) => trpcClient.download.startDownload.mutate(data),
     onSuccess: () => {
       toast.success("Download started successfully!");
@@ -160,8 +159,7 @@ export default function DownloadPage() {
       quality: undefined,
       outputFilename: outputFilename,
       outputFormat: outputFormat,
-      videoInfo: videoInfo || undefined,
-    } as any);
+    });
   };
 
   return (

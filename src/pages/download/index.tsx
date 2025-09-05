@@ -21,7 +21,7 @@ function isValidUrl(string: string): boolean {
 export default function DownloadPage() {
   const [url, setUrl] = useState("");
   const [outputType, setOutputType] = useState<"video" | "audio">("video");
-  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("best");
+  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("bestvideo+bestaudio");
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("default");
   const [outputFilename, setOutputFilename] = useState("%(title)s.%(ext)s");
   const [videoInfo, setVideoInfo] = useState<any>(null);
@@ -34,7 +34,7 @@ export default function DownloadPage() {
       setDownloadFormat("audioonly");
       setOutputFormat("mp3");
     } else {
-      setDownloadFormat("best");
+      setDownloadFormat("bestvideo+bestaudio");
       setOutputFormat("mp4");
     }
   }, [outputType]);

@@ -134,10 +134,9 @@ describe("Download Router - startDownload", () => {
         console.log(
           `✅ Downloaded file: ${completedDownload!.filePath} (${completedDownload!.fileSize} bytes)`
         );
-        
+
         // Verify the file is in the downloads folder
         expect(completedDownload!.filePath).toContain("/downloads/");
-        
       } catch (error) {
         console.error("Test failed:", error);
         throw error;

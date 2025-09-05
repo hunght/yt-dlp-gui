@@ -16,6 +16,8 @@ export {
   outputFormatOptions,
   getPopularFormats,
   getFormatsByCategory,
+  getRecommendedFormats,
+  getReliableFormats,
   getFormatByValue,
   getOutputFormatByValue,
   formatToYtDlpSelector,

@@ -4,6 +4,7 @@ import fs from "fs";
 import { eq } from "drizzle-orm";
 import { downloads } from "@/api/db/schema";
 import { logger } from "@/helpers/logger";
+import { ProcessDownloadParams, formatToYtDlpSelector } from "./types";
 
 const YTDlpWrapModule = require("yt-dlp-wrap");
 const YTDlpWrap = YTDlpWrapModule.default;
@@ -126,21 +127,11 @@ export async function processDownload({
   downloadId,
   url,
   format,
-  quality,
   outputPath,
   outputFilename,
   outputFormat,
   db: database,
-}: {
-  downloadId: string;
-  url: string;
-  format?: string;
-  quality?: string;
-  outputPath?: string;
-  outputFilename?: string;
-  outputFormat?: "default" | "mp4" | "mp3";
-  db: any;
-}) {
+}: ProcessDownloadParams) {
   const ytDlpWrap = new YTDlpWrap();
   const timestamp = Date.now();
 
@@ -183,8 +174,8 @@ export async function processDownload({
       finalOutputPath = path.join(downloadsDir, `${title.replace(/[^a-zA-Z0-9]/g, "_")}.%(ext)s`);
     }
 
-    // Use the user's selected format, or use no format (let yt-dlp decide)
-    const selectedFormat = format && format.trim() !== "" ? format.trim() : "";
+    // Convert enum format to yt-dlp format selector using shared helper
+    const selectedFormat = format ? formatToYtDlpSelector(format) : "";
 
     if (selectedFormat) {
       logger.info(`Using format: ${selectedFormat} for download ${downloadId}`);
@@ -226,6 +217,7 @@ export async function processDownload({
     // Handle progress updates
     downloadProcess.on("progress", (progress: any) => {
       const progressPercent = Math.round(progress.percent || 0);
+      logger.info(`Download ${downloadId} progress: ${progressPercent}%`);
       activeDownloads.get(downloadId)!.progress = progressPercent;
 
       // Update progress in database

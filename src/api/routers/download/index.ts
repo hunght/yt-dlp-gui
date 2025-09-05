@@ -5,6 +5,12 @@ import {
   activeDownloads,
   formatDuration,
 } from "./service";
+import {
+  startDownloadInputSchema,
+  getDownloadsInputSchema,
+  DownloadFormat,
+  OutputFormat,
+} from "./types";
 import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { eq, desc, asc, and, sql } from "drizzle-orm";
@@ -22,106 +28,95 @@ import { DownloadWithVideo, DownloadStatus } from "@/api/types";
 
 export const downloadRouter = t.router({
   // Get all downloads with pagination and filtering
-  getDownloads: publicProcedure
-    .input(
-      z.object({
-        page: z.number().min(1).default(1),
-        limit: z.number().min(1).max(100).default(20),
-        status: z.enum(["pending", "downloading", "completed", "failed", "cancelled"]).optional(),
-        sortBy: z.enum(["createdAt", "videoId", "status"]).default("createdAt"),
-        sortOrder: z.enum(["asc", "desc"]).default("desc"),
-      })
-    )
-    .query(
-      async ({
-        input,
-        ctx,
-      }): Promise<{
-        downloads: DownloadWithVideo[];
-        pagination: {
-          page: number;
-          limit: number;
-          totalCount: number;
-          totalPages: number;
-          hasNextPage: boolean;
-          hasPrevPage: boolean;
-        };
-      }> => {
-        try {
-          const { page, limit, status, sortBy, sortOrder } = input;
-          const offset = (page - 1) * limit;
+  getDownloads: publicProcedure.input(getDownloadsInputSchema).query(
+    async ({
+      input,
+      ctx,
+    }): Promise<{
+      downloads: DownloadWithVideo[];
+      pagination: {
+        page: number;
+        limit: number;
+        totalCount: number;
+        totalPages: number;
+        hasNextPage: boolean;
+        hasPrevPage: boolean;
+      };
+    }> => {
+      try {
+        const { page, limit, status, sortBy, sortOrder } = input;
+        const offset = (page - 1) * limit;
 
-          // Build where conditions
-          const whereConditions = [];
-          if (status) {
-            whereConditions.push(eq(downloads.status, status));
-          }
-
-          const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
-
-          // Build order by clause
-          let orderByClause;
-          switch (sortBy) {
-            case "createdAt":
-              orderByClause =
-                sortOrder === "asc" ? asc(downloads.createdAt) : desc(downloads.createdAt);
-              break;
-            case "videoId":
-              orderByClause =
-                sortOrder === "asc" ? asc(downloads.videoId) : desc(downloads.videoId);
-              break;
-            case "status":
-              orderByClause = sortOrder === "asc" ? asc(downloads.status) : desc(downloads.status);
-              break;
-            default:
-              orderByClause = desc(downloads.createdAt);
-          }
-
-          // Get total count for pagination
-          const countResult = await ctx
-            .db!.select({ count: sql<number>`count(*)` })
-            .from(downloads)
-            .where(whereClause);
-
-          const totalCount = countResult[0]?.count || 0;
-
-          // Get downloads with video information using leftJoin (following Drizzle docs pattern)
-          const downloadsList = await ctx
-            .db!.select()
-            .from(downloads)
-            .leftJoin(youtubeVideos, eq(downloads.videoId, youtubeVideos.videoId))
-            .where(whereClause)
-            .orderBy(orderByClause)
-            .limit(limit)
-            .offset(offset);
-
-          // Transform to match DownloadInfo type - add formatted duration when video exists
-          const downloadsWithVideoInfo = downloadsList.map((row) => ({
-            ...row,
-            video: row.youtube_videos
-              ? {
-                  ...row.youtube_videos,
-                }
-              : null,
-          }));
-
-          return {
-            downloads: downloadsWithVideoInfo,
-            pagination: {
-              page,
-              limit,
-              totalCount,
-              totalPages: Math.ceil(totalCount / limit),
-              hasNextPage: page < Math.ceil(totalCount / limit),
-              hasPrevPage: page > 1,
-            },
-          };
-        } catch (error) {
-          logger.error("Failed to fetch downloads:", error);
-          throw error;
+        // Build where conditions
+        const whereConditions = [];
+        if (status) {
+          whereConditions.push(eq(downloads.status, status));
         }
+
+        const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+        // Build order by clause
+        let orderByClause;
+        switch (sortBy) {
+          case "createdAt":
+            orderByClause =
+              sortOrder === "asc" ? asc(downloads.createdAt) : desc(downloads.createdAt);
+            break;
+          case "videoId":
+            orderByClause = sortOrder === "asc" ? asc(downloads.videoId) : desc(downloads.videoId);
+            break;
+          case "status":
+            orderByClause = sortOrder === "asc" ? asc(downloads.status) : desc(downloads.status);
+            break;
+          default:
+            orderByClause = desc(downloads.createdAt);
+        }
+
+        // Get total count for pagination
+        const countResult = await ctx
+          .db!.select({ count: sql<number>`count(*)` })
+          .from(downloads)
+          .where(whereClause);
+
+        const totalCount = countResult[0]?.count || 0;
+
+        // Get downloads with video information using leftJoin (following Drizzle docs pattern)
+        const downloadsList = await ctx
+          .db!.select()
+          .from(downloads)
+          .leftJoin(youtubeVideos, eq(downloads.videoId, youtubeVideos.videoId))
+          .where(whereClause)
+          .orderBy(orderByClause)
+          .limit(limit)
+          .offset(offset);
+
+        // Transform to match DownloadInfo type - add formatted duration when video exists
+        const downloadsWithVideoInfo = downloadsList.map((row) => ({
+          ...row,
+          video: row.youtube_videos
+            ? {
+                ...row.youtube_videos,
+              }
+            : null,
+        }));
+
+        return {
+          downloads: downloadsWithVideoInfo,
+          pagination: {
+            page,
+            limit,
+            totalCount,
+            totalPages: Math.ceil(totalCount / limit),
+            hasNextPage: page < Math.ceil(totalCount / limit),
+            hasPrevPage: page > 1,
+          },
+        };
+      } catch (error) {
+        logger.error("Failed to fetch downloads:", error);
+        throw error;
       }
-    ),
+    }
+  ),
 
   // Get a single download by ID
   getDownloadById: publicProcedure
@@ -145,81 +140,68 @@ export const downloadRouter = t.router({
     }),
 
   // Start a new download
-  startDownload: publicProcedure
-    .input(
-      z.object({
-        url: z.string().url("Invalid URL"),
-        format: z.string().optional(),
-        quality: z.string().optional(),
-        outputPath: z.string().optional(),
-        outputFilename: z.string().optional(),
-        outputFormat: z.enum(["default", "mp4", "mp3"]).optional(),
-      })
-    )
-    .mutation(
-      async ({
-        input,
-        ctx,
-      }): Promise<{
-        id: string;
-        status: DownloadStatus;
-        videoInfo: YoutubeVideo | null;
-      }> => {
-        try {
-          const { url, format, quality, outputPath, outputFilename, outputFormat } = input;
-          const downloadId = randomUUID();
-          const timestamp = Date.now();
+  startDownload: publicProcedure.input(startDownloadInputSchema).mutation(
+    async ({
+      input,
+      ctx,
+    }): Promise<{
+      id: string;
+      status: DownloadStatus;
+      videoInfo: YoutubeVideo | null;
+    }> => {
+      try {
+        const { url, format, outputPath, outputFilename, outputFormat } = input;
+        const downloadId = randomUUID();
+        const timestamp = Date.now();
 
-          // Create download record
-          await ctx.db!.insert(downloads).values({
-            id: downloadId,
-            url,
-            videoId: null, // Will be populated when video info is extracted from URL
-            status: "pending",
-            progress: 0,
-            format,
-            quality,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          });
+        // Create download record
+        await ctx.db!.insert(downloads).values({
+          id: downloadId,
+          url,
+          videoId: null, // Will be populated when video info is extracted from URL
+          status: "pending",
+          progress: 0,
+          format,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
 
-          // Start download in background
-          setImmediate(async () => {
-            try {
-              await processDownload({
-                downloadId,
-                url,
-                format: format,
-                quality,
-                outputPath,
-                outputFilename,
-                outputFormat,
-                db: ctx.db!,
-              });
-            } catch (error) {
-              logger.error(`Download ${downloadId} failed:`, error);
-              await ctx
-                .db!.update(downloads)
-                .set({
-                  status: "failed",
-                  errorMessage: error instanceof Error ? error.message : "Unknown error",
-                  updatedAt: Date.now(),
-                })
-                .where(eq(downloads.id, downloadId));
-            }
-          });
+        // Start download in background
+        setImmediate(async () => {
+          try {
+            await processDownload({
+              downloadId,
+              url,
+              format: format,
+              outputPath,
+              outputFilename,
+              outputFormat,
+              db: ctx.db!,
+            });
+          } catch (error) {
+            logger.error(`Download ${downloadId} failed:`, error);
+            await ctx
+              .db!.update(downloads)
+              .set({
+                status: "failed",
+                errorMessage: error instanceof Error ? error.message : "Unknown error",
+                updatedAt: Date.now(),
+              })
+              .where(eq(downloads.id, downloadId));
+          }
+        });
 
-          return {
-            id: downloadId,
-            status: "pending",
-            videoInfo: null, // Will be populated when video info is extracted during download
-          };
-        } catch (error) {
-          logger.error("Failed to start download:", error);
-          throw error;
-        }
+        return {
+          id: downloadId,
+          status: "pending",
+          videoInfo: null, // Will be populated when video info is extracted during download
+        };
+      } catch (error) {
+        logger.error("Failed to start download:", error);
+        throw error;
       }
-    ),
+    }
+  ),
 
   // Cancel a download
   cancelDownload: publicProcedure
@@ -552,22 +534,18 @@ export const downloadRouter = t.router({
         const { id } = input;
 
         // Get the failed download
-        const download = await ctx
-          .db!.select()
-          .from(downloads)
-          .where(eq(downloads.id, id))
-          .limit(1);
+        const download = await ctx.db!.select().from(downloads).where(eq(downloads.id, id)).get();
 
-        if (!download[0]) {
+        if (!download) {
           throw new Error("Download not found");
         }
 
-        if (download[0].status !== "failed") {
+        if (download.status !== "failed") {
           throw new Error("Can only retry failed downloads");
         }
 
         // Check if the download is retryable
-        if (download[0].isRetryable === false) {
+        if (download.isRetryable === false) {
           throw new Error(
             "This download cannot be retried. The video may be restricted or region-locked."
           );
@@ -590,9 +568,16 @@ export const downloadRouter = t.router({
           try {
             await processDownload({
               downloadId: id,
-              url: download[0].url,
-              format: download[0].format || undefined,
-              quality: download[0].quality || undefined,
+              url: download.url,
+              format: download.format as
+                | "best"
+                | "best720p"
+                | "best480p"
+                | "best1080p"
+                | "audioonly"
+                | "mp4best"
+                | "webmbest"
+                | undefined,
               outputPath: undefined,
               outputFilename: undefined,
               outputFormat: undefined, // Not stored in retry, use default

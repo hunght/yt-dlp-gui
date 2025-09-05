@@ -82,8 +82,14 @@ export default function DownloadPage() {
   const startDownloadMutation = useMutation({
     mutationFn: (data: {
       url: string;
-      format: string;
-      quality?: string;
+      format?:
+        | "best"
+        | "best720p"
+        | "best480p"
+        | "best1080p"
+        | "audioonly"
+        | "mp4best"
+        | "webmbest";
       outputFilename?: string;
       outputFormat?: "default" | "mp4" | "mp3";
     }) => trpcClient.download.startDownload.mutate(data),
@@ -132,21 +138,29 @@ export default function DownloadPage() {
     },
   });
 
-  const getFormatForDownloadType = () => {
+  const getFormatForDownloadType = ():
+    | "best"
+    | "best720p"
+    | "best480p"
+    | "best1080p"
+    | "audioonly"
+    | "mp4best"
+    | "webmbest"
+    | undefined => {
     // If output type is audio, override download type
     if (outputType === "audio") {
-      return "bestaudio";
+      return "audioonly";
     }
 
     switch (downloadType) {
       case "basic":
-        return ""; // yt-dlp default
+        return "best"; // Use best quality
       case "best-merge":
-        return "bestvideo+bestaudio";
+        return "best"; // Best quality with merge
       case "limit-720p":
-        return "bestvideo[height<=720]+bestaudio/best[height<=720]";
+        return "best720p"; // Limit to 720p
       default:
-        return "";
+        return "best";
     }
   };
 
@@ -156,7 +170,6 @@ export default function DownloadPage() {
     startDownloadMutation.mutate({
       url: url.trim(),
       format,
-      quality: undefined,
       outputFilename: outputFilename,
       outputFormat: outputFormat,
     });

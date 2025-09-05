@@ -1,5 +1,8 @@
 import type { YoutubeVideo, Download } from "./db/schema";
 
+// Re-export download-specific types for convenience
+export type { DownloadFormat, OutputFormat, SortBy, SortOrder } from "./routers/download/types";
+
 // API response types
 
 // Extended types with relations

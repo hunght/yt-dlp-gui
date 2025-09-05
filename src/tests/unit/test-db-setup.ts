@@ -96,6 +96,55 @@ export async function createSharedTestDatabase(): Promise<TestDatabase> {
 }
 
 /**
+ * Creates a test database with real data cloned from local.db
+ * Useful for integration tests that need to work with real data
+ */
+export async function createTestDatabaseWithRealData(testName: string): Promise<TestDatabase> {
+  // Create a unique database file for this test
+  const testDbPath = path.join(process.cwd(), `test-${testName}-${Date.now()}.db`);
+  const localDbPath = path.join(process.cwd(), "local.db");
+
+  // First, copy the local.db file to the test database path
+  if (fs.existsSync(localDbPath)) {
+    fs.copyFileSync(localDbPath, testDbPath);
+    console.log(`Cloned real data from ${localDbPath} to ${testDbPath}`);
+  } else {
+    throw new Error("local.db file not found. Cannot clone real data.");
+  }
+
+  // Create the client
+  const client = createClient({
+    url: `file:${testDbPath}`,
+    authToken: "",
+    syncUrl: undefined,
+    encryptionKey: undefined,
+  });
+
+  // Create the drizzle instance
+  const db = drizzle(client, {
+    schema,
+    logger: false, // Disable logging in tests
+  });
+
+  // Run migrations to ensure schema is up to date
+  await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+
+  // Cleanup function
+  const cleanup = async () => {
+    try {
+      await client.close();
+      if (fs.existsSync(testDbPath)) {
+        fs.unlinkSync(testDbPath);
+      }
+    } catch (error) {
+      console.warn("Error cleaning up test database with real data:", error);
+    }
+  };
+
+  return { db, client, cleanup };
+}
+
+/**
  * Seeds the test database with sample data
  */
 export async function seedTestDatabase(db: ReturnType<typeof drizzle>) {

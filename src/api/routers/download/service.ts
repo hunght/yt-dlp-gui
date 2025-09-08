@@ -309,9 +309,16 @@ export async function processDownload({
       "--no-warnings" // Suppress warnings for cleaner output
     );
 
-    // Add merge output format if specified (for mp4/mp3)
+    // Add output format options based on format type
     if (outputFormat && outputFormat !== "default") {
-      downloadArgs.push("--merge-output-format", outputFormat);
+      // For audio formats (mp3, aac, opus, flac), use --audio-format
+      const audioFormats = ["mp3", "aac", "opus", "flac"];
+      if (audioFormats.includes(outputFormat)) {
+        downloadArgs.push("--extract-audio", "--audio-format", outputFormat);
+      } else {
+        // For video formats (mp4, webm, mkv), use --merge-output-format
+        downloadArgs.push("--merge-output-format", outputFormat);
+      }
     }
 
     // Log the exact command that will be executed

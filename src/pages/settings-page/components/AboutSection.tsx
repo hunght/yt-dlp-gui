@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ScrollTextIcon, Trash2Icon } from "lucide-react";
 import { trpcClient } from "@/utils/trpc";
@@ -59,6 +59,9 @@ export function AboutSection() {
         <DialogContent className="max-h-[90vh] w-full max-w-[95vw]">
           <DialogHeader>
             <DialogTitle>Application Logs</DialogTitle>
+            <DialogDescription>
+              View and review application logs for debugging and troubleshooting
+            </DialogDescription>
           </DialogHeader>
           <ScrollArea className="h-[75vh] w-full rounded-md border p-4">
             <div className="w-full">

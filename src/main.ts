@@ -21,6 +21,8 @@ import { setWindowReferences } from "./api/routers/window";
 import { logger } from "./helpers/logger";
 
 import { toggleClockWindow } from "./main/windows/clock";
+import { ytdlpManager } from "./main/services/ytdlp-manager";
+import { registerYtDlpHandlers } from "./main/ipc/ytdlp-handlers";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -229,6 +231,9 @@ function createWindow(): void {
   // Register other IPC listeners (excluding window listeners)
   registerListeners(mainWindow, tray);
 
+  // Set main window for yt-dlp manager
+  ytdlpManager.setMainWindow(mainWindow);
+
   mainWindow.on("close", (event) => {
     if (!isQuiting) {
       event.preventDefault();
@@ -277,8 +282,20 @@ app.whenReady().then(async () => {
     logger.error("[app.whenReady] Failed to initialize database:", error);
   }
 
+  // Register yt-dlp IPC handlers
+  registerYtDlpHandlers();
+
   await createTray();
   createWindow();
+
+  // Initialize yt-dlp (download if not exists, check for updates if exists)
+  try {
+    logger.info("Ensuring yt-dlp is installed...");
+    await ytdlpManager.ensureInstalled();
+    logger.info("yt-dlp is ready");
+  } catch (error) {
+    logger.error("Failed to initialize yt-dlp:", error);
+  }
 
   // Modify CSP to allow scripts from PostHog and inline scripts
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -362,6 +379,23 @@ declare global {
       close: () => Promise<void>;
       action: () => Promise<void>;
       onNotification: (callback: (data: any) => void) => void;
+    };
+    ytdlp?: {
+      isInstalled: () => Promise<boolean>;
+      getVersion: () => Promise<string | null>;
+      checkUpdates: () => Promise<{ hasUpdate: boolean; latestVersion: string | null }>;
+      download: () => Promise<{ success: boolean }>;
+      update: () => Promise<{ success: boolean }>;
+      getPath: () => Promise<string>;
+      onDownloadStarted: (callback: () => void) => void;
+      onDownloadProgress: (callback: (progress: {
+        downloaded: number;
+        total: number;
+        percentage: number;
+      }) => void) => void;
+      onDownloadCompleted: (callback: (version: string) => void) => void;
+      onDownloadFailed: (callback: (error: string) => void) => void;
+      onUpdateAvailable: (callback: (version: string) => void) => void;
     };
   }
 }

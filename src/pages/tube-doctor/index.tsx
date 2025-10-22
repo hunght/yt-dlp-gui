@@ -35,19 +35,11 @@ export default function TubeDoctorPage() {
   const [urlTestResult, setUrlTestResult] = useState<DiagnosticResult | null>(null);
 
   // Query hooks for individual components
-  const { data: systemHealth, refetch: refetchSystemHealth } = useQuery({
-    queryKey: ['tubeDoctor', 'systemHealth'],
-    queryFn: () => trpcClient.tubeDoctor.getSystemHealth.query(),
-  });
-
-  const { data: performanceMetrics, refetch: refetchPerformanceMetrics } = useQuery({
-    queryKey: ['tubeDoctor', 'performanceMetrics'],
-    queryFn: () => trpcClient.tubeDoctor.getPerformanceMetrics.query(),
-  });
+  const { data: systemHealth, refetch: refetchSystemHealth } = api.tubeDoctor.getSystemHealth.useQuery();
+  const { data: performanceMetrics, refetch: refetchPerformanceMetrics } = api.tubeDoctor.getPerformanceMetrics.useQuery();
 
   // Mutation for clearing cache
-  const clearCacheMutation = useMutation({
-    mutationFn: () => trpcClient.tubeDoctor.clearCache.mutate(),
+  const clearCacheMutation = api.tubeDoctor.clearCache.useMutation({
     onSuccess: (result) => {
       if (result.success) {
         toast.success("Cache cleared successfully");
@@ -55,7 +47,7 @@ export default function TubeDoctorPage() {
         toast.error(`Failed to clear cache: ${result.message}`);
       }
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       toast.error(`Failed to clear cache: ${error.message}`);
     },
   });
@@ -63,7 +55,7 @@ export default function TubeDoctorPage() {
   const handleRunFullDiagnostics = async () => {
     setIsRunningDiagnostics(true);
     try {
-      const result = await trpcClient.tubeDoctor.runFullDiagnostics.query();
+      const result = await api.tubeDoctor.runFullDiagnostics.query();
       setDiagnosticsReport(result);
 
       // Refresh individual components
@@ -94,7 +86,7 @@ export default function TubeDoctorPage() {
 
     setIsTestingUrl(true);
     try {
-      const result = await trpcClient.tubeDoctor.testUrl.query({ url: testUrl });
+      const result = await api.tubeDoctor.testUrl.query({ url: testUrl });
       setUrlTestResult(result);
 
       if (result.passed) {
@@ -429,7 +421,7 @@ export default function TubeDoctorPage() {
                 <div>
                   <h3 className="text-lg font-semibold mb-3">Common Error Analysis</h3>
                   <div className="space-y-2">
-                    {performanceMetrics.commonErrors.map((error: { error: string; count: number }, index: number) => (
+                    {performanceMetrics.commonErrors.map((error, index) => (
                       <div key={index} className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-900/20 rounded">
                         <span className="text-sm font-mono text-red-700 dark:text-red-300 truncate flex-1 mr-2">
                           {error.error}
@@ -448,7 +440,7 @@ export default function TubeDoctorPage() {
                 <div>
                   <h3 className="text-lg font-semibold mb-3">System Issues</h3>
                   <div className="space-y-2">
-                    {systemHealth.issues.map((issue: string, index: number) => (
+                    {systemHealth.issues.map((issue, index) => (
                       <div key={index} className="flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
                         <AlertTriangle className="h-4 w-4 text-yellow-600" />
                         <span className="text-sm">{issue}</span>

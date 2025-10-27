@@ -21,8 +21,7 @@ import { setWindowReferences } from "./api/routers/window";
 import { logger } from "./helpers/logger";
 
 import { toggleClockWindow } from "./main/windows/clock";
-import { ytdlpManager } from "./main/services/ytdlp-manager";
-import { registerYtDlpHandlers } from "./main/ipc/ytdlp-handlers";
+
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -231,8 +230,6 @@ function createWindow(): void {
   // Register other IPC listeners (excluding window listeners)
   registerListeners(mainWindow, tray);
 
-  // Set main window for yt-dlp manager
-  ytdlpManager.setMainWindow(mainWindow);
 
   mainWindow.on("close", (event) => {
     if (!isQuiting) {
@@ -282,20 +279,10 @@ app.whenReady().then(async () => {
     logger.error("[app.whenReady] Failed to initialize database:", error);
   }
 
-  // Register yt-dlp IPC handlers
-  registerYtDlpHandlers();
 
   await createTray();
   createWindow();
 
-  // Initialize yt-dlp (download if not exists, check for updates if exists)
-  try {
-    logger.info("Ensuring yt-dlp is installed...");
-    await ytdlpManager.ensureInstalled();
-    logger.info("yt-dlp is ready");
-  } catch (error) {
-    logger.error("Failed to initialize yt-dlp:", error);
-  }
 
   // Modify CSP to allow scripts from PostHog and inline scripts
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {

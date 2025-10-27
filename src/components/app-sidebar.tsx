@@ -22,11 +22,6 @@ const items = [
     isActive: true,
   },
 
-  {
-    title: "Download",
-    icon: Download,
-    url: "/download",
-  },
 
   {
     title: "Settings",

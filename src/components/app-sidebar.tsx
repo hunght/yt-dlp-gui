@@ -14,7 +14,6 @@ import {
   CalendarClock,
   Play,
   Download,
-  Stethoscope,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -52,12 +51,6 @@ const items = [
     title: "Download",
     icon: Download,
     url: "/download",
-  },
-
-  {
-    title: "Tube Doctor",
-    icon: Stethoscope,
-    url: "/tube-doctor",
   },
 
   {

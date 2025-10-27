@@ -4,7 +4,6 @@ import SettingsPage from "@/pages/settings-page/SettingsPage";
 
 import DownloadPage from "@/pages/download";
 import YouTubeVideosPage from "@/pages/youtube-videos";
-import TubeDoctorPage from "@/pages/tube-doctor";
 
 export const SettingsRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -24,15 +23,8 @@ export const DownloadRoute = createRoute({
   component: DownloadPage,
 });
 
-export const TubeDoctorRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/tube-doctor",
-  component: TubeDoctorPage,
-});
-
 export const rootTree = RootRoute.addChildren([
   SettingsRoute,
   YouTubeVideosRoute,
   DownloadRoute,
-  TubeDoctorRoute,
 ]);

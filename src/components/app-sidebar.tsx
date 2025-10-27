@@ -1,9 +1,5 @@
 import * as React from "react";
-import {
-  Settings,
-  Timer,
-  Download,
-} from "lucide-react";
+import { Settings, Timer, Download, ScrollText } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +31,12 @@ const items = [
   {
     title: "Settings",
     icon: Settings,
-    url: "/settings",
+    url: "/",
+  },
+  {
+    title: "Logs",
+    icon: ScrollText,
+    url: "/logs",
   },
 ];
 

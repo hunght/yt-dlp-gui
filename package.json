@@ -156,6 +156,7 @@
     "date-fns": "^3.6.0",
     "drizzle-orm": "^0.44.5",
     "drizzle-zod": "^0.7.1",
+    "electron-log": "^5.4.3",
     "electron-squirrel-startup": "^1.0.1",
     "electron-trpc": "^0.7.1",
     "get-windows": "^9.2.3",

@@ -3,6 +3,7 @@ import { RootRoute } from "./__root";
 import SettingsPage from "@/pages/settings-page/SettingsPage";
 
 import DownloadPage from "@/pages/download";
+import LogsPage from "@/pages/logs/LogsPage";
 
 export const SettingsRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -16,7 +17,14 @@ export const DownloadRoute = createRoute({
   component: DownloadPage,
 });
 
+export const LogsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/logs",
+  component: LogsPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   SettingsRoute,
   DownloadRoute,
+  LogsRoute,
 ]);

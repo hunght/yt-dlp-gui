@@ -104,6 +104,17 @@ export const utilsRouter = t.router({
     }
   }),
 
+  // Clear log file content
+  clearLogFile: publicProcedure.mutation(async () => {
+    try {
+      await logger.clearLogFile();
+      return { success: true } as const;
+    } catch (error) {
+      logger.error("Failed to clear log file", error);
+      return { success: false, error: String(error) } as const;
+    }
+  }),
+
   openNotificationWindow: publicProcedure
     .input(
       z

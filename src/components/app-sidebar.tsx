@@ -1,6 +1,7 @@
 import * as React from "react";
-import { Settings, Timer, Download, ScrollText } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Settings, Timer, ScrollText } from "lucide-react";
+import { Link, useMatches } from "@tanstack/react-router";
+import { logger } from "@/helpers/logger";
 import { cn } from "@/lib/utils";
 
 import {
@@ -37,6 +38,8 @@ const items = [
 
 export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
   const [activeItem, setActiveItem] = React.useState<string | null>(null);
+  const matches = useMatches();
+  const currentPath = React.useMemo(() => matches[matches.length - 1]?.pathname ?? "/", [matches]);
 
   return (
     <Sidebar
@@ -68,6 +71,12 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                 <Link
                   to={item.url}
                   onClick={() => {
+                    logger.debug("Sidebar navigation", {
+                      from: currentPath,
+                      to: item.url,
+                      title: item.title,
+                      source: "AppSidebar",
+                    });
                     setActiveItem(item.title);
                   }}
                 >

@@ -13,6 +13,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { getConfig } from "./config/env";
 import { VersionChecker } from "@/components/version-checker";
+import { YtDlpInstaller } from "@/components/ytdlp-installer";
 import { getAppVersion } from "./helpers/version";
 
 // Initialize PostHog with enhanced CSP compatibility
@@ -79,6 +80,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <YtDlpInstaller />
         <MainApp />
         <VersionChecker autoCheck={true} showCheckButton={false} />
       </TooltipProvider>

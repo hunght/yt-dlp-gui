@@ -17,17 +17,15 @@ import {
 // This is sample data.
 const items = [
   {
-    title: "Focus Session",
+    title: "Dashboard",
     icon: Timer,
     url: "/",
     isActive: true,
   },
-
-
   {
     title: "Settings",
     icon: Settings,
-    url: "/",
+    url: "/settings",
   },
   {
     title: "Logs",

@@ -71,6 +71,7 @@ function Root() {
     });
   }, [matches]);
 
+
   return (
     <ConfirmationDialogProvider>
       {isFullScreenRoute ? (

@@ -6,6 +6,10 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
+import { spawn } from "child_process";
+import { eq } from "drizzle-orm";
+import { downloads, youtubeVideos } from "@/api/db/schema";
+import defaultDb from "@/api/db";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getVersionFilePath = () => path.join(getBinDir(), "yt-dlp-version.txt");
@@ -199,6 +203,252 @@ export const ytdlpRouter = t.router({
         logger.error("[ytdlp] Failed to finalize installation", e as Error);
         return { success: false as const, message: `Install error: ${String(e)}` } as const;
       }
+    }),
+
+  // Start a YouTube download using the installed yt-dlp binary and persist to DB
+  startVideoDownload: publicProcedure
+    .input(
+      z.object({
+        url: z.string().url(),
+        format: z.string().optional(), // yt-dlp format string
+        outputDir: z.string().optional(), // custom output dir, default app downloads dir
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const startedAt = Date.now();
+
+      // Ensure binary exists (do not auto-install here to keep responsibilities clear)
+      const binPath = getBinaryFilePath();
+      if (!fs.existsSync(binPath)) {
+        return {
+          success: false as const,
+          message: "yt-dlp binary not installed. Please install first.",
+        } as const;
+      }
+
+      const downloadsRoot = input.outputDir || path.join(app.getPath("downloads"), "yt-dlp-gui");
+      if (!fs.existsSync(downloadsRoot)) fs.mkdirSync(downloadsRoot, { recursive: true });
+
+      // 1) Fetch metadata via yt-dlp -J (dump json)
+      let meta: any | null = null;
+      try {
+        const metaJson = await new Promise<string>((resolve, reject) => {
+          const proc = spawn(binPath, ["-J", input.url], { stdio: ["ignore", "pipe", "pipe"] });
+          let out = "";
+          let err = "";
+          proc.stdout.on("data", (d) => (out += d.toString()));
+          proc.stderr.on("data", (d) => (err += d.toString()));
+          proc.on("error", reject);
+          proc.on("close", (code) => {
+            if (code === 0) resolve(out);
+            else reject(new Error(err || `yt-dlp -J exited with code ${code}`));
+          });
+        });
+        meta = JSON.parse(metaJson);
+      } catch (e) {
+        logger.error("[ytdlp] Failed to fetch video metadata", e as Error);
+        return { success: false as const, message: `Metadata error: ${String(e)}` } as const;
+      }
+
+      // Extract minimal fields
+      const videoId: string = meta.id || meta.video_id || "";
+      const title: string = meta.title || "Untitled";
+      const channelId: string | null = meta.channel_id || meta.channelId || null;
+      const channelTitle: string | null = meta.channel || meta.uploader || meta.channel_title || null;
+      const durationSeconds: number | null = meta.duration ? Math.round(meta.duration) : null;
+      const viewCount: number | null = meta.view_count ?? null;
+      const likeCount: number | null = meta.like_count ?? null;
+      const thumbnailUrl: string | null = Array.isArray(meta.thumbnails)
+        ? meta.thumbnails[meta.thumbnails.length - 1]?.url ?? null
+        : meta.thumbnail ?? null;
+      const publishedAt: number | null = meta.upload_date
+        ? Date.parse(
+            `${meta.upload_date.slice(0, 4)}-${meta.upload_date.slice(4, 6)}-${meta.upload_date.slice(6, 8)}`
+          )
+        : null;
+      const tags: string | null = Array.isArray(meta.tags) ? JSON.stringify(meta.tags) : null;
+
+      // 2) Upsert video into youtubeVideos
+      try {
+        const now = Date.now();
+        // Check if exists
+        const existing = await db
+          .select()
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.videoId, videoId))
+          .limit(1);
+
+        if (existing.length === 0) {
+          await db.insert(youtubeVideos).values({
+            id: crypto.randomUUID(),
+            videoId,
+            title,
+            description: meta.description ?? null,
+            channelId,
+            channelTitle,
+            durationSeconds,
+            viewCount,
+            likeCount,
+            thumbnailUrl,
+            thumbnailPath: null,
+            publishedAt,
+            tags,
+            raw: JSON.stringify(meta),
+            createdAt: now,
+            updatedAt: now,
+          });
+        } else {
+          await db
+            .update(youtubeVideos)
+            .set({
+              title,
+              description: meta.description ?? null,
+              channelId,
+              channelTitle,
+              durationSeconds,
+              viewCount,
+              likeCount,
+              thumbnailUrl,
+              publishedAt,
+              tags,
+              raw: JSON.stringify(meta),
+              updatedAt: now,
+            })
+            .where(eq(youtubeVideos.videoId, videoId));
+        }
+      } catch (e) {
+        logger.error("[ytdlp] DB upsert video failed", e as Error);
+      }
+
+      // 3) Create download record
+      const downloadId = crypto.randomUUID();
+      const outputTemplate = path.join(downloadsRoot, "%(title)s [%(id)s].%(ext)s");
+      try {
+        await db.insert(downloads).values({
+          id: downloadId,
+          url: input.url,
+          videoId,
+          status: "downloading",
+          progress: 0,
+          format: input.format ?? null,
+          quality: null,
+          filePath: null,
+          fileSize: null,
+          errorMessage: null,
+          errorType: null,
+          isRetryable: true,
+          createdAt: startedAt,
+          updatedAt: startedAt,
+          completedAt: null,
+        });
+      } catch (e) {
+        logger.error("[ytdlp] DB insert download failed", e as Error);
+      }
+
+      // 4) Spawn yt-dlp download in background
+      const args = [
+        "-o",
+        outputTemplate,
+        "--newline",
+        "--no-simulate",
+      ];
+      if (input.format) {
+        args.push("-f", input.format);
+      }
+      args.push(input.url);
+
+      logger.info("[ytdlp] Spawning download", { args });
+
+      const proc = spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+
+  const onProgress = async (line: string) => {
+        // Typical line: "[download]  12.3% of ..."
+        const match = line.match(/(\d+(?:\.\d+)?)%/);
+        if (match) {
+          const pct = Math.min(100, Math.max(0, Math.round(parseFloat(match[1]))));
+          try {
+            await db
+              .update(downloads)
+              .set({ progress: pct, updatedAt: Date.now() })
+              .where(eq(downloads.id, downloadId));
+          } catch (e) {
+            logger.error("[ytdlp] Failed to update progress", e as Error);
+          }
+        }
+      };
+
+      let mergedFilePath: string | null = null;
+
+      proc.stdout.on("data", (chunk) => {
+        const text = chunk.toString();
+        text.split("\n").forEach((line: string) => {
+          if (!line.trim()) return;
+          onProgress(line).catch(() => undefined);
+          // Capture final file path if available in merger line
+          const m = line.match(/Merging formats into \"(.+?)\"/);
+          if (m) mergedFilePath = m[1];
+        });
+      });
+      proc.stderr.on("data", (chunk) => {
+        const text = chunk.toString();
+        text.split("\n").forEach((line: string) => {
+          if (!line.trim()) return;
+          onProgress(line).catch(() => undefined);
+          const m = line.match(/Merging formats into \"(.+?)\"/);
+          if (m) mergedFilePath = m[1];
+        });
+      });
+
+      proc.on("close", async (code) => {
+        const finishedAt = Date.now();
+        if (code === 0) {
+          // Try to resolve final file path if not captured
+          let finalPath = mergedFilePath;
+          if (!finalPath) {
+            try {
+              // Attempt to find the file by id in output directory
+              const files = fs.readdirSync(downloadsRoot);
+              const match = files.find((f) => f.includes(`[${videoId}]`));
+              if (match) finalPath = path.join(downloadsRoot, match);
+            } catch {}
+          }
+          try {
+            await db
+              .update(downloads)
+              .set({
+                status: "completed",
+                progress: 100,
+                filePath: finalPath ?? null,
+                updatedAt: finishedAt,
+                completedAt: finishedAt,
+              })
+              .where(eq(downloads.id, downloadId));
+          } catch (e) {
+            logger.error("[ytdlp] Failed to mark completed", e as Error);
+          }
+        } else {
+          try {
+            await db
+              .update(downloads)
+              .set({ status: "failed", updatedAt: finishedAt, isRetryable: true })
+              .where(eq(downloads.id, downloadId));
+          } catch (e) {
+            logger.error("[ytdlp] Failed to mark failed", e as Error);
+          }
+        }
+      });
+
+      return { success: true as const, id: downloadId } as const;
+    }),
+
+  // Simple fetcher to get a download by id
+  getDownload: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const rows = await db.select().from(downloads).where(eq(downloads.id, input.id)).limit(1);
+      return rows[0] ?? null;
     }),
 });
 

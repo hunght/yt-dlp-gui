@@ -8,7 +8,7 @@ import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
 import { spawn } from "child_process";
 import { eq, desc } from "drizzle-orm";
-import { downloads, youtubeVideos } from "@/api/db/schema";
+import { downloads, youtubeVideos, channels } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
@@ -95,6 +95,87 @@ const mapYtDlpMetadata = (meta: any) => {
     tags: Array.isArray(meta?.tags) ? JSON.stringify(meta.tags) : null,
     raw: JSON.stringify(meta),
   } as const;
+};
+
+// Helper to extract channel data from yt-dlp metadata
+const extractChannelData = (meta: any) => {
+  const channelId = meta?.channel_id || meta?.channelId || null;
+  if (!channelId) return null;
+
+  // Extract channel thumbnail (profile photo)
+  let channelThumbnail = null;
+  if (meta?.channel_thumbnails && Array.isArray(meta.channel_thumbnails) && meta.channel_thumbnails.length > 0) {
+    // Get the highest quality thumbnail
+    channelThumbnail = meta.channel_thumbnails[meta.channel_thumbnails.length - 1]?.url ?? null;
+  } else if (meta?.uploader_avatar || meta?.channel_avatar) {
+    channelThumbnail = meta.uploader_avatar || meta.channel_avatar;
+  }
+
+  return {
+    channelId,
+    channelTitle: meta?.channel || meta?.uploader || meta?.channel_title || "Unknown Channel",
+    channelDescription: meta?.channel_description ?? null,
+    channelUrl: meta?.channel_url || (channelId ? `https://www.youtube.com/channel/${channelId}` : null),
+    thumbnailUrl: channelThumbnail,
+    subscriberCount: meta?.channel_follower_count ?? null,
+    videoCount: null, // Not typically in video metadata
+    viewCount: null, // Not typically in video metadata
+    customUrl: meta?.uploader_url?.includes('@') ? meta.uploader_url.split('@')[1] : null,
+    raw: JSON.stringify(meta),
+  } as const;
+};
+
+// Helper to upsert channel data into database
+const upsertChannelData = async (db: any, channelData: ReturnType<typeof extractChannelData>) => {
+  if (!channelData || !channelData.channelId) return;
+
+  const now = Date.now();
+  try {
+    const existing = await db
+      .select()
+      .from(channels)
+      .where(eq(channels.channelId, channelData.channelId))
+      .limit(1);
+
+    if (existing.length === 0) {
+      await db.insert(channels).values({
+        id: crypto.randomUUID(),
+        channelId: channelData.channelId,
+        channelTitle: channelData.channelTitle,
+        channelDescription: channelData.channelDescription,
+        channelUrl: channelData.channelUrl,
+        thumbnailUrl: channelData.thumbnailUrl,
+        thumbnailPath: null,
+        bannerUrl: null,
+        subscriberCount: channelData.subscriberCount,
+        videoCount: channelData.videoCount,
+        viewCount: channelData.viewCount,
+        customUrl: channelData.customUrl,
+        raw: channelData.raw,
+        createdAt: now,
+        updatedAt: now,
+      });
+      logger.info("[ytdlp] Created new channel", { channelId: channelData.channelId, channelTitle: channelData.channelTitle });
+    } else {
+      // Update existing channel data
+      await db
+        .update(channels)
+        .set({
+          channelTitle: channelData.channelTitle,
+          channelDescription: channelData.channelDescription,
+          channelUrl: channelData.channelUrl,
+          thumbnailUrl: channelData.thumbnailUrl,
+          subscriberCount: channelData.subscriberCount,
+          customUrl: channelData.customUrl,
+          raw: channelData.raw,
+          updatedAt: now,
+        })
+        .where(eq(channels.channelId, channelData.channelId));
+      logger.debug("[ytdlp] Updated channel", { channelId: channelData.channelId });
+    }
+  } catch (e) {
+    logger.error("[ytdlp] Failed to upsert channel", e as Error);
+  }
 };
 
 export const ytdlpRouter = t.router({
@@ -300,6 +381,12 @@ export const ytdlpRouter = t.router({
 
       const mapped = mapYtDlpMetadata(meta);
 
+      // Extract and upsert channel data
+      const channelData = extractChannelData(meta);
+      if (channelData) {
+        await upsertChannelData(db, channelData);
+      }
+
       // Always store in DB for caching
       if (mapped.videoId) {
         const now = Date.now();
@@ -463,6 +550,12 @@ export const ytdlpRouter = t.router({
         publishedAt = mapped.publishedAt;
         tags = mapped.tags;
         raw = mapped.raw;
+
+        // Extract and upsert channel data
+        const channelData = extractChannelData(meta);
+        if (channelData) {
+          await upsertChannelData(db, channelData);
+        }
       }
 
       // 2) Upsert video into youtubeVideos (only if we fetched new data)
@@ -680,6 +773,64 @@ export const ytdlpRouter = t.router({
         .orderBy(desc(downloads.completedAt))
         .limit(limit);
       return rows;
+    }),
+
+  // List unique channels from downloaded videos
+  listChannels: publicProcedure
+    .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input?.limit ?? 50;
+
+      // Get channels from channels table with video count
+      const channelRows = await db
+        .select()
+        .from(channels)
+        .orderBy(desc(channels.updatedAt))
+        .limit(limit);
+
+      // Count videos for each channel
+      const channelsWithVideoCounts = await Promise.all(
+        channelRows.map(async (channel) => {
+          const videosCount = await db
+            .select({ count: youtubeVideos.id })
+            .from(youtubeVideos)
+            .where(eq(youtubeVideos.channelId, channel.channelId));
+
+          return {
+            id: channel.id,
+            channelId: channel.channelId,
+            channelTitle: channel.channelTitle,
+            channelDescription: channel.channelDescription,
+            thumbnailUrl: channel.thumbnailUrl,
+            thumbnailPath: channel.thumbnailPath,
+            subscriberCount: channel.subscriberCount,
+            videoCount: videosCount.length,
+            customUrl: channel.customUrl,
+            lastUpdated: channel.updatedAt,
+          };
+        })
+      );
+
+      // Sort by video count
+      return channelsWithVideoCounts.sort((a, b) => b.videoCount - a.videoCount);
+    }),
+
+  // Get videos by channel ID
+  getVideosByChannel: publicProcedure
+    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(200).optional() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input?.limit ?? 50;
+
+      const videos = await db
+        .select()
+        .from(youtubeVideos)
+        .where(eq(youtubeVideos.channelId, input.channelId))
+        .orderBy(desc(youtubeVideos.publishedAt))
+        .limit(limit);
+
+      return videos;
     }),
 });
 

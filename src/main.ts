@@ -19,6 +19,8 @@ import { createContext } from "./api/trpc";
 import { setWindowReferences } from "./api/routers/window";
 
 import { logger } from "./helpers/logger";
+import { initializeQueueManager } from "./services/download-queue/queue-manager";
+import defaultDb from "./api/db";
 
 import { toggleClockWindow } from "./main/windows/clock";
 
@@ -275,6 +277,11 @@ app.whenReady().then(async () => {
   try {
     logger.clearLogFile();
     await initializeDatabase();
+
+    // Initialize download queue manager
+    logger.info("[app] Initializing download queue manager");
+    initializeQueueManager(defaultDb, { autoStart: true });
+    logger.info("[app] Download queue manager initialized");
   } catch (error) {
     logger.error("[app.whenReady] Failed to initialize database:", error);
   }

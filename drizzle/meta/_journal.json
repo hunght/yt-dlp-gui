@@ -29,6 +29,20 @@
       "when": 1757000657175,
       "tag": "0003_jazzy_beyonder",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1761640537017,
+      "tag": "0004_round_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1761641198020,
+      "tag": "0005_wide_gamma_corps",
+      "breakpoints": true
     }
   ]
 }

@@ -4,8 +4,10 @@ import { trpcClient } from "@/utils/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { logger } from "@/helpers/logger";
+import { DownloadQueueCard } from "@/components/DownloadQueueCard";
 
 const isValidUrl = (value: string) => {
   try {
@@ -78,16 +80,16 @@ export default function DashboardPage() {
 
 
   const startMutation = useMutation({
-    mutationFn: (u: string) => trpcClient.ytdlp.startVideoDownload.mutate({ url: u }),
+     mutationFn: (u: string) => trpcClient.queue.addToQueue.mutate({ urls: [u] }),
     onSuccess: (res) => {
       if (res.success) {
-        setDownloadId(res.id);
-        toast.success("Download started");
+        setDownloadId(res.downloadIds[0] || null);
+        toast.success(`Download added to queue (${res.downloadIds.length})`);
       } else {
         toast.error(res.message ?? "Failed to start download");
       }
     },
-    onError: (e: any) => toast.error(e?.message ?? "Failed to start download"),
+     onError: (e: any) => toast.error(e?.message ?? "Failed to add to queue"),
   });
 
   const downloadQuery = useQuery({
@@ -124,6 +126,13 @@ export default function DashboardPage() {
     refetchOnWindowFocus: false,
   });
 
+  // Load channels
+  const channelsQuery = useQuery({
+    queryKey: ["ytdlp", "channels"],
+    queryFn: () => trpcClient.ytdlp.listChannels.query({ limit: 30 }),
+    refetchOnWindowFocus: false,
+  });
+
   return (
     <div className="container mx-auto space-y-6 p-6">
       <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -147,6 +156,9 @@ export default function DashboardPage() {
           </form>
         </CardContent>
       </Card>
+
+        {/* Download Queue */}
+        <DownloadQueueCard />
 
       {isLoadingPreview && (
         <Card>
@@ -229,16 +241,37 @@ export default function DashboardPage() {
             {!downloadQuery.data ? (
               <div className="text-muted-foreground">Initializing...</div>
             ) : (
-              <div className="space-y-1 text-sm">
-                <div><span className="text-muted-foreground">ID:</span> {downloadId}</div>
-                <div><span className="text-muted-foreground">Status:</span> {downloadQuery.data.status}</div>
-                <div><span className="text-muted-foreground">Progress:</span> {downloadQuery.data.progress ?? 0}%</div>
-                {downloadQuery.data.filePath && (
-                  <div className="truncate"><span className="text-muted-foreground">File:</span> {downloadQuery.data.filePath}</div>
-                )}
-                {downloadQuery.data.errorMessage && (
-                  <div className="text-red-600"><span className="text-muted-foreground">Error:</span> {downloadQuery.data.errorMessage}</div>
-                )}
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Status: {downloadQuery.data.status}</span>
+                    <span className="font-medium">{downloadQuery.data.progress ?? 0}%</span>
+                  </div>
+                  <Progress
+                    value={downloadQuery.data.progress ?? 0}
+                    className="h-2"
+                    indicatorClassName={
+                      downloadQuery.data.status === "completed"
+                        ? "bg-green-500"
+                        : downloadQuery.data.status === "failed"
+                        ? "bg-red-500"
+                        : "bg-blue-500"
+                    }
+                  />
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="text-xs text-muted-foreground">ID: {downloadId}</div>
+                  {downloadQuery.data.filePath && (
+                    <div className="truncate">
+                      <span className="text-muted-foreground">File:</span> {downloadQuery.data.filePath}
+                    </div>
+                  )}
+                  {downloadQuery.data.errorMessage && (
+                    <div className="text-red-600">
+                      <span className="text-muted-foreground">Error:</span> {downloadQuery.data.errorMessage}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </CardContent>
@@ -268,6 +301,57 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="text-muted-foreground">No downloads yet.</div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Channels</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {channelsQuery.isLoading ? (
+            <div className="text-muted-foreground">Loading...</div>
+          ) : channelsQuery.data && channelsQuery.data.length > 0 ? (
+            <div className="divide-y">
+              {channelsQuery.data.map((channel) => (
+                <div key={channel.channelId} className="flex items-center gap-3 py-3">
+                  {channel.thumbnailUrl ? (
+                    <img
+                      src={channel.thumbnailUrl}
+                      alt={channel.channelTitle}
+                      className="h-12 w-12 rounded-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                      {channel.channelTitle.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{channel.channelTitle}</div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{channel.videoCount} {channel.videoCount === 1 ? "video" : "videos"}</span>
+                      {channel.subscriberCount && (
+                        <>
+                          <span>•</span>
+                          <span>{channel.subscriberCount.toLocaleString()} subscribers</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {channel.lastUpdated && (
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(channel.lastUpdated).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-muted-foreground">No channels yet.</div>
           )}
         </CardContent>
       </Card>

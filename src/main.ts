@@ -293,7 +293,7 @@ app.whenReady().then(async () => {
           "default-src 'self'; " +
             "script-src 'self' 'unsafe-inline' https://*.posthog.com; " +
             "connect-src 'self' https://*.posthog.com; " +
-            "img-src 'self' data: https://*.posthog.com; " +
+            "img-src 'self' data: https://*.posthog.com https://i.ytimg.com https://*.ytimg.com; " +
             "style-src 'self' 'unsafe-inline'; " +
             "frame-src 'self';",
         ],

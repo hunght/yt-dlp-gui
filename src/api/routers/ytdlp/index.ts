@@ -7,7 +7,7 @@ import path from "path";
 import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
 import { spawn } from "child_process";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { downloads, youtubeVideos } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
@@ -71,6 +71,30 @@ const writeInstalledVersion = (version: string) => {
   } catch (e) {
     logger.error("[ytdlp] Failed to write version file", e as Error);
   }
+};
+
+// Helper to map yt-dlp JSON to our schema with better fidelity
+const mapYtDlpMetadata = (meta: any) => {
+  return {
+    videoId: meta?.id || meta?.video_id || "",
+    title: meta?.fulltitle || meta?.title || "Untitled",
+    description: meta?.description ?? null,
+    channelId: meta?.channel_id || meta?.channelId || null,
+    channelTitle: meta?.channel || meta?.uploader || meta?.channel_title || null,
+    durationSeconds: meta?.duration ? Math.round(meta.duration) : null,
+    viewCount: meta?.view_count ?? null,
+    likeCount: meta?.like_count ?? null,
+    thumbnailUrl: Array.isArray(meta?.thumbnails)
+      ? meta.thumbnails[meta.thumbnails.length - 1]?.url ?? null
+      : meta?.thumbnail ?? null,
+    publishedAt: meta?.upload_date
+      ? Date.parse(
+          `${meta.upload_date.slice(0, 4)}-${meta.upload_date.slice(4, 6)}-${meta.upload_date.slice(6, 8)}`
+        )
+      : null,
+    tags: Array.isArray(meta?.tags) ? JSON.stringify(meta.tags) : null,
+    raw: JSON.stringify(meta),
+  } as const;
 };
 
 export const ytdlpRouter = t.router({
@@ -205,6 +229,98 @@ export const ytdlpRouter = t.router({
       }
     }),
 
+  // Fetch video metadata from URL (optionally store in DB for preview)
+  fetchVideoInfo: publicProcedure
+    .input(z.object({ url: z.string().url(), store: z.boolean().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const binPath = getBinaryFilePath();
+      if (!fs.existsSync(binPath)) {
+        return {
+          success: false as const,
+          message: "yt-dlp binary not installed",
+        } as const;
+      }
+
+      // Run yt-dlp -J to fetch metadata
+      let meta: any | null = null;
+      try {
+        const metaJson = await new Promise<string>((resolve, reject) => {
+          const proc = spawn(binPath, ["-J", input.url], { stdio: ["ignore", "pipe", "pipe"] });
+          let out = "";
+          let err = "";
+          proc.stdout.on("data", (d) => (out += d.toString()));
+          proc.stderr.on("data", (d) => (err += d.toString()));
+          proc.on("error", reject);
+          proc.on("close", (code) => {
+            if (code === 0) resolve(out);
+            else reject(new Error(err || `yt-dlp -J exited with code ${code}`));
+          });
+        });
+        meta = JSON.parse(metaJson);
+      } catch (e) {
+        logger.error("[ytdlp] fetchVideoInfo failed", e as Error);
+        return { success: false as const, message: String(e) } as const;
+      }
+
+      const mapped = mapYtDlpMetadata(meta);
+
+      // Optionally store in DB (default true)
+      if (input.store !== false && mapped.videoId) {
+        const now = Date.now();
+        try {
+          const existing = await db
+            .select()
+            .from(youtubeVideos)
+            .where(eq(youtubeVideos.videoId, mapped.videoId))
+            .limit(1);
+
+          if (existing.length === 0) {
+            await db.insert(youtubeVideos).values({
+              id: crypto.randomUUID(),
+              videoId: mapped.videoId,
+              title: mapped.title,
+              description: mapped.description,
+              channelId: mapped.channelId,
+              channelTitle: mapped.channelTitle,
+              durationSeconds: mapped.durationSeconds,
+              viewCount: mapped.viewCount,
+              likeCount: mapped.likeCount,
+              thumbnailUrl: mapped.thumbnailUrl,
+              thumbnailPath: null,
+              publishedAt: mapped.publishedAt,
+              tags: mapped.tags,
+              raw: mapped.raw,
+              createdAt: now,
+              updatedAt: now,
+            });
+          } else {
+            await db
+              .update(youtubeVideos)
+              .set({
+                title: mapped.title,
+                description: mapped.description,
+                channelId: mapped.channelId,
+                channelTitle: mapped.channelTitle,
+                durationSeconds: mapped.durationSeconds,
+                viewCount: mapped.viewCount,
+                likeCount: mapped.likeCount,
+                thumbnailUrl: mapped.thumbnailUrl,
+                publishedAt: mapped.publishedAt,
+                tags: mapped.tags,
+                raw: mapped.raw,
+                updatedAt: now,
+              })
+              .where(eq(youtubeVideos.videoId, mapped.videoId));
+          }
+        } catch (e) {
+          logger.error("[ytdlp] DB upsert in fetchVideoInfo failed", e as Error);
+        }
+      }
+
+      return { success: true as const, info: mapped } as const;
+    }),
+
   // Start a YouTube download using the installed yt-dlp binary and persist to DB
   startVideoDownload: publicProcedure
     .input(
@@ -251,23 +367,22 @@ export const ytdlpRouter = t.router({
         return { success: false as const, message: `Metadata error: ${String(e)}` } as const;
       }
 
-      // Extract minimal fields
-      const videoId: string = meta.id || meta.video_id || "";
-      const title: string = meta.title || "Untitled";
-      const channelId: string | null = meta.channel_id || meta.channelId || null;
-      const channelTitle: string | null = meta.channel || meta.uploader || meta.channel_title || null;
-      const durationSeconds: number | null = meta.duration ? Math.round(meta.duration) : null;
-      const viewCount: number | null = meta.view_count ?? null;
-      const likeCount: number | null = meta.like_count ?? null;
-      const thumbnailUrl: string | null = Array.isArray(meta.thumbnails)
-        ? meta.thumbnails[meta.thumbnails.length - 1]?.url ?? null
-        : meta.thumbnail ?? null;
-      const publishedAt: number | null = meta.upload_date
-        ? Date.parse(
-            `${meta.upload_date.slice(0, 4)}-${meta.upload_date.slice(4, 6)}-${meta.upload_date.slice(6, 8)}`
-          )
-        : null;
-      const tags: string | null = Array.isArray(meta.tags) ? JSON.stringify(meta.tags) : null;
+      // Extract minimal fields with better fidelity (use fulltitle etc.)
+      const mapped = mapYtDlpMetadata(meta);
+      const {
+        videoId,
+        title,
+        description,
+        channelId,
+        channelTitle,
+        durationSeconds,
+        viewCount,
+        likeCount,
+        thumbnailUrl,
+        publishedAt,
+        tags,
+        raw,
+      } = mapped;
 
       // 2) Upsert video into youtubeVideos
       try {
@@ -284,7 +399,7 @@ export const ytdlpRouter = t.router({
             id: crypto.randomUUID(),
             videoId,
             title,
-            description: meta.description ?? null,
+            description,
             channelId,
             channelTitle,
             durationSeconds,
@@ -294,7 +409,7 @@ export const ytdlpRouter = t.router({
             thumbnailPath: null,
             publishedAt,
             tags,
-            raw: JSON.stringify(meta),
+            raw,
             createdAt: now,
             updatedAt: now,
           });
@@ -303,7 +418,7 @@ export const ytdlpRouter = t.router({
             .update(youtubeVideos)
             .set({
               title,
-              description: meta.description ?? null,
+              description,
               channelId,
               channelTitle,
               durationSeconds,
@@ -312,7 +427,7 @@ export const ytdlpRouter = t.router({
               thumbnailUrl,
               publishedAt,
               tags,
-              raw: JSON.stringify(meta),
+              raw,
               updatedAt: now,
             })
             .where(eq(youtubeVideos.videoId, videoId));
@@ -323,7 +438,7 @@ export const ytdlpRouter = t.router({
 
       // 3) Create download record
       const downloadId = crypto.randomUUID();
-      const outputTemplate = path.join(downloadsRoot, "%(title)s [%(id)s].%(ext)s");
+      const outputTemplate = path.join(downloadsRoot, "%(fulltitle)s [%(id)s].%(ext)s");
       try {
         await db.insert(downloads).values({
           id: downloadId,
@@ -424,6 +539,12 @@ export const ytdlpRouter = t.router({
                 completedAt: finishedAt,
               })
               .where(eq(downloads.id, downloadId));
+            logger.info("[ytdlp] Download completed", {
+              downloadId,
+              videoId,
+              filePath: finalPath ?? null,
+              durationMs: finishedAt - startedAt,
+            });
           } catch (e) {
             logger.error("[ytdlp] Failed to mark completed", e as Error);
           }
@@ -433,6 +554,7 @@ export const ytdlpRouter = t.router({
               .update(downloads)
               .set({ status: "failed", updatedAt: finishedAt, isRetryable: true })
               .where(eq(downloads.id, downloadId));
+            logger.error("[ytdlp] Download failed", { downloadId, videoId, code });
           } catch (e) {
             logger.error("[ytdlp] Failed to mark failed", e as Error);
           }
@@ -449,6 +571,32 @@ export const ytdlpRouter = t.router({
       const db = ctx.db ?? defaultDb;
       const rows = await db.select().from(downloads).where(eq(downloads.id, input.id)).limit(1);
       return rows[0] ?? null;
+    }),
+
+  // List completed downloads with basic video info
+  listCompletedDownloads: publicProcedure
+    .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input?.limit ?? 50;
+      const rows = await db
+        .select({
+          id: downloads.id,
+          url: downloads.url,
+          videoId: downloads.videoId,
+          filePath: downloads.filePath,
+          createdAt: downloads.createdAt,
+          completedAt: downloads.completedAt,
+          title: youtubeVideos.title,
+          thumbnailUrl: youtubeVideos.thumbnailUrl,
+          thumbnailPath: youtubeVideos.thumbnailPath,
+        })
+        .from(downloads)
+        .leftJoin(youtubeVideos, eq(downloads.videoId, youtubeVideos.videoId))
+        .where(eq(downloads.status, "completed"))
+        .orderBy(desc(downloads.completedAt))
+        .limit(limit);
+      return rows;
     }),
 });
 

@@ -36,7 +36,7 @@ export default function DashboardPage() {
 
   // Fetch preview mutation (debounced via effect)
   const previewMutation = useMutation({
-    mutationFn: (u: string) => trpcClient.ytdlp.fetchVideoInfo.mutate({ url: u, store: true }),
+    mutationFn: (u: string) => trpcClient.ytdlp.fetchVideoInfo.mutate({ url: u }),
     onSuccess: (res) => {
       setIsLoadingPreview(false);
       if (res.success) {

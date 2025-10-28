@@ -229,9 +229,9 @@ export const ytdlpRouter = t.router({
       }
     }),
 
-  // Fetch video metadata from URL (optionally store in DB for preview)
+  // Fetch video metadata from URL (always stores in DB for caching)
   fetchVideoInfo: publicProcedure
-    .input(z.object({ url: z.string().url(), store: z.boolean().optional() }))
+    .input(z.object({ url: z.string().url() }))
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
       const binPath = getBinaryFilePath();
@@ -242,7 +242,42 @@ export const ytdlpRouter = t.router({
         } as const;
       }
 
-      // Run yt-dlp -J to fetch metadata
+      // Extract video ID from URL to check cache
+      const videoIdMatch = input.url.match(/[?&]v=([^&]+)/);
+      const urlVideoId = videoIdMatch ? videoIdMatch[1] : null;
+
+      // Try to get existing metadata from DB first
+      if (urlVideoId) {
+        const existingVideo = await db
+          .select()
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.videoId, urlVideoId))
+          .limit(1);
+
+        if (existingVideo.length > 0) {
+          // Use cached metadata from DB
+          logger.info("[ytdlp] fetchVideoInfo using cached metadata from DB", { videoId: urlVideoId });
+          const existing = existingVideo[0];
+          const mapped = {
+            videoId: existing.videoId,
+            title: existing.title,
+            description: existing.description,
+            channelId: existing.channelId,
+            channelTitle: existing.channelTitle,
+            durationSeconds: existing.durationSeconds,
+            viewCount: existing.viewCount,
+            likeCount: existing.likeCount,
+            thumbnailUrl: existing.thumbnailUrl,
+            publishedAt: existing.publishedAt,
+            tags: existing.tags,
+            raw: existing.raw ?? "{}",
+          };
+          return { success: true as const, info: mapped } as const;
+        }
+      }
+
+      // Run yt-dlp -J to fetch metadata (cache miss or store=false)
+      logger.info("[ytdlp] fetchVideoInfo fetching from yt-dlp", { url: input.url });
       let meta: any | null = null;
       try {
         const metaJson = await new Promise<string>((resolve, reject) => {
@@ -265,8 +300,8 @@ export const ytdlpRouter = t.router({
 
       const mapped = mapYtDlpMetadata(meta);
 
-      // Optionally store in DB (default true)
-      if (input.store !== false && mapped.videoId) {
+      // Always store in DB for caching
+      if (mapped.videoId) {
         const now = Date.now();
         try {
           const existing = await db
@@ -346,77 +381,105 @@ export const ytdlpRouter = t.router({
       const downloadsRoot = input.outputDir || path.join(app.getPath("downloads"), "yt-dlp-gui");
       if (!fs.existsSync(downloadsRoot)) fs.mkdirSync(downloadsRoot, { recursive: true });
 
-      // 1) Fetch metadata via yt-dlp -J (dump json)
+      // Extract video ID from URL to check if we already have metadata
+      const videoIdMatch = input.url.match(/[?&]v=([^&]+)/);
+      const urlVideoId = videoIdMatch ? videoIdMatch[1] : null;
+
+      // Try to get existing metadata from DB first
       let meta: any | null = null;
-      try {
-        const metaJson = await new Promise<string>((resolve, reject) => {
-          const proc = spawn(binPath, ["-J", input.url], { stdio: ["ignore", "pipe", "pipe"] });
-          let out = "";
-          let err = "";
-          proc.stdout.on("data", (d) => (out += d.toString()));
-          proc.stderr.on("data", (d) => (err += d.toString()));
-          proc.on("error", reject);
-          proc.on("close", (code) => {
-            if (code === 0) resolve(out);
-            else reject(new Error(err || `yt-dlp -J exited with code ${code}`));
-          });
-        });
-        meta = JSON.parse(metaJson);
-      } catch (e) {
-        logger.error("[ytdlp] Failed to fetch video metadata", e as Error);
-        return { success: false as const, message: `Metadata error: ${String(e)}` } as const;
-      }
+      let videoId = "";
+      let title = "Untitled";
+      let description: string | null = null;
+      let channelId: string | null = null;
+      let channelTitle: string | null = null;
+      let durationSeconds: number | null = null;
+      let viewCount: number | null = null;
+      let likeCount: number | null = null;
+      let thumbnailUrl: string | null = null;
+      let publishedAt: number | null = null;
+      let tags: string | null = null;
+      let raw = "{}";
 
-      // Extract minimal fields with better fidelity (use fulltitle etc.)
-      const mapped = mapYtDlpMetadata(meta);
-      const {
-        videoId,
-        title,
-        description,
-        channelId,
-        channelTitle,
-        durationSeconds,
-        viewCount,
-        likeCount,
-        thumbnailUrl,
-        publishedAt,
-        tags,
-        raw,
-      } = mapped;
-
-      // 2) Upsert video into youtubeVideos
-      try {
-        const now = Date.now();
-        // Check if exists
-        const existing = await db
+      if (urlVideoId) {
+        const existingVideo = await db
           .select()
           .from(youtubeVideos)
-          .where(eq(youtubeVideos.videoId, videoId))
+          .where(eq(youtubeVideos.videoId, urlVideoId))
           .limit(1);
 
-        if (existing.length === 0) {
-          await db.insert(youtubeVideos).values({
-            id: crypto.randomUUID(),
-            videoId,
-            title,
-            description,
-            channelId,
-            channelTitle,
-            durationSeconds,
-            viewCount,
-            likeCount,
-            thumbnailUrl,
-            thumbnailPath: null,
-            publishedAt,
-            tags,
-            raw,
-            createdAt: now,
-            updatedAt: now,
+        if (existingVideo.length > 0) {
+          // Use existing metadata from DB
+          logger.info("[ytdlp] Using cached video metadata from DB", { videoId: urlVideoId });
+          const existing = existingVideo[0];
+          videoId = existing.videoId;
+          title = existing.title;
+          description = existing.description;
+          channelId = existing.channelId;
+          channelTitle = existing.channelTitle;
+          durationSeconds = existing.durationSeconds;
+          viewCount = existing.viewCount;
+          likeCount = existing.likeCount;
+          thumbnailUrl = existing.thumbnailUrl;
+          publishedAt = existing.publishedAt;
+          tags = existing.tags;
+          raw = existing.raw ?? "{}";
+          meta = JSON.parse(raw);
+        }
+      }
+
+      // 1) Fetch metadata via yt-dlp -J only if not in DB
+      if (!meta) {
+        logger.info("[ytdlp] Fetching video metadata from yt-dlp", { url: input.url });
+        try {
+          const metaJson = await new Promise<string>((resolve, reject) => {
+            const proc = spawn(binPath, ["-J", input.url], { stdio: ["ignore", "pipe", "pipe"] });
+            let out = "";
+            let err = "";
+            proc.stdout.on("data", (d) => (out += d.toString()));
+            proc.stderr.on("data", (d) => (err += d.toString()));
+            proc.on("error", reject);
+            proc.on("close", (code) => {
+              if (code === 0) resolve(out);
+              else reject(new Error(err || `yt-dlp -J exited with code ${code}`));
+            });
           });
-        } else {
-          await db
-            .update(youtubeVideos)
-            .set({
+          meta = JSON.parse(metaJson);
+        } catch (e) {
+          logger.error("[ytdlp] Failed to fetch video metadata", e as Error);
+          return { success: false as const, message: `Metadata error: ${String(e)}` } as const;
+        }
+
+        // Extract minimal fields with better fidelity (use fulltitle etc.)
+        const mapped = mapYtDlpMetadata(meta);
+        videoId = mapped.videoId;
+        title = mapped.title;
+        description = mapped.description;
+        channelId = mapped.channelId;
+        channelTitle = mapped.channelTitle;
+        durationSeconds = mapped.durationSeconds;
+        viewCount = mapped.viewCount;
+        likeCount = mapped.likeCount;
+        thumbnailUrl = mapped.thumbnailUrl;
+        publishedAt = mapped.publishedAt;
+        tags = mapped.tags;
+        raw = mapped.raw;
+      }
+
+      // 2) Upsert video into youtubeVideos (only if we fetched new data)
+      if (!urlVideoId || urlVideoId !== videoId) {
+        try {
+          const now = Date.now();
+          // Check if exists
+          const existing = await db
+            .select()
+            .from(youtubeVideos)
+            .where(eq(youtubeVideos.videoId, videoId))
+            .limit(1);
+
+          if (existing.length === 0) {
+            await db.insert(youtubeVideos).values({
+              id: crypto.randomUUID(),
+              videoId,
               title,
               description,
               channelId,
@@ -425,15 +488,35 @@ export const ytdlpRouter = t.router({
               viewCount,
               likeCount,
               thumbnailUrl,
+              thumbnailPath: null,
               publishedAt,
               tags,
               raw,
+              createdAt: now,
               updatedAt: now,
-            })
-            .where(eq(youtubeVideos.videoId, videoId));
+            });
+          } else {
+            await db
+              .update(youtubeVideos)
+              .set({
+                title,
+                description,
+                channelId,
+                channelTitle,
+                durationSeconds,
+                viewCount,
+                likeCount,
+                thumbnailUrl,
+                publishedAt,
+                tags,
+                raw,
+                updatedAt: now,
+              })
+              .where(eq(youtubeVideos.videoId, videoId));
+          }
+        } catch (e) {
+          logger.error("[ytdlp] DB upsert video failed", e as Error);
         }
-      } catch (e) {
-        logger.error("[ytdlp] DB upsert video failed", e as Error);
       }
 
       // 3) Create download record

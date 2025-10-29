@@ -10,22 +10,20 @@ export default function PlayerPage() {
   const navigate = useNavigate();
   // Use TanStack Router's useSearch instead of window.location.search
   const search = useSearch({ from: "/player" });
-  const id = search.id;
+  const videoId = search.videoId as string | undefined;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["download", id],
+  const { data, isLoading } = useQuery({
+    queryKey: ["video-playback", videoId],
     queryFn: async () => {
-      if (!id) {
-        return null;
-      }
-      return await trpcClient.ytdlp.getDownload.query({ id });
+      if (!videoId) return null;
+      return await trpcClient.ytdlp.getVideoPlayback.query({ videoId });
     },
-    enabled: !!id,
+    enabled: !!videoId,
   });
 
   const filePath = data?.filePath || null;
   const toLocalFileUrl = (p: string) => `local-file://${p}`;
-  const videoTitle = data?.videoId || data?.url || "Video";
+  const videoTitle = data?.title || data?.videoId || "Video";
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -40,21 +38,21 @@ export default function PlayerPage() {
         <CardContent>
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
-          ) : !id ? (
+          ) : !videoId ? (
             <Alert>
               <AlertTitle>Missing video</AlertTitle>
-              <AlertDescription>No download id provided.</AlertDescription>
+              <AlertDescription>No video id provided.</AlertDescription>
             </Alert>
           ) : !data ? (
             <Alert>
               <AlertTitle>Not found</AlertTitle>
-              <AlertDescription>Could not find that download.</AlertDescription>
+              <AlertDescription>Could not find that video.</AlertDescription>
             </Alert>
           ) : !filePath ? (
             <Alert>
               <AlertTitle>File not available</AlertTitle>
               <AlertDescription>
-                The download record has no file path yet. It may still be processing.
+                The video has no downloaded file yet. It may still be processing.
               </AlertDescription>
             </Alert>
           ) : (

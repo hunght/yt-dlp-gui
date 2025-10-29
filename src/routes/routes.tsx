@@ -30,7 +30,7 @@ export const PlayerRoute = createRoute({
   component: PlayerPage,
   validateSearch: (search: Record<string, unknown>) => {
     return {
-      id: (search.id as string) || undefined,
+      videoId: (search.videoId as string) || undefined,
     };
   },
 });

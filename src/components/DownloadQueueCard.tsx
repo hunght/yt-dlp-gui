@@ -227,10 +227,10 @@ export const DownloadQueueCard: React.FC = () => {
 
                 {/* Action buttons */}
                 <div className="flex items-center justify-end gap-2">
-                  {download.status === "completed" && download.filePath && (
+                  {download.status === "completed" && download.filePath && download.videoId && (
                     <Link
                       to="/player"
-                      search={{ id: download.id }}
+                      search={{ videoId: download.videoId }}
                       className="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
                     >
                       <PlayCircle className="mr-2 h-4 w-4" /> Play

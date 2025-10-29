@@ -113,6 +113,33 @@ export const updateDownloadStatus = async (
       status,
       ...additionalData,
     });
+
+    // Mirror status into youtube_videos consolidated fields
+    try {
+      const dl = await db
+        .select({ videoId: downloads.videoId })
+        .from(downloads)
+        .where(eq(downloads.id, downloadId))
+        .limit(1);
+      const videoId = dl[0]?.videoId;
+      if (videoId) {
+        await db
+          .update(youtubeVideos)
+          .set({
+            downloadStatus: status,
+            downloadProgress: additionalData?.progress ?? undefined,
+            downloadFilePath: additionalData?.filePath ?? undefined,
+            downloadFileSize: additionalData?.fileSize ?? undefined,
+            lastErrorMessage: additionalData?.errorMessage ?? undefined,
+            errorType: additionalData?.errorType ?? undefined,
+            lastDownloadedAt: additionalData?.completedAt ?? undefined,
+            updatedAt: now,
+          })
+          .where(eq(youtubeVideos.videoId, videoId));
+      }
+    } catch (e) {
+      logger.error("[queue-persistence] Failed to mirror status to youtube_videos", e as Error);
+    }
   } catch (error) {
     logger.error("[queue-persistence] Failed to update download status", error as Error);
     throw error;
@@ -135,6 +162,24 @@ export const updateDownloadProgress = async (
         updatedAt: Date.now(),
       })
       .where(eq(downloads.id, downloadId));
+
+    // Mirror progress into youtube_videos consolidated fields
+    try {
+      const dl = await db
+        .select({ videoId: downloads.videoId })
+        .from(downloads)
+        .where(eq(downloads.id, downloadId))
+        .limit(1);
+      const videoId = dl[0]?.videoId;
+      if (videoId) {
+        await db
+          .update(youtubeVideos)
+          .set({ downloadStatus: "downloading", downloadProgress: Math.round(progress), updatedAt: Date.now() })
+          .where(eq(youtubeVideos.videoId, videoId));
+      }
+    } catch (e) {
+      logger.error("[queue-persistence] Failed to mirror progress to youtube_videos", e as Error);
+    }
   } catch (error) {
     logger.error("[queue-persistence] Failed to update download progress", error as Error);
   }

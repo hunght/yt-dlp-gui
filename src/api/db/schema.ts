@@ -45,6 +45,28 @@ export const youtubeVideos = sqliteTable(
     tags: text("tags"), // comma-separated or JSON
     raw: text("raw_json"), // raw JSON metadata string
 
+    // Consolidated download fields (single-version per video)
+    downloadStatus: text("download_status", {
+      enum: [
+        "pending",
+        "downloading",
+        "completed",
+        "failed",
+        "cancelled",
+        "queued",
+        "paused",
+      ],
+    }),
+    downloadProgress: integer("download_progress"), // 0-100
+    downloadFormat: text("download_format"),
+    downloadQuality: text("download_quality"),
+    downloadFilePath: text("download_file_path"),
+    downloadFileSize: integer("download_file_size"),
+    lastErrorMessage: text("last_error_message"),
+    errorType: text("error_type"), // 'restricted' | 'network' | 'format' | 'unknown'
+    isRetryable: integer("is_retryable", { mode: "boolean" }),
+    lastDownloadedAt: integer("last_downloaded_at"),
+
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at"),
   },
@@ -55,61 +77,15 @@ export const youtubeVideos = sqliteTable(
   ]
 );
 
-export const downloads = sqliteTable(
-  "downloads",
-  {
-    id: text("id").primaryKey(),
-    url: text("url").notNull(),
-    videoId: text("video_id").references(() => youtubeVideos.videoId), // Reference to youtube_videos table
-    status: text("status", { enum: ["pending", "downloading", "completed", "failed", "cancelled", "queued", "paused"] })
-      .notNull()
-      .default("pending"),
-    progress: integer("progress").default(0), // 0-100
-    format: text("format"), // video format (mp4, webm, etc.)
-    quality: text("quality"), // video quality (720p, 1080p, etc.)
-    filePath: text("file_path"), // local file path after download
-    fileSize: integer("file_size"), // file size in bytes
-    errorMessage: text("error_message"),
-    errorType: text("error_type"), // 'restricted' | 'network' | 'format' | 'unknown'
-    isRetryable: integer("is_retryable", { mode: "boolean" }).default(true), // whether the download can be retried
-
-    // Queue management fields
-    queuePosition: integer("queue_position"), // Order in queue (null if not queued)
-    priority: integer("priority").default(0), // Higher = more important
-    retryCount: integer("retry_count").default(0), // Number of retry attempts
-    maxRetries: integer("max_retries").default(3), // Maximum retry attempts
-    pausedAt: integer("paused_at"), // Timestamp when paused
-    cancelledAt: integer("cancelled_at"), // Timestamp when cancelled
-
-    createdAt: integer("created_at").notNull(),
-    updatedAt: integer("updated_at"),
-    completedAt: integer("completed_at"),
-  },
-  (table) => [
-    index("downloads_status_idx").on(table.status),
-    index("downloads_created_at_idx").on(table.createdAt),
-    index("downloads_video_id_idx").on(table.videoId),
-    index("downloads_queue_position_idx").on(table.queuePosition),
-  ]
-);
-
 // Define relations
 export const channelsRelations = relations(channels, ({ many }) => ({
   videos: many(youtubeVideos),
 }));
 
-export const youtubeVideosRelations = relations(youtubeVideos, ({ many, one }) => ({
-  downloads: many(downloads),
+export const youtubeVideosRelations = relations(youtubeVideos, ({ one }) => ({
   channel: one(channels, {
     fields: [youtubeVideos.channelId],
     references: [channels.channelId],
-  }),
-}));
-
-export const downloadsRelations = relations(downloads, ({ one }) => ({
-  video: one(youtubeVideos, {
-    fields: [downloads.videoId],
-    references: [youtubeVideos.videoId],
   }),
 }));
 
@@ -119,6 +95,3 @@ export type NewChannel = typeof channels.$inferInsert;
 
 export type YoutubeVideo = typeof youtubeVideos.$inferSelect;
 export type NewYoutubeVideo = typeof youtubeVideos.$inferInsert;
-
-export type Download = typeof downloads.$inferSelect;
-export type NewDownload = typeof downloads.$inferInsert;

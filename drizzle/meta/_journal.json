@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1756087913785,
-      "tag": "0000_cute_toxin",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1756915248210,
-      "tag": "0001_melted_stryfe",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1756919319243,
-      "tag": "0002_dizzy_stark_industries",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1757000657175,
-      "tag": "0003_jazzy_beyonder",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1761640537017,
-      "tag": "0004_round_hulk",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1761641198020,
-      "tag": "0005_wide_gamma_corps",
+      "when": 1761712117189,
+      "tag": "0000_moaning_slipstream",
       "breakpoints": true
     }
   ]

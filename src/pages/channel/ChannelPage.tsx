@@ -254,7 +254,7 @@ export default function ChannelPage() {
                         <>
                           <Link
                             to="/player"
-                            search={{ id: video.downloadId as string }}
+                            search={{ videoId: video.videoId as string }}
                             className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90"
                           >
                             <Play className="h-3 w-3" />

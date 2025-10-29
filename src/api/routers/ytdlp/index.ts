@@ -8,12 +8,19 @@ import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
 import { spawn } from "child_process";
 import { eq, desc, inArray } from "drizzle-orm";
-import { downloads, youtubeVideos, channels } from "@/api/db/schema";
+import { youtubeVideos, channels } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getVersionFilePath = () => path.join(getBinDir(), "yt-dlp-version.txt");
 const getBinaryFilePath = () => path.join(getBinDir(), getYtDlpAssetName(process.platform));
+
+const ensureBinDir = () => {
+  const dir = getBinDir();
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+};
 
 async function fetchLatestRelease(): Promise<{ version: string; assetUrl: string } | null> {
   try {
@@ -23,7 +30,10 @@ async function fetchLatestRelease(): Promise<{ version: string; assetUrl: string
       // Fallback to direct latest download URL without version
       return { version: "unknown", assetUrl: getDirectLatestDownloadUrl(process.platform) };
     }
-    const json = (await releaseRes.json()) as { tag_name?: string; assets?: Array<{ name: string; browser_download_url: string }>; };
+    const json = (await releaseRes.json()) as {
+      tag_name?: string;
+      assets?: Array<{ name: string; browser_download_url: string }>;
+    };
     const tag = (json.tag_name ?? "").replace(/^v/, "");
     const desiredAsset = getYtDlpAssetName(process.platform);
     const asset = json.assets?.find((a) => a.name === desiredAsset);
@@ -34,14 +44,6 @@ async function fetchLatestRelease(): Promise<{ version: string; assetUrl: string
     return { version: "unknown", assetUrl: getDirectLatestDownloadUrl(process.platform) };
   }
 }
-
-const ensureBinDir = () => {
-  const binDir = getBinDir();
-  if (!fs.existsSync(binDir)) {
-    fs.mkdirSync(binDir, { recursive: true });
-  }
-  return binDir;
-};
 
 const setExecutableIfNeeded = (filePath: string) => {
   if (process.platform === "win32") return; // not needed
@@ -634,29 +636,20 @@ export const ytdlpRouter = t.router({
         }
       }
 
-      // 3) Create download record
+      // 3) Initialize state (no downloads table, update youtube_videos)
       const downloadId = crypto.randomUUID();
       const outputTemplate = path.join(downloadsRoot, "%(fulltitle)s [%(id)s].%(ext)s");
       try {
-        await db.insert(downloads).values({
-          id: downloadId,
-          url: input.url,
-          videoId,
-          status: "downloading",
-          progress: 0,
-          format: input.format ?? null,
-          quality: null,
-          filePath: null,
-          fileSize: null,
-          errorMessage: null,
-          errorType: null,
-          isRetryable: true,
-          createdAt: startedAt,
-          updatedAt: startedAt,
-          completedAt: null,
-        });
+        await db
+          .update(youtubeVideos)
+          .set({
+            downloadStatus: "downloading",
+            downloadProgress: 0,
+            updatedAt: startedAt,
+          })
+          .where(eq(youtubeVideos.videoId, videoId));
       } catch (e) {
-        logger.error("[ytdlp] DB insert download failed", e as Error);
+        logger.error("[ytdlp] Failed to initialize download state", e as Error);
       }
 
       // 4) Spawn yt-dlp download in background
@@ -682,9 +675,9 @@ export const ytdlpRouter = t.router({
           const pct = Math.min(100, Math.max(0, Math.round(parseFloat(match[1]))));
           try {
             await db
-              .update(downloads)
-              .set({ progress: pct, updatedAt: Date.now() })
-              .where(eq(downloads.id, downloadId));
+              .update(youtubeVideos)
+              .set({ downloadProgress: pct, updatedAt: Date.now(), downloadStatus: "downloading" })
+              .where(eq(youtubeVideos.videoId, videoId));
           } catch (e) {
             logger.error("[ytdlp] Failed to update progress", e as Error);
           }
@@ -728,15 +721,15 @@ export const ytdlpRouter = t.router({
           }
           try {
             await db
-              .update(downloads)
+              .update(youtubeVideos)
               .set({
-                status: "completed",
-                progress: 100,
-                filePath: finalPath ?? null,
+                downloadStatus: "completed",
+                downloadProgress: 100,
+                downloadFilePath: finalPath ?? null,
+                lastDownloadedAt: finishedAt,
                 updatedAt: finishedAt,
-                completedAt: finishedAt,
               })
-              .where(eq(downloads.id, downloadId));
+              .where(eq(youtubeVideos.videoId, videoId));
             logger.info("[ytdlp] Download completed", {
               downloadId,
               videoId,
@@ -749,9 +742,14 @@ export const ytdlpRouter = t.router({
         } else {
           try {
             await db
-              .update(downloads)
-              .set({ status: "failed", updatedAt: finishedAt, isRetryable: true })
-              .where(eq(downloads.id, downloadId));
+              .update(youtubeVideos)
+              .set({
+                downloadStatus: "failed",
+                lastErrorMessage: `yt-dlp exited with code ${code}`,
+                errorType: "unknown",
+                updatedAt: finishedAt,
+              })
+              .where(eq(youtubeVideos.videoId, videoId));
             logger.error("[ytdlp] Download failed", { downloadId, videoId, code });
           } catch (e) {
             logger.error("[ytdlp] Failed to mark failed", e as Error);
@@ -762,14 +760,7 @@ export const ytdlpRouter = t.router({
       return { success: true as const, id: downloadId } as const;
     }),
 
-  // Simple fetcher to get a download by id
-  getDownload: publicProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const db = ctx.db ?? defaultDb;
-      const rows = await db.select().from(downloads).where(eq(downloads.id, input.id)).limit(1);
-      return rows[0] ?? null;
-    }),
+  // Legacy getDownload endpoint removed in favor of getVideoPlayback
 
   // List completed downloads with basic video info
   listCompletedDownloads: publicProcedure
@@ -777,24 +768,27 @@ export const ytdlpRouter = t.router({
     .query(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
       const limit = input?.limit ?? 50;
-      const rows = await db
-        .select({
-          id: downloads.id,
-          url: downloads.url,
-          videoId: downloads.videoId,
-          filePath: downloads.filePath,
-          createdAt: downloads.createdAt,
-          completedAt: downloads.completedAt,
-          title: youtubeVideos.title,
-          thumbnailUrl: youtubeVideos.thumbnailUrl,
-          thumbnailPath: youtubeVideos.thumbnailPath,
-        })
-        .from(downloads)
-        .leftJoin(youtubeVideos, eq(downloads.videoId, youtubeVideos.videoId))
-        .where(eq(downloads.status, "completed"))
-        .orderBy(desc(downloads.completedAt))
-        .limit(limit);
-      return rows;
+      try {
+        // Primary: read from unified youtube_videos fields
+        const rows = await db
+          .select({
+            videoId: youtubeVideos.videoId,
+            title: youtubeVideos.title,
+            thumbnailUrl: youtubeVideos.thumbnailUrl,
+            thumbnailPath: youtubeVideos.thumbnailPath,
+            filePath: youtubeVideos.downloadFilePath,
+            completedAt: youtubeVideos.lastDownloadedAt,
+          })
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.downloadStatus, "completed"))
+          .orderBy(desc(youtubeVideos.lastDownloadedAt))
+          .limit(limit);
+        return rows;
+      } catch (e) {
+        // If unified columns missing, return empty list instead of falling back
+        logger.error("[ytdlp] listCompletedDownloads failed", e as Error);
+        return [];
+      }
     }),
 
   // List unique channels from downloaded videos
@@ -889,56 +883,8 @@ export const ytdlpRouter = t.router({
         return { channel, videos: [], totalVideos: 0 };
       }
 
-      // Fetch downloads for these videos
-      const downloadRows = await db
-        .select({
-          id: downloads.id,
-          videoId: downloads.videoId,
-          status: downloads.status,
-          progress: downloads.progress,
-          filePath: downloads.filePath,
-          completedAt: downloads.completedAt,
-          updatedAt: downloads.updatedAt,
-          createdAt: downloads.createdAt,
-        })
-        .from(downloads)
-        .where(inArray(downloads.videoId, videoIds));
-
-      // Pick the best/most relevant download per video
-      const priority: Record<string, number> = {
-        completed: 5,
-        downloading: 4,
-        queued: 3,
-        paused: 2,
-        failed: 1,
-        pending: 0,
-        cancelled: 0,
-      };
-
-      const bestByVideo = new Map<string, typeof downloadRows[number]>();
-      for (const row of downloadRows) {
-        if (!row.videoId) continue;
-        const current = bestByVideo.get(row.videoId);
-        if (!current) {
-          bestByVideo.set(row.videoId, row);
-          continue;
-        }
-        const curScore = priority[current.status] ?? -1;
-        const newScore = priority[row.status] ?? -1;
-        if (newScore > curScore) {
-          bestByVideo.set(row.videoId, row);
-          continue;
-        }
-        if (newScore === curScore) {
-          const curTime = (current.completedAt ?? current.updatedAt ?? current.createdAt ?? 0) as number;
-          const newTime = (row.completedAt ?? row.updatedAt ?? row.createdAt ?? 0) as number;
-          if (newTime > curTime) bestByVideo.set(row.videoId, row);
-        }
-      }
-
-      // Compose response with download summary attached
+      // Compose response with unified download summary from youtube_videos
       const videos = videoRows.map((v) => {
-        const best = bestByVideo.get(v.videoId || "");
         return {
           id: v.id,
           videoId: v.videoId,
@@ -956,15 +902,36 @@ export const ytdlpRouter = t.router({
           raw: v.raw,
           createdAt: v.createdAt,
           updatedAt: v.updatedAt,
-          downloadId: best?.id ?? null,
-          downloadStatus: best?.status ?? null,
-          downloadProgress: best?.progress ?? null,
-          downloadFilePath: best?.filePath ?? null,
-          downloadCompletedAt: best?.completedAt ?? null,
+          downloadId: null,
+          downloadStatus: v.downloadStatus ?? null,
+          downloadProgress: v.downloadProgress ?? null,
+          downloadFilePath: v.downloadFilePath ?? null,
+          downloadCompletedAt: v.lastDownloadedAt ?? null,
         };
       });
 
       return { channel, videos, totalVideos: videos.length };
+    }),
+
+  // Get video playback info by videoId (for PlayerPage)
+  getVideoPlayback: publicProcedure
+    .input(z.object({ videoId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const rows = await db
+        .select()
+        .from(youtubeVideos)
+        .where(eq(youtubeVideos.videoId, input.videoId))
+        .limit(1);
+      const v = rows[0];
+      if (!v) return null;
+      return {
+        videoId: v.videoId,
+        title: v.title,
+        filePath: v.downloadFilePath,
+        status: v.downloadStatus,
+        progress: v.downloadProgress,
+      } as const;
     }),
 });
 

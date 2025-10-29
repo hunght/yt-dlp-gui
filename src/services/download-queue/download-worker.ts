@@ -1,12 +1,10 @@
 import { spawn } from "child_process";
 import { app } from "electron";
 import path from "path";
-import {
-  updateDownloadStatus,
-  updateDownloadProgress,
-} from "./queue-persistence";
+import { requireQueueManager } from "./queue-manager";
 import type { Database } from "@/api/db";
 import type { WorkerState } from "./types";
+import fs from "fs";
 
 /**
  * Active download workers
@@ -42,6 +40,7 @@ const getYtDlpPath = (): string => {
 export const spawnDownload = async (
   db: Database,
   downloadId: string,
+  videoId: string | null,
   url: string,
   format: string | null,
   outputPath: string,
@@ -53,8 +52,7 @@ export const spawnDownload = async (
       return;
     }
 
-    // Update status to downloading
-    await updateDownloadStatus(db, downloadId, "downloading");
+      // Status will be updated by queue manager before calling this function
 
     // Get yt-dlp binary path
     const ytDlpPath = getYtDlpPath();
@@ -82,6 +80,9 @@ export const spawnDownload = async (
       process,
       startTime: Date.now(),
       lastProgressUpdate: Date.now(),
+      lastKnownFilePath: undefined,
+      outputDir: path.dirname(outputPath),
+      videoId,
     };
     activeWorkers.set(downloadId, worker);
 
@@ -102,17 +103,27 @@ export const spawnDownload = async (
 
       if (code === 0) {
         // Success
-        await updateDownloadStatus(db, downloadId, "completed", {
-          completedAt: Date.now(),
-          progress: 100,
-        });
+          const queueManager = requireQueueManager();
+          // Determine final path: prefer parsed, else search by [videoId]
+          const w = worker;
+          let finalPath: string | null = w.lastKnownFilePath ?? null;
+          if (!finalPath && w.videoId && w.outputDir && fs.existsSync(w.outputDir)) {
+            try {
+              const files = fs.readdirSync(w.outputDir);
+              const match = files.find((f) => f.includes(`[${w.videoId}]`));
+              if (match) finalPath = path.join(w.outputDir, match);
+            } catch {}
+          }
+          await queueManager.markCompleted(downloadId, finalPath || outputPath);
         console.log(`Download ${downloadId} completed successfully`);
       } else {
         // Failed
-        await updateDownloadStatus(db, downloadId, "failed", {
-          errorMessage: `yt-dlp exited with code ${code}`,
-          errorType: "unknown",
-        });
+          const queueManager = requireQueueManager();
+          await queueManager.markFailed(
+            downloadId,
+            `yt-dlp exited with code ${code}`,
+            "process_error"
+          );
         console.error(`Download ${downloadId} failed with code ${code}`);
       }
     });
@@ -120,18 +131,18 @@ export const spawnDownload = async (
     // Handle process errors
     process.on("error", async (error: Error) => {
       activeWorkers.delete(downloadId);
-      await updateDownloadStatus(db, downloadId, "failed", {
-        errorMessage: error.message,
-        errorType: "unknown",
-      });
+        const queueManager = requireQueueManager();
+        await queueManager.markFailed(downloadId, error.message, "spawn_error");
       console.error(`Download ${downloadId} error:`, error);
     });
   } catch (error) {
     activeWorkers.delete(downloadId);
-    await updateDownloadStatus(db, downloadId, "failed", {
-      errorMessage: error instanceof Error ? error.message : "Unknown error",
-      errorType: "unknown",
-    });
+      const queueManager = requireQueueManager();
+      await queueManager.markFailed(
+        downloadId,
+        error instanceof Error ? error.message : "Unknown error",
+        "spawn_error"
+      );
     console.error(`Failed to spawn download ${downloadId}:`, error);
   }
 };
@@ -153,8 +164,9 @@ const parseProgressAndMetadata = (db: Database, downloadId: string, output: stri
       // Update at most every 500ms
       if (now - worker.lastProgressUpdate >= 500) {
         worker.lastProgressUpdate = now;
-        updateDownloadProgress(db, downloadId, Math.round(progress)).catch((err) =>
-          console.error(`Failed to update progress for ${downloadId}:`, err),
+        const queueManager = requireQueueManager();
+        queueManager.updateProgress(downloadId, Math.round(progress)).catch((err: Error) =>
+          console.error(`Failed to update progress for ${downloadId}:`, err)
         );
       }
     }
@@ -168,11 +180,12 @@ const parseProgressAndMetadata = (db: Database, downloadId: string, output: stri
 
   const foundPath = destMatch?.[1] || mergeMatch?.[1];
   if (foundPath) {
-    // Normalize quotes and whitespace
-    const filePath = foundPath.replace(/"/g, "").trim();
-    updateDownloadStatus(db, downloadId, "downloading", { filePath }).catch((err) =>
-      console.error(`Failed to set filePath for ${downloadId}:`, err),
-    );
+    const worker = activeWorkers.get(downloadId);
+    if (worker) {
+      // Normalize quotes and whitespace
+      const cleaned = foundPath.replace(/^"|"$/g, "").trim();
+      (worker as any).lastKnownFilePath = cleaned;
+    }
   }
 };
 

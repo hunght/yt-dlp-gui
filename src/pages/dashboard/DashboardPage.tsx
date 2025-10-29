@@ -294,7 +294,7 @@ export default function DashboardPage() {
                   : d.thumbnailUrl || null;
 
                 return (
-                  <div key={d.id} className="flex items-center gap-3 py-2">
+                  <div key={d.videoId} className="flex items-center gap-3 py-2">
                     {/* Thumbnail */}
                     {thumbSrc ? (
                       <img
@@ -311,19 +311,21 @@ export default function DashboardPage() {
 
                     {/* Meta */}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{d.title ?? d.videoId ?? d.url}</div>
+                      <div className="truncate font-medium">{d.title ?? d.videoId}</div>
                       <div className="truncate text-xs text-muted-foreground">{d.filePath}</div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
-                      <Link
-                        to="/player"
-                        search={{ id: d.id }}
-                        className="inline-flex h-8 items-center justify-center rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
-                      >
-                        Play
-                      </Link>
+                      {d.videoId && (
+                        <Link
+                          to="/player"
+                          search={{ videoId: d.videoId }}
+                          className="inline-flex h-8 items-center justify-center rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+                        >
+                          Play
+                        </Link>
+                      )}
                       <div className="text-xs text-muted-foreground min-w-[8rem] text-right">
                         {d.completedAt ? new Date(d.completedAt).toLocaleString() : ""}
                       </div>

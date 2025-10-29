@@ -85,6 +85,10 @@ export interface WorkerState {
   process: ChildProcess | null;
   startTime: number;
   lastProgressUpdate: number;
+  // Enhanced metadata for resolving final file path
+  lastKnownFilePath?: string;
+  outputDir?: string;
+  videoId?: string | null;
 }
 
 /**

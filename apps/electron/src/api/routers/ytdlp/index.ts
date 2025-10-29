@@ -791,6 +791,49 @@ export const ytdlpRouter = t.router({
       }
     }),
 
+  // Get a single video/download by ID (for tracking download progress)
+  getVideoById: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      try {
+        const result = await db
+          .select()
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.id, input.id))
+          .limit(1);
+
+        if (result.length === 0) {
+          return null;
+        }
+
+        const video = result[0];
+        return {
+          id: video.id,
+          videoId: video.videoId,
+          title: video.title,
+          description: video.description,
+          status: video.downloadStatus,
+          progress: video.downloadProgress ?? 0,
+          filePath: video.downloadFilePath,
+          fileSize: video.downloadFileSize,
+          thumbnailUrl: video.thumbnailUrl,
+          thumbnailPath: video.thumbnailPath,
+          durationSeconds: video.durationSeconds,
+          channelTitle: video.channelTitle,
+          errorMessage: video.lastErrorMessage,
+          errorType: video.errorType,
+          isRetryable: video.isRetryable,
+          lastDownloadedAt: video.lastDownloadedAt,
+          createdAt: video.createdAt,
+          updatedAt: video.updatedAt,
+        };
+      } catch (e) {
+        logger.error("[ytdlp] getVideoById failed", e as Error);
+        return null;
+      }
+    }),
+
   // List unique channels from downloaded videos
   listChannels: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())

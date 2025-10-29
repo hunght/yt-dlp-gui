@@ -36,8 +36,7 @@ export async function createTestDatabase(testName: string): Promise<TestDatabase
   // Run migrations to set up the schema
   await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
 
-  // Clear any existing data
-  await db.delete(schema.downloads);
+  // Clear any existing data (downloads table merged into youtube_videos)
   await db.delete(schema.youtubeVideos);
 
   // Cleanup function
@@ -82,8 +81,7 @@ export async function createSharedTestDatabase(): Promise<TestDatabase> {
   // Run migrations
   await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
 
-  // Clear any existing data
-  await db.delete(schema.downloads);
+  // Clear any existing data (downloads table merged into youtube_videos)
   await db.delete(schema.youtubeVideos);
 
   const cleanup = async () => {
@@ -163,7 +161,7 @@ export async function createTestDatabaseWithRealData(testName: string): Promise<
  * Seeds the test database with sample data
  */
 export async function seedTestDatabase(db: ReturnType<typeof drizzle>) {
-  const { downloads, youtubeVideos } = schema;
+  const { youtubeVideos } = schema; // downloads table removed, merged into youtube_videos
   const timestamp = Date.now();
 
   // Insert sample YouTube videos
@@ -204,58 +202,17 @@ export async function seedTestDatabase(db: ReturnType<typeof drizzle>) {
     },
   ]);
 
-  // Insert sample downloads
-  await db.insert(downloads).values([
-    {
-      id: "test-download-1",
-      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-
-      status: "completed",
-      progress: 100,
-      format: "best[height<=720]",
-      quality: "720p",
-      filePath: "/downloads/test-video-1.mp4",
-      fileSize: 50000000,
-
-      createdAt: timestamp - 3600000, // 1 hour ago
-      updatedAt: timestamp - 1800000, // 30 minutes ago
-      completedAt: timestamp - 1800000,
-    },
-    {
-      id: "test-download-2",
-      url: "https://www.youtube.com/watch?v=test-video-2-id",
-
-      status: "failed",
-      progress: 50,
-      format: "best",
-      errorMessage: "Test error message",
-      errorType: "network",
-      isRetryable: true,
-
-      createdAt: timestamp - 7200000, // 2 hours ago
-      updatedAt: timestamp - 3600000, // 1 hour ago
-    },
-    {
-      id: "test-download-3",
-      url: "https://www.youtube.com/watch?v=test-video-3-id",
-
-      status: "downloading",
-      progress: 75,
-      format: "bestaudio",
-
-      createdAt: timestamp - 1800000, // 30 minutes ago
-      updatedAt: timestamp - 900000, // 15 minutes ago
-    },
-  ]);
+  // Note: Download seeding removed - downloads table merged into youtube_videos
+  // Download status is now tracked directly in the youtube_videos table
+  // To seed videos with download status, add downloadStatus, downloadProgress, etc. to the video records above
 }
 
 /**
  * Clears all data from the test database
  */
 export async function clearTestDatabase(db: ReturnType<typeof drizzle>) {
-  const { downloads, youtubeVideos } = schema;
+  const { youtubeVideos } = schema; // downloads table removed
 
-  await db.delete(downloads);
   await db.delete(youtubeVideos);
 }
 

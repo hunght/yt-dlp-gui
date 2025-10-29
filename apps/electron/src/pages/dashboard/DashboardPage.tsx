@@ -95,7 +95,7 @@ export default function DashboardPage() {
 
   const downloadQuery = useQuery({
     queryKey: ["ytdlp", "download", downloadId],
-    queryFn: () => trpcClient.ytdlp.getDownload.query({ id: downloadId! }),
+    queryFn: () => trpcClient.ytdlp.getVideoById.query({ id: downloadId! }),
     enabled: !!downloadId && !finished,
     refetchInterval: 1500,
   });

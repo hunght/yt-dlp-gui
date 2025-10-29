@@ -811,4 +811,47 @@ export const utilsRouter = t.router({
       size: fs.existsSync(absolutePath) ? fs.statSync(absolutePath).size : 0,
     };
   }),
+
+  convertImageToDataUrl: publicProcedure
+    .input(
+      z.object({
+        imagePath: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        const { imagePath } = input;
+
+        // Check if file exists
+        if (!fs.existsSync(imagePath)) {
+          logger.warn(`Image file not found: ${imagePath}`);
+          return null;
+        }
+
+        // Read the file as a buffer
+        const imageBuffer = fs.readFileSync(imagePath);
+
+        // Get the file extension to determine MIME type
+        const ext = path.extname(imagePath).toLowerCase();
+        const mimeTypes: Record<string, string> = {
+          ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg",
+          ".png": "image/png",
+          ".gif": "image/gif",
+          ".webp": "image/webp",
+          ".bmp": "image/bmp",
+        };
+
+        const mimeType = mimeTypes[ext] || "image/jpeg";
+
+        // Convert to base64 data URL
+        const base64Image = imageBuffer.toString("base64");
+        const dataUrl = `data:${mimeType};base64,${base64Image}`;
+
+        return dataUrl;
+      } catch (error) {
+        logger.error("Error converting image to data URL:", error);
+        return null;
+      }
+    }),
 });

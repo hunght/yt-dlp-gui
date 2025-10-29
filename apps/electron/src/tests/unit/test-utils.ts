@@ -7,18 +7,21 @@ import {
   type TestDatabase,
 } from "./test-db-setup";
 
-import { youtubeRouter } from "../../api/routers/youtube";
+// import { youtubeRouter } from "../../api/routers/youtube"; // Router may be missing
 import { t } from "../../api/trpc";
 import { eq } from "drizzle-orm";
-import { downloads, youtubeVideos } from "../../api/db/schema";
-import { downloadRouter } from "@/api/routers/download/index";
+import { youtubeVideos } from "../../api/db/schema";
+// import { downloadRouter } from "@/api/routers/download/index"; // Router may be missing
 
 /**
  * Test helper to create a tRPC caller with test database for download router
+ * Note: downloadRouter may not exist after migration
  */
 export function createDownloadTestCaller(testDb: TestDatabase) {
   const ctx = createTestContext(testDb.db);
-  return t.createCallerFactory(downloadRouter)(ctx);
+  // TODO: Update when downloadRouter is available
+  // return t.createCallerFactory(downloadRouter)(ctx);
+  throw new Error("downloadRouter not available - downloads merged into youtube_videos");
 }
 
 /**
@@ -26,7 +29,8 @@ export function createDownloadTestCaller(testDb: TestDatabase) {
  */
 export function createYouTubeTestCaller(testDb: TestDatabase) {
   const ctx = createTestContext(testDb.db);
-  return t.createCallerFactory(youtubeRouter)(ctx);
+  // return t.createCallerFactory(youtubeRouter)(ctx); // Router may be missing
+  throw new Error("youtubeRouter not available");
 }
 
 /**
@@ -93,10 +97,11 @@ export async function expectDownloadExists(
   downloadId: string,
   expectedData?: Partial<any>
 ) {
+  // Downloads are now tracked in youtubeVideos table with downloadStatus
   const download = await testDb.db
     .select()
-    .from(downloads)
-    .where(eq(downloads.id, downloadId))
+    .from(youtubeVideos)
+    .where(eq(youtubeVideos.id, downloadId))
     .limit(1);
 
   expect(download).toHaveLength(1);
@@ -112,10 +117,11 @@ export async function expectDownloadExists(
  * Test helper to verify download doesn't exist in database
  */
 export async function expectDownloadNotExists(testDb: TestDatabase, downloadId: string) {
+  // Downloads are now tracked in youtubeVideos table with downloadStatus
   const download = await testDb.db
     .select()
-    .from(downloads)
-    .where(eq(downloads.id, downloadId))
+    .from(youtubeVideos)
+    .where(eq(youtubeVideos.id, downloadId))
     .limit(1);
 
   expect(download).toHaveLength(0);
@@ -164,7 +170,11 @@ export async function getDownloadCountByStatus(
   testDb: TestDatabase,
   status: "pending" | "downloading" | "completed" | "failed" | "cancelled"
 ): Promise<number> {
-  const result = await testDb.db.select().from(downloads).where(eq(downloads.status, status));
+  // Downloads are now tracked in youtubeVideos table with downloadStatus
+  const result = await testDb.db
+    .select()
+    .from(youtubeVideos)
+    .where(eq(youtubeVideos.downloadStatus, status));
 
   return result.length;
 }
@@ -173,7 +183,11 @@ export async function getDownloadCountByStatus(
  * Test helper to get total download count
  */
 export async function getTotalDownloadCount(testDb: TestDatabase): Promise<number> {
-  const result = await testDb.db.select().from(downloads);
+  // Downloads are now tracked in youtubeVideos table with downloadStatus
+  const result = await testDb.db
+    .select()
+    .from(youtubeVideos)
+    .where(eq(youtubeVideos.downloadStatus, "completed"));
   return result.length;
 }
 

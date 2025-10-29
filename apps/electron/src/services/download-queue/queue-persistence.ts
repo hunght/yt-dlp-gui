@@ -1,77 +1,52 @@
 import { eq, or, inArray } from "drizzle-orm";
-import { downloads, youtubeVideos } from "@/api/db/schema";
+import { youtubeVideos } from "@/api/db/schema";
 import type { Database } from "@/api/db";
 import type { QueuedDownload, DownloadStatus } from "./types";
 import { logger } from "@/helpers/logger";
 
 /**
  * Load all queued and active downloads from database
+ * Note: downloads table has been merged into youtube_videos
  */
 export const loadQueueFromDatabase = async (db: Database): Promise<QueuedDownload[]> => {
   try {
     const queuedDownloads = await db
-      .select({
-        id: downloads.id,
-        url: downloads.url,
-        videoId: downloads.videoId,
-        status: downloads.status,
-        progress: downloads.progress,
-        priority: downloads.priority,
-        queuePosition: downloads.queuePosition,
-        format: downloads.format,
-        quality: downloads.quality,
-        filePath: downloads.filePath,
-        fileSize: downloads.fileSize,
-        errorMessage: downloads.errorMessage,
-        errorType: downloads.errorType,
-        isRetryable: downloads.isRetryable,
-        retryCount: downloads.retryCount,
-        maxRetries: downloads.maxRetries,
-        createdAt: downloads.createdAt,
-        updatedAt: downloads.updatedAt,
-        completedAt: downloads.completedAt,
-        pausedAt: downloads.pausedAt,
-        cancelledAt: downloads.cancelledAt,
-        title: youtubeVideos.title,
-        channelTitle: youtubeVideos.channelTitle,
-        thumbnailUrl: youtubeVideos.thumbnailUrl,
-      })
-      .from(downloads)
-      .leftJoin(youtubeVideos, eq(downloads.videoId, youtubeVideos.videoId))
+      .select()
+      .from(youtubeVideos)
       .where(
         or(
-          eq(downloads.status, "queued"),
-          eq(downloads.status, "downloading"),
-          eq(downloads.status, "paused")
+          eq(youtubeVideos.downloadStatus, "queued"),
+          eq(youtubeVideos.downloadStatus, "downloading"),
+          eq(youtubeVideos.downloadStatus, "paused")
         )
       );
 
-    return queuedDownloads.map((d) => ({
-      id: d.id,
-      url: d.url,
-      videoId: d.videoId,
-      title: d.title || "Untitled",
-      channelTitle: d.channelTitle,
-      thumbnailUrl: d.thumbnailUrl,
-      status: d.status as DownloadStatus,
-      progress: d.progress || 0,
-      priority: d.priority || 0,
-      queuePosition: d.queuePosition,
-      format: d.format,
-      quality: d.quality,
-      filePath: d.filePath,
-      fileSize: d.fileSize,
-      errorMessage: d.errorMessage,
-      errorType: d.errorType,
-      isRetryable: d.isRetryable ?? true,
-      retryCount: d.retryCount || 0,
-      maxRetries: d.maxRetries || 3,
-      addedAt: d.createdAt,
-      startedAt: d.status === "downloading" ? d.updatedAt : null,
-      pausedAt: d.pausedAt,
-      completedAt: d.completedAt,
-      cancelledAt: d.cancelledAt,
-      updatedAt: d.updatedAt,
+    return queuedDownloads.map((video) => ({
+      id: video.id,
+      url: `https://youtube.com/watch?v=${video.videoId}`,
+      videoId: video.videoId,
+      title: video.title || "Untitled",
+      channelTitle: video.channelTitle,
+      thumbnailUrl: video.thumbnailUrl,
+      status: (video.downloadStatus as DownloadStatus) || "pending",
+      progress: video.downloadProgress || 0,
+      priority: 0, // Default priority
+      queuePosition: null,
+      format: video.downloadFormat,
+      quality: video.downloadQuality,
+      filePath: video.downloadFilePath,
+      fileSize: video.downloadFileSize,
+      errorMessage: video.lastErrorMessage,
+      errorType: video.errorType,
+      isRetryable: video.isRetryable ?? true,
+      retryCount: 0, // No longer tracked separately
+      maxRetries: 3,
+      addedAt: video.createdAt,
+      startedAt: video.downloadStatus === "downloading" ? video.updatedAt : null,
+      pausedAt: null,
+      completedAt: video.lastDownloadedAt,
+      cancelledAt: null,
+      updatedAt: video.updatedAt,
     }));
   } catch (error) {
     logger.error("[queue-persistence] Failed to load queue from database", error as Error);
@@ -79,8 +54,10 @@ export const loadQueueFromDatabase = async (db: Database): Promise<QueuedDownloa
   }
 };
 
+
 /**
  * Update download status in database
+ * Note: downloads table has been merged into youtube_videos
  */
 export const updateDownloadStatus = async (
   db: Database,
@@ -100,46 +77,24 @@ export const updateDownloadStatus = async (
   try {
     const now = Date.now();
     await db
-      .update(downloads)
+      .update(youtubeVideos)
       .set({
-        status,
+        downloadStatus: status,
+        downloadProgress: additionalData?.progress,
+        downloadFilePath: additionalData?.filePath,
+        downloadFileSize: additionalData?.fileSize,
+        lastErrorMessage: additionalData?.errorMessage,
+        errorType: additionalData?.errorType,
+        lastDownloadedAt: additionalData?.completedAt,
         updatedAt: now,
-        ...additionalData,
       })
-      .where(eq(downloads.id, downloadId));
+      .where(eq(youtubeVideos.id, downloadId));
 
     logger.debug("[queue-persistence] Updated download status", {
       downloadId,
       status,
       ...additionalData,
     });
-
-    // Mirror status into youtube_videos consolidated fields
-    try {
-      const dl = await db
-        .select({ videoId: downloads.videoId })
-        .from(downloads)
-        .where(eq(downloads.id, downloadId))
-        .limit(1);
-      const videoId = dl[0]?.videoId;
-      if (videoId) {
-        await db
-          .update(youtubeVideos)
-          .set({
-            downloadStatus: status,
-            downloadProgress: additionalData?.progress ?? undefined,
-            downloadFilePath: additionalData?.filePath ?? undefined,
-            downloadFileSize: additionalData?.fileSize ?? undefined,
-            lastErrorMessage: additionalData?.errorMessage ?? undefined,
-            errorType: additionalData?.errorType ?? undefined,
-            lastDownloadedAt: additionalData?.completedAt ?? undefined,
-            updatedAt: now,
-          })
-          .where(eq(youtubeVideos.videoId, videoId));
-      }
-    } catch (e) {
-      logger.error("[queue-persistence] Failed to mirror status to youtube_videos", e as Error);
-    }
   } catch (error) {
     logger.error("[queue-persistence] Failed to update download status", error as Error);
     throw error;
@@ -156,30 +111,13 @@ export const updateDownloadProgress = async (
 ): Promise<void> => {
   try {
     await db
-      .update(downloads)
+      .update(youtubeVideos)
       .set({
-        progress: Math.min(100, Math.max(0, progress)),
+        downloadStatus: "downloading",
+        downloadProgress: Math.min(100, Math.max(0, Math.round(progress))),
         updatedAt: Date.now(),
       })
-      .where(eq(downloads.id, downloadId));
-
-    // Mirror progress into youtube_videos consolidated fields
-    try {
-      const dl = await db
-        .select({ videoId: downloads.videoId })
-        .from(downloads)
-        .where(eq(downloads.id, downloadId))
-        .limit(1);
-      const videoId = dl[0]?.videoId;
-      if (videoId) {
-        await db
-          .update(youtubeVideos)
-          .set({ downloadStatus: "downloading", downloadProgress: Math.round(progress), updatedAt: Date.now() })
-          .where(eq(youtubeVideos.videoId, videoId));
-      }
-    } catch (e) {
-      logger.error("[queue-persistence] Failed to mirror progress to youtube_videos", e as Error);
-    }
+      .where(eq(youtubeVideos.id, downloadId));
   } catch (error) {
     logger.error("[queue-persistence] Failed to update download progress", error as Error);
   }
@@ -187,27 +125,17 @@ export const updateDownloadProgress = async (
 
 /**
  * Increment retry count for a download
+ * Note: retry count is no longer tracked in the merged table
  */
 export const incrementRetryCount = async (
   db: Database,
   downloadId: string
 ): Promise<void> => {
   try {
-    const existing = await db
-      .select({ retryCount: downloads.retryCount })
-      .from(downloads)
-      .where(eq(downloads.id, downloadId))
-      .limit(1);
-
-    if (existing.length > 0) {
-      await db
-        .update(downloads)
-        .set({
-          retryCount: (existing[0].retryCount || 0) + 1,
-          updatedAt: Date.now(),
-        })
-        .where(eq(downloads.id, downloadId));
-    }
+    // Retry count tracking removed - just log
+    logger.debug("[queue-persistence] Retry count increment (no-op in merged table)", {
+      downloadId,
+    });
   } catch (error) {
     logger.error("[queue-persistence] Failed to increment retry count", error as Error);
   }
@@ -215,24 +143,15 @@ export const incrementRetryCount = async (
 
 /**
  * Update queue positions for all downloads
+ * Note: queue position is no longer tracked in the merged table
  */
 export const updateQueuePositions = async (
   db: Database,
   queuedDownloads: Array<{ id: string; position: number }>
 ): Promise<void> => {
   try {
-    // Update positions in batches
-    for (const { id, position } of queuedDownloads) {
-      await db
-        .update(downloads)
-        .set({
-          queuePosition: position,
-          updatedAt: Date.now(),
-        })
-        .where(eq(downloads.id, id));
-    }
-
-    logger.debug("[queue-persistence] Updated queue positions", {
+    // Queue position tracking removed - just log
+    logger.debug("[queue-persistence] Queue position update (no-op in merged table)", {
       count: queuedDownloads.length,
     });
   } catch (error) {
@@ -249,63 +168,37 @@ export const getCompletedDownloads = async (
 ): Promise<QueuedDownload[]> => {
   try {
     const completed = await db
-      .select({
-        id: downloads.id,
-        url: downloads.url,
-        videoId: downloads.videoId,
-        status: downloads.status,
-        progress: downloads.progress,
-        priority: downloads.priority,
-        queuePosition: downloads.queuePosition,
-        format: downloads.format,
-        quality: downloads.quality,
-        filePath: downloads.filePath,
-        fileSize: downloads.fileSize,
-        errorMessage: downloads.errorMessage,
-        errorType: downloads.errorType,
-        isRetryable: downloads.isRetryable,
-        retryCount: downloads.retryCount,
-        maxRetries: downloads.maxRetries,
-        createdAt: downloads.createdAt,
-        updatedAt: downloads.updatedAt,
-        completedAt: downloads.completedAt,
-        pausedAt: downloads.pausedAt,
-        cancelledAt: downloads.cancelledAt,
-        title: youtubeVideos.title,
-        channelTitle: youtubeVideos.channelTitle,
-        thumbnailUrl: youtubeVideos.thumbnailUrl,
-      })
-      .from(downloads)
-      .leftJoin(youtubeVideos, eq(downloads.videoId, youtubeVideos.videoId))
-      .where(eq(downloads.status, "completed"))
+      .select()
+      .from(youtubeVideos)
+      .where(eq(youtubeVideos.downloadStatus, "completed"))
       .limit(limit);
 
-    return completed.map((d) => ({
-      id: d.id,
-      url: d.url,
-      videoId: d.videoId,
-      title: d.title || "Untitled",
-      channelTitle: d.channelTitle,
-      thumbnailUrl: d.thumbnailUrl,
-      status: d.status as DownloadStatus,
-      progress: d.progress || 0,
-      priority: d.priority || 0,
-      queuePosition: d.queuePosition,
-      format: d.format,
-      quality: d.quality,
-      filePath: d.filePath,
-      fileSize: d.fileSize,
-      errorMessage: d.errorMessage,
-      errorType: d.errorType,
-      isRetryable: d.isRetryable ?? true,
-      retryCount: d.retryCount || 0,
-      maxRetries: d.maxRetries || 3,
-      addedAt: d.createdAt,
+    return completed.map((video) => ({
+      id: video.id,
+      url: `https://youtube.com/watch?v=${video.videoId}`,
+      videoId: video.videoId,
+      title: video.title || "Untitled",
+      channelTitle: video.channelTitle,
+      thumbnailUrl: video.thumbnailUrl,
+      status: "completed" as DownloadStatus,
+      progress: video.downloadProgress || 100,
+      priority: 0,
+      queuePosition: null,
+      format: video.downloadFormat,
+      quality: video.downloadQuality,
+      filePath: video.downloadFilePath,
+      fileSize: video.downloadFileSize,
+      errorMessage: video.lastErrorMessage,
+      errorType: video.errorType,
+      isRetryable: video.isRetryable ?? true,
+      retryCount: 0,
+      maxRetries: 3,
+      addedAt: video.createdAt,
       startedAt: null,
-      pausedAt: d.pausedAt,
-      completedAt: d.completedAt,
-      cancelledAt: d.cancelledAt,
-      updatedAt: d.updatedAt,
+      pausedAt: null,
+      completedAt: video.lastDownloadedAt,
+      cancelledAt: null,
+      updatedAt: video.updatedAt,
     }));
   } catch (error) {
     logger.error("[queue-persistence] Failed to get completed downloads", error as Error);
@@ -322,19 +215,29 @@ export const cleanupCompletedDownloads = async (
 ): Promise<void> => {
   try {
     const allCompleted = await db
-      .select({ id: downloads.id, completedAt: downloads.completedAt })
-      .from(downloads)
-      .where(eq(downloads.status, "completed"));
+      .select({ id: youtubeVideos.id, lastDownloadedAt: youtubeVideos.lastDownloadedAt })
+      .from(youtubeVideos)
+      .where(eq(youtubeVideos.downloadStatus, "completed"));
 
     if (allCompleted.length > keepCount) {
       // Sort by completion date and keep most recent
-      const sorted = allCompleted.sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+      const sorted = allCompleted.sort((a, b) => (b.lastDownloadedAt || 0) - (a.lastDownloadedAt || 0));
       const toDelete = sorted.slice(keepCount).map((d) => d.id);
 
       if (toDelete.length > 0) {
-        await db.delete(downloads).where(inArray(downloads.id, toDelete));
+        // Instead of deleting, just clear the download status
+        await db
+          .update(youtubeVideos)
+          .set({
+            downloadStatus: null,
+            downloadProgress: null,
+            downloadFilePath: null,
+            downloadFileSize: null,
+          })
+          .where(inArray(youtubeVideos.id, toDelete));
+
         logger.info("[queue-persistence] Cleaned up old completed downloads", {
-          deleted: toDelete.length,
+          cleared: toDelete.length,
         });
       }
     }
@@ -342,3 +245,4 @@ export const cleanupCompletedDownloads = async (
     logger.error("[queue-persistence] Failed to cleanup completed downloads", error as Error);
   }
 };
+

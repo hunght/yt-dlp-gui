@@ -37,7 +37,7 @@ export default function Thumbnail({
       }
 
       console.log("Converting thumbnail to data URL:", thumbnailPath);
-      const result = await trpcClient.download.convertImageToDataUrl.query({
+      const result = await trpcClient.utils.convertImageToDataUrl.query({
         imagePath: thumbnailPath,
       });
       console.log("Thumbnail conversion result:", result ? "Success" : "Failed");

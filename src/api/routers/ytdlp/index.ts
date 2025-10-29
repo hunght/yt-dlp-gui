@@ -7,7 +7,7 @@ import path from "path";
 import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
 import { spawn } from "child_process";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { downloads, youtubeVideos, channels } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
@@ -100,7 +100,21 @@ const mapYtDlpMetadata = (meta: any) => {
 // Helper to extract channel data from yt-dlp metadata
 const extractChannelData = (meta: any) => {
   const channelId = meta?.channel_id || meta?.channelId || null;
-  if (!channelId) return null;
+
+  logger.debug("[extractChannelData] Processing metadata", {
+    hasChannelId: !!channelId,
+    channelId,
+    channel_id: meta?.channel_id,
+    channelIdAlt: meta?.channelId,
+    uploader_id: meta?.uploader_id,
+    channel: meta?.channel,
+    uploader: meta?.uploader,
+  });
+
+  if (!channelId) {
+    logger.warn("[extractChannelData] No channel_id found in metadata");
+    return null;
+  }
 
   // Extract channel thumbnail (profile photo)
   let channelThumbnail = null;
@@ -383,8 +397,16 @@ export const ytdlpRouter = t.router({
 
       // Extract and upsert channel data
       const channelData = extractChannelData(meta);
+      logger.info("[ytdlp] Extracted channel data", {
+        hasChannelData: !!channelData,
+        channelId: channelData?.channelId,
+        channelTitle: channelData?.channelTitle,
+        metaKeys: Object.keys(meta || {}).filter(k => k.includes('channel') || k.includes('uploader'))
+      });
       if (channelData) {
         await upsertChannelData(db, channelData);
+      } else {
+        logger.warn("[ytdlp] No channel data extracted from metadata");
       }
 
       // Always store in DB for caching
@@ -831,6 +853,118 @@ export const ytdlpRouter = t.router({
         .limit(limit);
 
       return videos;
+    }),
+
+  // Get channel details with videos
+  getChannelDetails: publicProcedure
+    .input(z.object({ channelId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+
+      // Get channel info
+      const channelRows = await db
+        .select()
+        .from(channels)
+        .where(eq(channels.channelId, input.channelId))
+        .limit(1);
+
+      if (channelRows.length === 0) {
+        return null;
+      }
+
+      const channel = channelRows[0];
+
+      // Get videos from this channel (unique list)
+      const videoRows = await db
+        .select()
+        .from(youtubeVideos)
+        .where(eq(youtubeVideos.channelId, input.channelId))
+        .orderBy(desc(youtubeVideos.publishedAt))
+        .limit(50);
+
+      const videoIds = videoRows.map((v) => v.videoId).filter(Boolean) as string[];
+
+      // No videos -> early return
+      if (videoIds.length === 0) {
+        return { channel, videos: [], totalVideos: 0 };
+      }
+
+      // Fetch downloads for these videos
+      const downloadRows = await db
+        .select({
+          id: downloads.id,
+          videoId: downloads.videoId,
+          status: downloads.status,
+          progress: downloads.progress,
+          filePath: downloads.filePath,
+          completedAt: downloads.completedAt,
+          updatedAt: downloads.updatedAt,
+          createdAt: downloads.createdAt,
+        })
+        .from(downloads)
+        .where(inArray(downloads.videoId, videoIds));
+
+      // Pick the best/most relevant download per video
+      const priority: Record<string, number> = {
+        completed: 5,
+        downloading: 4,
+        queued: 3,
+        paused: 2,
+        failed: 1,
+        pending: 0,
+        cancelled: 0,
+      };
+
+      const bestByVideo = new Map<string, typeof downloadRows[number]>();
+      for (const row of downloadRows) {
+        if (!row.videoId) continue;
+        const current = bestByVideo.get(row.videoId);
+        if (!current) {
+          bestByVideo.set(row.videoId, row);
+          continue;
+        }
+        const curScore = priority[current.status] ?? -1;
+        const newScore = priority[row.status] ?? -1;
+        if (newScore > curScore) {
+          bestByVideo.set(row.videoId, row);
+          continue;
+        }
+        if (newScore === curScore) {
+          const curTime = (current.completedAt ?? current.updatedAt ?? current.createdAt ?? 0) as number;
+          const newTime = (row.completedAt ?? row.updatedAt ?? row.createdAt ?? 0) as number;
+          if (newTime > curTime) bestByVideo.set(row.videoId, row);
+        }
+      }
+
+      // Compose response with download summary attached
+      const videos = videoRows.map((v) => {
+        const best = bestByVideo.get(v.videoId || "");
+        return {
+          id: v.id,
+          videoId: v.videoId,
+          title: v.title,
+          description: v.description,
+          channelId: v.channelId,
+          channelTitle: v.channelTitle,
+          durationSeconds: v.durationSeconds,
+          viewCount: v.viewCount,
+          likeCount: v.likeCount,
+          thumbnailUrl: v.thumbnailUrl,
+          thumbnailPath: v.thumbnailPath,
+          publishedAt: v.publishedAt,
+          tags: v.tags,
+          raw: v.raw,
+          createdAt: v.createdAt,
+          updatedAt: v.updatedAt,
+          downloadId: best?.id ?? null,
+          downloadStatus: best?.status ?? null,
+          downloadProgress: best?.progress ?? null,
+          downloadFilePath: best?.filePath ?? null,
+          downloadCompletedAt: best?.completedAt ?? null,
+        };
+      });
+
+      return { channel, videos, totalVideos: videos.length };
     }),
 });
 

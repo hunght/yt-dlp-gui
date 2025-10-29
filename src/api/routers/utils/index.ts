@@ -14,6 +14,7 @@ import fs from "fs";
 import os from "os";
 import { EventEmitter } from "events";
 import { extractZipWithYauzl } from "./service";
+import { getDatabasePath } from "@/utils/paths";
 
 //   a function to get platform-specific download URL without triggering download
 const getPlatformDownloadUrl = (version: string): string => {
@@ -791,4 +792,23 @@ export const utilsRouter = t.router({
         };
       }
     }),
+
+  // Get database path
+  getDatabasePath: publicProcedure.query(() => {
+    const dbPath = getDatabasePath();
+    // Remove 'file:' prefix to get actual file system path
+    const actualPath = dbPath.replace(/^file:/, "");
+
+    // Get absolute path
+    const absolutePath = path.isAbsolute(actualPath)
+      ? actualPath
+      : path.resolve(process.cwd(), actualPath);
+
+    return {
+      path: absolutePath,
+      directory: path.dirname(absolutePath),
+      exists: fs.existsSync(absolutePath),
+      size: fs.existsSync(absolutePath) ? fs.statSync(absolutePath).size : 0,
+    };
+  }),
 });

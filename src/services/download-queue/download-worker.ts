@@ -85,10 +85,10 @@ export const spawnDownload = async (
     };
     activeWorkers.set(downloadId, worker);
 
-    // Handle stdout - parse progress
+    // Handle stdout - parse progress and file path
     process.stdout?.on("data", (data: Buffer) => {
       const output = data.toString();
-      parseProgress(db, downloadId, output);
+      parseProgressAndMetadata(db, downloadId, output);
     });
 
     // Handle stderr - log errors
@@ -137,9 +137,9 @@ export const spawnDownload = async (
 };
 
 /**
- * Parse progress from yt-dlp output
+ * Parse progress and metadata from yt-dlp output
  */
-const parseProgress = (db: Database, downloadId: string, output: string): void => {
+const parseProgressAndMetadata = (db: Database, downloadId: string, output: string): void => {
   // Look for progress percentage: "[download]  45.3% of 10.5MiB at 1.2MiB/s"
   const progressMatch = output.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
 
@@ -158,6 +158,21 @@ const parseProgress = (db: Database, downloadId: string, output: string): void =
         );
       }
     }
+  }
+
+  // Look for destination/merged file path
+  // Example: [download] Destination: /path/to/file.mp4
+  const destMatch = output.match(/\[download\]\s+Destination:\s+(.+)/);
+  // Example: [Merger] Merging formats into "/path/to/file.mp4"
+  const mergeMatch = output.match(/\[Merger\]\s+Merging formats into\s+"(.+?)"/);
+
+  const foundPath = destMatch?.[1] || mergeMatch?.[1];
+  if (foundPath) {
+    // Normalize quotes and whitespace
+    const filePath = foundPath.replace(/"/g, "").trim();
+    updateDownloadStatus(db, downloadId, "downloading", { filePath }).catch((err) =>
+      console.error(`Failed to set filePath for ${downloadId}:`, err),
+    );
   }
 };
 

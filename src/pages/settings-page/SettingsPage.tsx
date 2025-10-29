@@ -34,6 +34,12 @@ export default function SettingsPage() {
     index: number;
   } | null>(null);
 
+  // Get database path
+  const { data: dbInfo } = useQuery({
+    queryKey: ["database", "path"],
+    queryFn: () => trpcClient.utils.getDatabasePath.query(),
+  });
+
   useEffect(() => {
     getCurrentTheme().then((theme) => {
       setCurrentTheme(theme.local || theme.system);
@@ -43,6 +49,19 @@ export default function SettingsPage() {
   const handleThemeChange = async (theme: ThemeMode) => {
     await setTheme(theme);
     setCurrentTheme(theme);
+  };
+
+  const handleOpenDatabaseFolder = async () => {
+    if (dbInfo?.directory) {
+      await trpcClient.utils.openFolder.mutate({ folderPath: dbInfo.directory });
+    }
+  };
+
+  const handleRevealDatabase = async () => {
+    if (dbInfo?.path) {
+      // On macOS, shell.showItemInFolder would be better, but we can use openPath for the parent directory
+      await trpcClient.utils.openFolder.mutate({ folderPath: dbInfo.directory });
+    }
   };
 
   return (
@@ -70,6 +89,50 @@ export default function SettingsPage() {
           >
             <MoonIcon className="h-4 w-4" />
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Database</CardTitle>
+          <CardDescription>View database location and information</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {dbInfo ? (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm font-medium">Database Path</Label>
+                <div className="mt-1 flex items-center gap-2">
+                  <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono break-all">
+                    {dbInfo.path}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRevealDatabase}
+                    disabled={!dbInfo.exists}
+                  >
+                    Open in Finder
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Status:</span>{" "}
+                  <span className={dbInfo.exists ? "text-green-600" : "text-red-600"}>
+                    {dbInfo.exists ? "✓ Found" : "✗ Not Found"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Size:</span>{" "}
+                  <span>{(dbInfo.size / 1024 / 1024).toFixed(2)} MB</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">Loading database information...</div>
+          )}
         </CardContent>
       </Card>
 

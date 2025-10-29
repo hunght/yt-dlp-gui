@@ -10,6 +10,7 @@ import {
   session,
   ipcMain,
   dialog,
+  protocol,
 } from "electron";
 import { createIPCHandler } from "electron-trpc/main";
 import registerListeners from "./helpers/ipc/listeners-register";
@@ -300,7 +301,8 @@ app.whenReady().then(async () => {
           "default-src 'self'; " +
             "script-src 'self' 'unsafe-inline' https://*.posthog.com; " +
             "connect-src 'self' https://*.posthog.com; " +
-            "img-src 'self' data: https://*.posthog.com https://i.ytimg.com https://*.ytimg.com; " +
+            "img-src 'self' data: file: local-file: https://*.posthog.com https://i.ytimg.com https://*.ytimg.com; " +
+            "media-src 'self' file: local-file:; " +
             "style-src 'self' 'unsafe-inline'; " +
             "frame-src 'self';",
         ],
@@ -322,6 +324,18 @@ app.whenReady().then(async () => {
       callback({ cancel: true });
     }
   );
+
+  // Register custom protocol to safely load local files from http(s) pages (dev server)
+  protocol.registerFileProtocol("local-file", (request, callback) => {
+    try {
+      // request.url example: local-file:///absolute/path/to/file.mp4
+      const url = decodeURIComponent(request.url.replace("local-file://", ""));
+      callback({ path: url });
+    } catch (e) {
+      logger.error("[protocol] Failed to resolve local-file URL", e as Error);
+      callback({ error: -2 }); // FILE_NOT_FOUND
+    }
+  });
 });
 
 // Handle app quit

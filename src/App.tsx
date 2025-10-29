@@ -30,7 +30,8 @@ posthog.init(getConfig("posthogKey"), {
   disable_surveys: true, // Explicitly disable surveys
   autocapture: false,
   capture_pageleave: false,
-  debug: process.env.NODE_ENV === "development",
+  // Force debug off to prevent noisy console logs like "[PostHog.js] send \"$$heatmap\" ..."
+  debug: false,
   loaded: (ph) => {
     // Disable additional features that might attempt to inject scripts
     if (ph.config) {
@@ -38,6 +39,16 @@ posthog.init(getConfig("posthogKey"), {
 
       ph.config.disable_surveys = true; // Explicitly disable surveys in config
       ph.config.autocapture = false;
+    }
+
+    // Ensure debug is fully disabled even if enabled via localStorage flags
+    try {
+      ph.debug(false);
+      // Common localStorage flags that can enable PostHog debug mode
+      window.localStorage.removeItem("posthog_debug");
+      window.localStorage.removeItem("ph_debug");
+    } catch (_) {
+      // no-op
     }
   },
 });

@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Pause, Play, X, RotateCw, Trash2 } from "lucide-react";
+import { Pause, Play, X, RotateCw, Trash2, PlayCircle } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import type { QueueStatus } from "@/services/download-queue/types";
 
@@ -226,6 +227,15 @@ export const DownloadQueueCard: React.FC = () => {
 
                 {/* Action buttons */}
                 <div className="flex items-center justify-end gap-2">
+                  {download.status === "completed" && download.filePath && (
+                    <Link
+                      to="/player"
+                      search={{ id: download.id }}
+                      className="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <PlayCircle className="mr-2 h-4 w-4" /> Play
+                    </Link>
+                  )}
                   {download.status === "downloading" && (
                     <Button
                       variant="outline"

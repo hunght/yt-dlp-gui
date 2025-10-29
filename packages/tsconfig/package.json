@@ -1,0 +1,13 @@
+{
+  "name": "@yt-dlp-gui/tsconfig",
+  "version": "1.0.001",
+  "private": true,
+  "files": [
+    "base.json",
+    "electron.json",
+    "react.json"
+  ],
+  "devDependencies": {
+    "turbo": "2.5.8"
+  }
+}

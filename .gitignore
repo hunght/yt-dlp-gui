@@ -41,6 +41,7 @@ typings/
 
 # TypeScript cache
 *.tsbuildinfo
+apps/electron/dist/tsconfig.tsbuildinfo
 
 # Optional npm cache directory
 .npm
@@ -85,43 +86,42 @@ typings/
 # Webpack
 .webpack/
 
-# Vite
-.vite/
-dist/
+# Vite build outputs
+apps/electron/.vite/
+apps/electron/dist/
+apps/electron/.vite/build/
 
 # Electron-Forge
 out/
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
+apps/electron/out/
+
+# Test results
+apps/electron/test-results/
+apps/electron/playwright-report/
+apps/electron/blob-report/
+apps/electron/playwright/.cache/
 
 
 
 # SQLite database
 data/database.sqlite
-local.db
-*.db
+apps/electron/local.db
+apps/electron/*.db
 *.sqlite-journal
 
 # Editor directories and files
 .vscode/*
 
-.env.local
-.env
-logs.txt
-screenshots/
-downloads/
-local.db*.backup
-thumbnails/
-local.db-shm
-local.db-wal
+# Additional Electron-specific files
+apps/electron/local.db*.backup
+apps/electron/thumbnails/
+apps/electron/local.db-shm
+apps/electron/local.db-wal
 
 # Test database files
-test-*.db
-test-*.db-shm
-test-*.db-wal
+apps/electron/test-*.db
+apps/electron/test-*.db-shm
+apps/electron/test-*.db-wal
+
+# Electron coverage
+apps/electron/coverage/

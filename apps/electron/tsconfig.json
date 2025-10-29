@@ -17,13 +17,14 @@
     "sourceMap": true,
     "strict": true,
     "baseUrl": ".",
+    "rootDir": ".",
     "paths": {
       "@/*": [
         "./src/*"
       ]
     },
     "outDir": "dist",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "skipLibCheck": true
   },

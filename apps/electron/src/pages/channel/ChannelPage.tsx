@@ -59,23 +59,46 @@ export default function ChannelPage() {
       return await trpcClient.ytdlp.getChannelDetails.query({ channelId });
     },
     enabled: !!channelId,
+  });
+
+  // Separate query for library videos - fetches directly from DB with download status updates
+  // Only show videos that have been downloaded or are in download process
+  const libraryQuery = useQuery({
+    queryKey: ["channel-library", channelId],
+    queryFn: async () => {
+      if (!channelId) return [];
+      const videos = await trpcClient.ytdlp.getVideosByChannel.query({ channelId: channelId!, limit: 100 });
+      // Filter to only show videos with download activity
+      return videos.filter((v) =>
+        v.downloadStatus &&
+        ["downloading", "queued", "completed", "paused", "failed"].includes(v.downloadStatus)
+      );
+    },
+    enabled: !!channelId,
     refetchInterval: 3000, // Refresh every 3 seconds to update download statuses
+    staleTime: 0, // Always fetch fresh data to show latest download status
   });
 
   const latestQuery = useQuery({
     queryKey: ["channel-latest", channelId],
     queryFn: () => trpcClient.ytdlp.listChannelLatest.query({ channelId: channelId!, limit: 24 }),
     enabled: !!channelId,
+    staleTime: Infinity, // Cache forever - never auto-refetch, only manual refresh
+    gcTime: Infinity, // Keep in cache forever
   });
   const popularQuery = useQuery({
     queryKey: ["channel-popular", channelId],
     queryFn: () => trpcClient.ytdlp.listChannelPopular.query({ channelId: channelId!, limit: 24 }),
     enabled: !!channelId,
+    staleTime: Infinity, // Cache forever - never auto-refetch, only manual refresh
+    gcTime: Infinity, // Keep in cache forever
   });
   const playlistsQuery = useQuery({
     queryKey: ["channel-playlists", channelId],
     queryFn: () => trpcClient.ytdlp.listChannelPlaylists.query({ channelId: channelId!, limit: 24 }),
     enabled: !!channelId,
+    staleTime: Infinity, // Cache forever - never auto-refetch, only manual refresh
+    gcTime: Infinity, // Keep in cache forever
   });
 
   const addToQueueMutation = useMutation({
@@ -136,10 +159,20 @@ export default function ChannelPage() {
     );
   }
 
-  const { channel, videos } = data;
+  const { channel } = data;
+  const isAllowedImageSrc = (src?: string | null) => {
+    if (!src) return false;
+    if (src.startsWith("local-file://")) return true;
+    try {
+      const u = new URL(src);
+      return /(^|\.)ytimg\.com$/.test(u.hostname);
+    } catch {
+      return false;
+    }
+  };
   const thumbnailSrc = channel.thumbnailPath
     ? `local-file://${channel.thumbnailPath}`
-    : channel.thumbnailUrl;
+    : (isAllowedImageSrc(channel.thumbnailUrl) ? channel.thumbnailUrl : undefined);
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -152,7 +185,7 @@ export default function ChannelPage() {
         <CardContent className="pt-6">
           <div className="flex items-start gap-6">
             {/* Channel Avatar */}
-            {thumbnailSrc ? (
+            {thumbnailSrc && isAllowedImageSrc(thumbnailSrc) ? (
               <img
                 src={thumbnailSrc}
                 alt={channel.channelTitle}
@@ -179,7 +212,9 @@ export default function ChannelPage() {
                 {channel.subscriberCount && (
                   <span>{channel.subscriberCount.toLocaleString()} subscribers</span>
                 )}
-                <span>{videos.length} videos</span>
+                {libraryQuery.data && libraryQuery.data.length > 0 && (
+                  <span>{libraryQuery.data.length} videos in library</span>
+                )}
                 {channel.customUrl && <span>@{channel.customUrl}</span>}
               </div>
 
@@ -213,6 +248,29 @@ export default function ChannelPage() {
             </TabsList>
 
             <TabsContent value="latest" className="mt-4">
+              {latestQuery.dataUpdatedAt > 0 && (
+                <div className="mb-3 flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                  <span>
+                    {latestQuery.isFetching ? (
+                      <>
+                        <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
+                        Refreshing data...
+                      </>
+                    ) : (
+                      <>Last updated: {new Date(latestQuery.dataUpdatedAt).toLocaleString()}</>
+                    )}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2"
+                    onClick={() => latestQuery.refetch()}
+                    disabled={latestQuery.isFetching}
+                  >
+                    {latestQuery.isFetching ? "Refreshing..." : "Refresh"}
+                  </Button>
+                </div>
+              )}
               {latestQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading latest…</p>
               ) : latestQuery.data && latestQuery.data.length > 0 ? (
@@ -334,6 +392,29 @@ export default function ChannelPage() {
             </TabsContent>
 
             <TabsContent value="popular" className="mt-4">
+              {popularQuery.dataUpdatedAt > 0 && (
+                <div className="mb-3 flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                  <span>
+                    {popularQuery.isFetching ? (
+                      <>
+                        <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
+                        Refreshing data...
+                      </>
+                    ) : (
+                      <>Last updated: {new Date(popularQuery.dataUpdatedAt).toLocaleString()}</>
+                    )}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2"
+                    onClick={() => popularQuery.refetch()}
+                    disabled={popularQuery.isFetching}
+                  >
+                    {popularQuery.isFetching ? "Refreshing..." : "Refresh"}
+                  </Button>
+                </div>
+              )}
               {popularQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading popular…</p>
               ) : popularQuery.data && popularQuery.data.length > 0 ? (
@@ -455,11 +536,13 @@ export default function ChannelPage() {
             </TabsContent>
 
             <TabsContent value="library" className="mt-4">
-              {videos.length === 0 ? (
+              {libraryQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading library videos…</p>
+              ) : !libraryQuery.data || libraryQuery.data.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No videos found for this channel in library.</p>
               ) : (
                 <div className="space-y-4">
-                  {videos.map((video) => {
+                  {libraryQuery.data.map((video) => {
                 const videoThumbnail = video.thumbnailPath
                   ? `local-file://${video.thumbnailPath}`
                   : video.thumbnailUrl;
@@ -566,6 +649,29 @@ export default function ChannelPage() {
             </TabsContent>
 
             <TabsContent value="playlists" className="mt-4">
+              {playlistsQuery.dataUpdatedAt > 0 && (
+                <div className="mb-3 flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                  <span>
+                    {playlistsQuery.isFetching ? (
+                      <>
+                        <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
+                        Refreshing data...
+                      </>
+                    ) : (
+                      <>Last updated: {new Date(playlistsQuery.dataUpdatedAt).toLocaleString()}</>
+                    )}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2"
+                    onClick={() => playlistsQuery.refetch()}
+                    disabled={playlistsQuery.isFetching}
+                  >
+                    {playlistsQuery.isFetching ? "Refreshing..." : "Refresh"}
+                  </Button>
+                </div>
+              )}
               {playlistsQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading playlists…</p>
               ) : playlistsQuery.data && playlistsQuery.data.length > 0 ? (

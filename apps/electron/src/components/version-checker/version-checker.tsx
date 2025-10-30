@@ -299,8 +299,8 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    window.open(result.fallbackUrl, "_blank");
+                  onClick={async () => {
+                    await trpcClient.utils.openExternalUrl.mutate({ url: result.fallbackUrl });
                   }}
                 >
                   <ExternalLinkIcon className="mr-1 h-4 w-4" />
@@ -309,8 +309,8 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => {
-                    window.open("https://www.yt-dlp-gui.com/download", "_blank");
+                  onClick={async () => {
+                    await trpcClient.utils.openExternalUrl.mutate({ url: "https://www.yt-dlp-gui.com/download" });
                   }}
                 >
                   <ExternalLinkIcon className="mr-1 h-4 w-4" />
@@ -348,8 +348,8 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                window.open(downloadUrl, "_blank");
+              onClick={async () => {
+                await trpcClient.utils.openExternalUrl.mutate({ url: downloadUrl });
               }}
             >
               <ExternalLinkIcon className="mr-1 h-4 w-4" />
@@ -358,11 +358,10 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
             <Button
               variant="default"
               size="sm"
-              onClick={() => {
-                window.open(
-                  `https://github.com/yt-dlp-gui/yt-dlp-gui/releases/tag/v${latestVersion}`,
-                  "_blank"
-                );
+              onClick={async () => {
+                await trpcClient.utils.openExternalUrl.mutate({
+                  url: `https://github.com/yt-dlp-gui/yt-dlp-gui/releases/tag/v${latestVersion}`,
+                });
               }}
             >
               <ExternalLinkIcon className="mr-1 h-4 w-4" />

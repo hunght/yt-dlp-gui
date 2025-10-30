@@ -43,6 +43,27 @@ export const queueRouter = t.router({
           message: `Added ${downloadIds.length} download(s) to queue`,
         };
       } catch (error) {
+        // Handle duplicate detection errors
+        const err = error as any;
+        if (err.skippedUrls && Array.isArray(err.skippedUrls)) {
+          const skippedDetails = err.skippedUrls
+            .map((item: any) => item.reason)
+            .join(", ");
+
+          logger.warn("[queue] Some URLs skipped due to duplicates", {
+            skipped: err.skippedUrls.length,
+            added: err.addedIds?.length || 0,
+          });
+
+          return {
+            success: err.isPartialDuplicate ? true : false,
+            downloadIds: err.addedIds || [],
+            message: err.message,
+            skippedUrls: err.skippedUrls,
+            details: skippedDetails,
+          };
+        }
+
         logger.error("[queue] Failed to add to queue", error as Error);
         return {
           success: false,

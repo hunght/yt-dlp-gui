@@ -296,6 +296,7 @@ class QueueManager {
     } = {},
   ): Promise<string[]> {
     const downloadIds: string[] = [];
+    const skippedUrls: Array<{ url: string; reason: string; videoId: string | null }> = [];
 
     try {
       // Get current max queue position
@@ -328,6 +329,83 @@ class QueueManager {
           }
         };
 
+        const videoId = parseVideoId(url);
+
+        // Check for duplicates in database if we have a videoId
+        if (videoId) {
+          try {
+            const existing = await this.db
+              .select({
+                id: youtubeVideos.id,
+                videoId: youtubeVideos.videoId,
+                title: youtubeVideos.title,
+                downloadStatus: youtubeVideos.downloadStatus,
+                downloadFilePath: youtubeVideos.downloadFilePath,
+              })
+              .from(youtubeVideos)
+              .where(eq(youtubeVideos.videoId, videoId))
+              .limit(1);
+
+            if (existing.length > 0) {
+              const video = existing[0];
+              const status = video.downloadStatus;
+
+              // Skip if already completed
+              if (status === "completed") {
+                logger.info("[queue-manager] Skipping duplicate - already downloaded", {
+                  videoId,
+                  title: video.title,
+                  filePath: video.downloadFilePath,
+                });
+                skippedUrls.push({
+                  url,
+                  videoId,
+                  reason: `Already downloaded: "${video.title}"`,
+                });
+                continue;
+              }
+
+              // Skip if currently downloading or queued
+              if (status === "downloading" || status === "queued") {
+                logger.info("[queue-manager] Skipping duplicate - already in progress", {
+                  videoId,
+                  title: video.title,
+                  status,
+                });
+                skippedUrls.push({
+                  url,
+                  videoId,
+                  reason: `Already ${status}: "${video.title}"`,
+                });
+                continue;
+              }
+            }
+          } catch (dbError) {
+            logger.warn("[queue-manager] Failed to check for duplicates", {
+              videoId,
+              error: dbError,
+            });
+            // Continue with adding to queue if DB check fails
+          }
+        }
+
+        // Check for duplicates in current in-memory queue
+        const inQueue = Array.from(this.queue.values()).find(
+          (item) => item.videoId === videoId && videoId !== null,
+        );
+        if (inQueue) {
+          logger.info("[queue-manager] Skipping duplicate - already in queue", {
+            videoId,
+            queueId: inQueue.id,
+          });
+          skippedUrls.push({
+            url,
+            videoId,
+            reason: `Already in queue: "${inQueue.title}"`,
+          });
+          continue;
+        }
+
         // Generate unique ID
         const id = `download-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
@@ -335,7 +413,7 @@ class QueueManager {
         const queueItem: QueueItem = {
           id,
           url,
-          videoId: parseVideoId(url), // Best-effort parse from URL
+          videoId, // Best-effort parse from URL
           title: url, // Temp title until metadata is available
           channelTitle: null,
           thumbnailUrl: null,
@@ -360,17 +438,43 @@ class QueueManager {
       }
 
       logger.info("[queue-manager] Added to queue", {
-        count: downloadIds.length,
+        added: downloadIds.length,
+        skipped: skippedUrls.length,
         ids: downloadIds,
       });
+
+      // Log skipped URLs for user feedback
+      if (skippedUrls.length > 0) {
+        logger.info("[queue-manager] Skipped duplicate URLs", {
+          count: skippedUrls.length,
+          details: skippedUrls,
+        });
+      }
 
       // Auto-start if configured
       if (this.config.autoStart && !this.isProcessing) {
         this.start();
       }
 
+      // Return both added and skipped info
+      if (skippedUrls.length > 0) {
+        const error: any = new Error(
+          skippedUrls.length === urls.length
+            ? "All videos already downloaded or in queue"
+            : `${skippedUrls.length} of ${urls.length} videos skipped (already downloaded or in queue)`,
+        );
+        error.skippedUrls = skippedUrls;
+        error.addedIds = downloadIds;
+        error.isPartialDuplicate = downloadIds.length > 0;
+        throw error;
+      }
+
       return downloadIds;
     } catch (error) {
+      // Re-throw with additional context if it's our duplicate error
+      if ((error as any).skippedUrls) {
+        throw error;
+      }
       logger.error("[queue-manager] Failed to add to queue", error as Error);
       throw error;
     }

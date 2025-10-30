@@ -99,6 +99,70 @@ const mapYtDlpMetadata = (meta: any) => {
   } as const;
 };
 
+async function runYtDlpJson(binPath: string, url: string): Promise<any> {
+  const metaJson = await new Promise<string>((resolve, reject) => {
+    const proc = spawn(binPath, ["-J", url], { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    proc.stdout.on("data", (d) => (out += d.toString()));
+    proc.stderr.on("data", (d) => (err += d.toString()));
+    proc.on("error", reject);
+    proc.on("close", (code) => {
+      if (code === 0) resolve(out);
+      else reject(new Error(err || `yt-dlp -J exited with code ${code}`));
+    });
+  });
+  return JSON.parse(metaJson);
+}
+
+async function upsertVideoFromMeta(db: any, mapped: ReturnType<typeof mapYtDlpMetadata>) {
+  if (!mapped.videoId) return;
+  const now = Date.now();
+  const existing = await db
+    .select()
+    .from(youtubeVideos)
+    .where(eq(youtubeVideos.videoId, mapped.videoId))
+    .limit(1);
+  if (existing.length === 0) {
+    await db.insert(youtubeVideos).values({
+      id: crypto.randomUUID(),
+      videoId: mapped.videoId,
+      title: mapped.title,
+      description: mapped.description,
+      channelId: mapped.channelId,
+      channelTitle: mapped.channelTitle,
+      durationSeconds: mapped.durationSeconds,
+      viewCount: mapped.viewCount,
+      likeCount: mapped.likeCount,
+      thumbnailUrl: mapped.thumbnailUrl,
+      thumbnailPath: null,
+      publishedAt: mapped.publishedAt,
+      tags: mapped.tags,
+      raw: mapped.raw,
+      createdAt: now,
+      updatedAt: now,
+    });
+  } else {
+    await db
+      .update(youtubeVideos)
+      .set({
+        title: mapped.title,
+        description: mapped.description,
+        channelId: mapped.channelId,
+        channelTitle: mapped.channelTitle,
+        durationSeconds: mapped.durationSeconds,
+        viewCount: mapped.viewCount,
+        likeCount: mapped.likeCount,
+        thumbnailUrl: mapped.thumbnailUrl,
+        publishedAt: mapped.publishedAt,
+        tags: mapped.tags,
+        raw: mapped.raw,
+        updatedAt: now,
+      })
+      .where(eq(youtubeVideos.videoId, mapped.videoId));
+  }
+}
+
 // Helper to extract channel data from yt-dlp metadata
 const extractChannelData = (meta: any) => {
   const channelId = meta?.channel_id || meta?.channelId || null;
@@ -975,6 +1039,244 @@ export const ytdlpRouter = t.router({
         status: v.downloadStatus,
         progress: v.downloadProgress,
       } as const;
+    }),
+
+  // List latest videos from a channel via yt-dlp (metadata-only, fast)
+  listChannelLatest: publicProcedure
+    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(100).optional() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const binPath = getBinaryFilePath();
+      if (!fs.existsSync(binPath)) return [] as Array<any>;
+      const url = `https://www.youtube.com/channel/${input.channelId}/videos?view=0&sort=dd&flow=grid`;
+      const listing = await new Promise<string>((resolve, reject) => {
+        const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
+        let out = ""; let err = "";
+        proc.stdout.on("data", (d) => (out += d.toString()));
+        proc.stderr.on("data", (d) => (err += d.toString()));
+        proc.on("error", reject);
+        proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
+      });
+      const listData = JSON.parse(listing);
+
+      // Log available fields from the first entry to understand the data structure
+      if (listData?.entries?.[0]) {
+        logger.info("[ytdlp] listChannelLatest flat-playlist entry fields", {
+          sampleEntry: listData.entries[0],
+          availableFields: Object.keys(listData.entries[0])
+        });
+      }
+
+      const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter((e: any) => e?.id);
+      const limit = input.limit ?? 24;
+      const now = Date.now();
+
+      // Upsert lightweight metadata to DB for caching (avoid expensive individual fetches)
+      const videoIds: string[] = [];
+      for (const entry of entries.slice(0, limit)) {
+        if (!entry.id) continue;
+        videoIds.push(entry.id);
+
+        try {
+          // Check if video exists in DB
+          const existing = await db
+            .select()
+            .from(youtubeVideos)
+            .where(eq(youtubeVideos.videoId, entry.id))
+            .limit(1);
+
+          const videoData = {
+            videoId: entry.id,
+            title: entry.title || "Untitled",
+            description: null,
+            channelId: input.channelId,
+            channelTitle: entry.channel || entry.uploader || null,
+            durationSeconds: entry.duration || null,
+            viewCount: entry.view_count || null,
+            likeCount: null,
+            thumbnailUrl: entry.thumbnails?.[0]?.url || entry.thumbnail || null,
+            publishedAt: null,
+            tags: null,
+            raw: JSON.stringify(entry),
+            updatedAt: now,
+          };
+
+          if (existing.length === 0) {
+            // Insert new video
+            await db.insert(youtubeVideos).values({
+              id: crypto.randomUUID(),
+              ...videoData,
+              thumbnailPath: null,
+              createdAt: now,
+            });
+          } else {
+            // Update existing video metadata (preserve download status)
+            await db
+              .update(youtubeVideos)
+              .set(videoData)
+              .where(eq(youtubeVideos.videoId, entry.id));
+          }
+        } catch (e) {
+          logger.error("[ytdlp] Failed to upsert video from flat-playlist", { videoId: entry.id, error: String(e) });
+        }
+      }
+
+      // Fetch and return full video data from DB (includes download status)
+      if (videoIds.length === 0) return [];
+
+      const videos = await db
+        .select()
+        .from(youtubeVideos)
+        .where(inArray(youtubeVideos.videoId, videoIds))
+        .orderBy(desc(youtubeVideos.publishedAt));
+
+      return videos.map((v) => ({
+        id: v.id,
+        videoId: v.videoId,
+        title: v.title,
+        description: v.description,
+        thumbnailUrl: v.thumbnailUrl,
+        thumbnailPath: v.thumbnailPath,
+        durationSeconds: v.durationSeconds,
+        viewCount: v.viewCount,
+        publishedAt: v.publishedAt,
+        url: `https://www.youtube.com/watch?v=${v.videoId}`,
+        downloadStatus: v.downloadStatus,
+        downloadProgress: v.downloadProgress,
+        downloadFilePath: v.downloadFilePath,
+      }));
+    }),
+
+  // List popular videos from a channel via yt-dlp (metadata-only, fast)
+  listChannelPopular: publicProcedure
+    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(100).optional() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const binPath = getBinaryFilePath();
+      if (!fs.existsSync(binPath)) return [] as Array<any>;
+      const url = `https://www.youtube.com/channel/${input.channelId}/videos?view=0&sort=p&flow=grid`;
+      const listing = await new Promise<string>((resolve, reject) => {
+        const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
+        let out = ""; let err = "";
+        proc.stdout.on("data", (d) => (out += d.toString()));
+        proc.stderr.on("data", (d) => (err += d.toString()));
+        proc.on("error", reject);
+        proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
+      });
+      const listData = JSON.parse(listing);
+
+      // Log available fields from the first entry to understand the data structure
+      if (listData?.entries?.[0]) {
+        logger.info("[ytdlp] listChannelPopular flat-playlist entry fields", {
+          sampleEntry: listData.entries[0],
+          availableFields: Object.keys(listData.entries[0])
+        });
+      }
+
+      const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter((e: any) => e?.id);
+      const limit = input.limit ?? 24;
+      const now = Date.now();
+
+      // Upsert lightweight metadata to DB for caching (avoid expensive individual fetches)
+      const videoIds: string[] = [];
+      for (const entry of entries.slice(0, limit)) {
+        if (!entry.id) continue;
+        videoIds.push(entry.id);
+
+        try {
+          // Check if video exists in DB
+          const existing = await db
+            .select()
+            .from(youtubeVideos)
+            .where(eq(youtubeVideos.videoId, entry.id))
+            .limit(1);
+
+          const videoData = {
+            videoId: entry.id,
+            title: entry.title || "Untitled",
+            description: null,
+            channelId: input.channelId,
+            channelTitle: entry.channel || entry.uploader || null,
+            durationSeconds: entry.duration || null,
+            viewCount: entry.view_count || null,
+            likeCount: null,
+            thumbnailUrl: entry.thumbnails?.[0]?.url || entry.thumbnail || null,
+            publishedAt: null,
+            tags: null,
+            raw: JSON.stringify(entry),
+            updatedAt: now,
+          };
+
+          if (existing.length === 0) {
+            // Insert new video
+            await db.insert(youtubeVideos).values({
+              id: crypto.randomUUID(),
+              ...videoData,
+              thumbnailPath: null,
+              createdAt: now,
+            });
+          } else {
+            // Update existing video metadata (preserve download status)
+            await db
+              .update(youtubeVideos)
+              .set(videoData)
+              .where(eq(youtubeVideos.videoId, entry.id));
+          }
+        } catch (e) {
+          logger.error("[ytdlp] Failed to upsert video from flat-playlist", { videoId: entry.id, error: String(e) });
+        }
+      }
+
+      // Fetch and return full video data from DB (includes download status)
+      if (videoIds.length === 0) return [];
+
+      const videos = await db
+        .select()
+        .from(youtubeVideos)
+        .where(inArray(youtubeVideos.videoId, videoIds))
+        .orderBy(desc(youtubeVideos.publishedAt));
+
+      return videos.map((v) => ({
+        id: v.id,
+        videoId: v.videoId,
+        title: v.title,
+        description: v.description,
+        thumbnailUrl: v.thumbnailUrl,
+        thumbnailPath: v.thumbnailPath,
+        durationSeconds: v.durationSeconds,
+        viewCount: v.viewCount,
+        publishedAt: v.publishedAt,
+        url: `https://www.youtube.com/watch?v=${v.videoId}`,
+        downloadStatus: v.downloadStatus,
+        downloadProgress: v.downloadProgress,
+        downloadFilePath: v.downloadFilePath,
+      }));
+    }),
+
+  // List playlists of a channel via yt-dlp (metadata-only)
+  listChannelPlaylists: publicProcedure
+    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(200).optional() }))
+    .query(async ({ input }) => {
+      const binPath = getBinaryFilePath();
+      if (!fs.existsSync(binPath)) return [] as Array<{ id: string; title: string; url: string }>
+      const url = `https://www.youtube.com/channel/${input.channelId}/playlists`;
+      const json = await new Promise<string>((resolve, reject) => {
+        const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
+        let out = ""; let err = "";
+        proc.stdout.on("data", (d) => (out += d.toString()));
+        proc.stderr.on("data", (d) => (err += d.toString()));
+        proc.on("error", reject);
+        proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
+      });
+      const data = JSON.parse(json);
+      const entries = Array.isArray(data?.entries) ? data.entries : [];
+      const mapped = entries.map((e: any) => {
+        const id = e?.id || e?.playlist_id;
+        const url = e?.url || e?.webpage_url || (id ? `https://www.youtube.com/playlist?list=${id}` : undefined);
+        return { id, title: e?.title, url };
+      }).filter((e: any) => e.id && e.url);
+      const limit = input.limit ?? 30;
+      return mapped.slice(0, limit);
     }),
 });
 

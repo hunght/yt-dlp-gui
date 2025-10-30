@@ -3,9 +3,11 @@ import { useNavigate, useSearch, Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ExternalLink, Download, Play, CheckCircle, Loader2, XCircle } from "lucide-react";
+import { ExternalLink as ExternalLinkIcon, Download, Play, CheckCircle, Loader2, XCircle } from "lucide-react";
+import { ExternalLink } from "@/components/ExternalLink";
 import { toast } from "sonner";
 
 const getDownloadStatusIcon = (status: string | null) => {
@@ -58,6 +60,22 @@ export default function ChannelPage() {
     },
     enabled: !!channelId,
     refetchInterval: 3000, // Refresh every 3 seconds to update download statuses
+  });
+
+  const latestQuery = useQuery({
+    queryKey: ["channel-latest", channelId],
+    queryFn: () => trpcClient.ytdlp.listChannelLatest.query({ channelId: channelId!, limit: 24 }),
+    enabled: !!channelId,
+  });
+  const popularQuery = useQuery({
+    queryKey: ["channel-popular", channelId],
+    queryFn: () => trpcClient.ytdlp.listChannelPopular.query({ channelId: channelId!, limit: 24 }),
+    enabled: !!channelId,
+  });
+  const playlistsQuery = useQuery({
+    queryKey: ["channel-playlists", channelId],
+    queryFn: () => trpcClient.ytdlp.listChannelPlaylists.query({ channelId: channelId!, limit: 24 }),
+    enabled: !!channelId,
   });
 
   const addToQueueMutation = useMutation({
@@ -166,31 +184,282 @@ export default function ChannelPage() {
               </div>
 
               {channel.channelUrl && (
-                <a
+                <ExternalLink
                   href={channel.channelUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                  className="text-sm text-blue-600"
+                  showIcon={true}
+                  iconClassName="h-3 w-3"
                 >
-                  View on YouTube <ExternalLink className="h-3 w-3" />
-                </a>
+                  View on YouTube
+                </ExternalLink>
               )}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Videos List */}
+      {/* Videos and Discovery */}
       <Card>
         <CardHeader>
-          <CardTitle>Videos ({videos.length})</CardTitle>
+          <CardTitle>Videos</CardTitle>
         </CardHeader>
         <CardContent>
-          {videos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No videos found for this channel.</p>
-          ) : (
-            <div className="space-y-4">
-              {videos.map((video) => {
+          <Tabs defaultValue="latest">
+            <TabsList>
+              <TabsTrigger value="latest">Latest</TabsTrigger>
+              <TabsTrigger value="popular">Popular</TabsTrigger>
+              <TabsTrigger value="library">Library</TabsTrigger>
+              <TabsTrigger value="playlists">Playlists</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="latest" className="mt-4">
+              {latestQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading latest…</p>
+              ) : latestQuery.data && latestQuery.data.length > 0 ? (
+                <div className="space-y-4">
+                  {latestQuery.data.map((video) => {
+                    const videoThumbnail = video.thumbnailPath
+                      ? `local-file://${video.thumbnailPath}`
+                      : video.thumbnailUrl;
+                    const videoUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+
+                    return (
+                      <div key={video.id} className="flex items-start gap-4 rounded-lg border p-4">
+                        {/* Video Thumbnail */}
+                        {videoThumbnail ? (
+                          <img
+                            src={videoThumbnail}
+                            alt={video.title}
+                            className="h-24 w-40 flex-shrink-0 rounded object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="h-24 w-40 flex-shrink-0 rounded bg-muted" />
+                        )}
+
+                        {/* Video Info */}
+                        <div className="flex-1 space-y-1">
+                          <h3 className="font-medium line-clamp-2">{video.title}</h3>
+
+                          {video.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {video.description}
+                            </p>
+                          )}
+
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            {video.viewCount && (
+                              <span>{video.viewCount.toLocaleString()} views</span>
+                            )}
+                            {video.publishedAt && (
+                              <span>{new Date(video.publishedAt).toLocaleDateString()}</span>
+                            )}
+                            {video.durationSeconds && (
+                              <span>
+                                {Math.floor(video.durationSeconds / 60)}:
+                                {String(video.durationSeconds % 60).padStart(2, "0")}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Download Status */}
+                          {video.downloadStatus && (
+                            <div className="flex items-center gap-2 mt-2">
+                              {getDownloadStatusIcon(video.downloadStatus)}
+                              <span className="text-xs font-medium">
+                                {getDownloadStatusText(video.downloadStatus, video.downloadProgress)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-col gap-2">
+                          {video.downloadStatus === "completed" && video.downloadFilePath ? (
+                            <>
+                              <Link
+                                to="/player"
+                                search={{ videoId: video.videoId as string }}
+                                className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90"
+                              >
+                                <Play className="h-3 w-3" />
+                                Play
+                              </Link>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  trpcClient.utils.openExternalUrl.mutate({ url: videoUrl });
+                                }}
+                              >
+                                <ExternalLinkIcon className="mr-1 h-3 w-3" />
+                                View
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDownloadVideo(videoUrl, video.title)}
+                                disabled={video.downloadStatus === "downloading" || video.downloadStatus === "queued"}
+                              >
+                                <Download className="mr-1 h-3 w-3" />
+                                Download
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  trpcClient.utils.openExternalUrl.mutate({ url: videoUrl });
+                                }}
+                              >
+                                <ExternalLinkIcon className="mr-1 h-3 w-3" />
+                                View
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No latest items.</p>
+              )}
+            </TabsContent>
+
+            <TabsContent value="popular" className="mt-4">
+              {popularQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading popular…</p>
+              ) : popularQuery.data && popularQuery.data.length > 0 ? (
+                <div className="space-y-4">
+                  {popularQuery.data.map((video) => {
+                    const videoThumbnail = video.thumbnailPath
+                      ? `local-file://${video.thumbnailPath}`
+                      : video.thumbnailUrl;
+                    const videoUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+
+                    return (
+                      <div key={video.id} className="flex items-start gap-4 rounded-lg border p-4">
+                        {/* Video Thumbnail */}
+                        {videoThumbnail ? (
+                          <img
+                            src={videoThumbnail}
+                            alt={video.title}
+                            className="h-24 w-40 flex-shrink-0 rounded object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="h-24 w-40 flex-shrink-0 rounded bg-muted" />
+                        )}
+
+                        {/* Video Info */}
+                        <div className="flex-1 space-y-1">
+                          <h3 className="font-medium line-clamp-2">{video.title}</h3>
+
+                          {video.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {video.description}
+                            </p>
+                          )}
+
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            {video.viewCount && (
+                              <span>{video.viewCount.toLocaleString()} views</span>
+                            )}
+                            {video.publishedAt && (
+                              <span>{new Date(video.publishedAt).toLocaleDateString()}</span>
+                            )}
+                            {video.durationSeconds && (
+                              <span>
+                                {Math.floor(video.durationSeconds / 60)}:
+                                {String(video.durationSeconds % 60).padStart(2, "0")}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Download Status */}
+                          {video.downloadStatus && (
+                            <div className="flex items-center gap-2 mt-2">
+                              {getDownloadStatusIcon(video.downloadStatus)}
+                              <span className="text-xs font-medium">
+                                {getDownloadStatusText(video.downloadStatus, video.downloadProgress)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-col gap-2">
+                          {video.downloadStatus === "completed" && video.downloadFilePath ? (
+                            <>
+                              <Link
+                                to="/player"
+                                search={{ videoId: video.videoId as string }}
+                                className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90"
+                              >
+                                <Play className="h-3 w-3" />
+                                Play
+                              </Link>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  trpcClient.utils.openExternalUrl.mutate({ url: videoUrl });
+                                }}
+                              >
+                                <ExternalLinkIcon className="mr-1 h-3 w-3" />
+                                View
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDownloadVideo(videoUrl, video.title)}
+                                disabled={video.downloadStatus === "downloading" || video.downloadStatus === "queued"}
+                              >
+                                <Download className="mr-1 h-3 w-3" />
+                                Download
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  trpcClient.utils.openExternalUrl.mutate({ url: videoUrl });
+                                }}
+                              >
+                                <ExternalLinkIcon className="mr-1 h-3 w-3" />
+                                View
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No popular items.</p>
+              )}
+            </TabsContent>
+
+            <TabsContent value="library" className="mt-4">
+              {videos.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No videos found for this channel in library.</p>
+              ) : (
+                <div className="space-y-4">
+                  {videos.map((video) => {
                 const videoThumbnail = video.thumbnailPath
                   ? `local-file://${video.thumbnailPath}`
                   : video.thumbnailUrl;
@@ -260,15 +529,17 @@ export default function ChannelPage() {
                             <Play className="h-3 w-3" />
                             Play
                           </Link>
-                          <a
-                            href={videoUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex h-8 items-center justify-center gap-1 rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              trpcClient.utils.openExternalUrl.mutate({ url: videoUrl });
+                            }}
                           >
-                            <ExternalLink className="h-3 w-3" />
+                            <ExternalLinkIcon className="mr-1 h-3 w-3" />
                             View
-                          </a>
+                          </Button>
                         </>
                       ) : video.downloadStatus && ["downloading", "queued", "paused"].includes(video.downloadStatus) ? (
                         <Button size="sm" variant="secondary" disabled>
@@ -289,9 +560,43 @@ export default function ChannelPage() {
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          )}
+                  })}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="playlists" className="mt-4">
+              {playlistsQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading playlists…</p>
+              ) : playlistsQuery.data && playlistsQuery.data.length > 0 ? (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {playlistsQuery.data.map((p: any) => (
+                    <div key={p.id} className="flex items-start justify-between gap-3 rounded border p-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="line-clamp-2 text-sm font-medium">{p.title}</div>
+                        <ExternalLink href={p.url} className="text-xs text-blue-600" showIcon={false}>
+                          Open playlist
+                        </ExternalLink>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          trpcClient.utils.openExternalUrl.mutate({ url: p.url });
+                        }}
+                      >
+                        <ExternalLinkIcon className="mr-1 h-3 w-3" />
+                        View
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No playlists.</p>
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>

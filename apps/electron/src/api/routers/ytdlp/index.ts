@@ -7,13 +7,40 @@ import path from "path";
 import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
 import { spawn } from "child_process";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, sql } from "drizzle-orm";
 import { youtubeVideos, channels, channelPlaylists } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getVersionFilePath = () => path.join(getBinDir(), "yt-dlp-version.txt");
 const getBinaryFilePath = () => path.join(getBinDir(), getYtDlpAssetName(process.platform));
+const getThumbCacheDir = () => path.join(app.getPath("userData"), "cache", "thumbnails");
+
+async function ensureDir(p: string) {
+  try {
+    fs.mkdirSync(p, { recursive: true });
+  } catch {}
+}
+
+async function downloadImageToCache(url: string, filenameBase: string): Promise<string | null> {
+  try {
+    await ensureDir(getThumbCacheDir());
+    const extMatch = url.match(/\.(jpg|jpeg|png|webp)(?:\?|$)/i);
+    const ext = (extMatch?.[1] || "jpg").toLowerCase();
+    const filePath = path.join(getThumbCacheDir(), `${filenameBase}.${ext}`);
+    const res = await fetch(url);
+    if (!res.ok) {
+      logger.warn("[thumb] download failed", { url, status: res.status });
+      return null;
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    return filePath;
+  } catch (err) {
+    logger.warn("[thumb] download error", { url, error: String(err) });
+    return null;
+  }
+}
 
 const ensureBinDir = () => {
   const dir = getBinDir();
@@ -163,7 +190,7 @@ async function upsertVideoFromMeta(db: any, mapped: ReturnType<typeof mapYtDlpMe
   }
 }
 
-// Helper to extract channel data from yt-dlp metadata
+// Helper to extract channel data from yt-dlp metadata (with detailed logging)
 const extractChannelData = (meta: any) => {
   const channelId = meta?.channel_id || meta?.channelId || null;
 
@@ -175,6 +202,10 @@ const extractChannelData = (meta: any) => {
     uploader_id: meta?.uploader_id,
     channel: meta?.channel,
     uploader: meta?.uploader,
+    hasChannelThumbnails: Array.isArray(meta?.channel_thumbnails) ? meta.channel_thumbnails.length : 0,
+    hasThumbnails: Array.isArray(meta?.thumbnails) ? meta.thumbnails.length : 0,
+    uploader_avatar: meta?.uploader_avatar,
+    channel_avatar: meta?.channel_avatar,
   });
 
   if (!channelId) {
@@ -190,6 +221,13 @@ const extractChannelData = (meta: any) => {
   } else if (meta?.uploader_avatar || meta?.channel_avatar) {
     channelThumbnail = meta.uploader_avatar || meta.channel_avatar;
   }
+
+  logger.debug("[extractChannelData] thumbnail selection", {
+    selected: channelThumbnail,
+    channel_thumbnails_last: Array.isArray(meta?.channel_thumbnails)
+      ? meta.channel_thumbnails[meta.channel_thumbnails.length - 1]?.url
+      : undefined,
+  });
 
   return {
     channelId,
@@ -211,6 +249,15 @@ const upsertChannelData = async (db: any, channelData: ReturnType<typeof extract
 
   const now = Date.now();
   try {
+    // Cache channel avatar locally for offline use
+    let channelThumbPath: string | null = null;
+    if (channelData.thumbnailUrl) {
+      channelThumbPath = await downloadImageToCache(
+        channelData.thumbnailUrl,
+        `channel_${channelData.channelId}`
+      );
+    }
+
     const existing = await db
       .select()
       .from(channels)
@@ -225,7 +272,7 @@ const upsertChannelData = async (db: any, channelData: ReturnType<typeof extract
         channelDescription: channelData.channelDescription,
         channelUrl: channelData.channelUrl,
         thumbnailUrl: channelData.thumbnailUrl,
-        thumbnailPath: null,
+        thumbnailPath: channelThumbPath,
         bannerUrl: null,
         subscriberCount: channelData.subscriberCount,
         videoCount: channelData.videoCount,
@@ -245,6 +292,7 @@ const upsertChannelData = async (db: any, channelData: ReturnType<typeof extract
           channelDescription: channelData.channelDescription,
           channelUrl: channelData.channelUrl,
           thumbnailUrl: channelData.thumbnailUrl,
+          thumbnailPath: channelThumbPath ?? existing[0]?.thumbnailPath ?? null,
           subscriberCount: channelData.subscriberCount,
           customUrl: channelData.customUrl,
           raw: channelData.raw,
@@ -460,6 +508,10 @@ export const ytdlpRouter = t.router({
       }
 
       const mapped = mapYtDlpMetadata(meta);
+      // Cache video thumbnail locally for offline use
+      const mappedThumbPath = mapped.thumbnailUrl
+        ? await downloadImageToCache(mapped.thumbnailUrl, `video_${mapped.videoId}`)
+        : null;
 
       // Extract and upsert channel data
       const channelData = extractChannelData(meta);
@@ -497,7 +549,7 @@ export const ytdlpRouter = t.router({
               viewCount: mapped.viewCount,
               likeCount: mapped.likeCount,
               thumbnailUrl: mapped.thumbnailUrl,
-              thumbnailPath: null,
+              thumbnailPath: mappedThumbPath,
               publishedAt: mapped.publishedAt,
               tags: mapped.tags,
               raw: mapped.raw,
@@ -516,6 +568,7 @@ export const ytdlpRouter = t.router({
                 viewCount: mapped.viewCount,
                 likeCount: mapped.likeCount,
                 thumbnailUrl: mapped.thumbnailUrl,
+                thumbnailPath: mappedThumbPath ?? existing[0]?.thumbnailPath ?? null,
                 publishedAt: mapped.publishedAt,
                 tags: mapped.tags,
                 raw: mapped.raw,
@@ -571,6 +624,7 @@ export const ytdlpRouter = t.router({
       let viewCount: number | null = null;
       let likeCount: number | null = null;
       let thumbnailUrl: string | null = null;
+      let thumbnailPath: string | null = null;
       let publishedAt: number | null = null;
       let tags: string | null = null;
       let raw = "{}";
@@ -595,6 +649,7 @@ export const ytdlpRouter = t.router({
           viewCount = existing.viewCount;
           likeCount = existing.likeCount;
           thumbnailUrl = existing.thumbnailUrl;
+          thumbnailPath = existing.thumbnailPath;
           publishedAt = existing.publishedAt;
           tags = existing.tags;
           raw = existing.raw ?? "{}";
@@ -626,6 +681,9 @@ export const ytdlpRouter = t.router({
 
         // Extract minimal fields with better fidelity (use fulltitle etc.)
         const mapped = mapYtDlpMetadata(meta);
+        thumbnailPath = mapped.thumbnailUrl
+          ? await downloadImageToCache(mapped.thumbnailUrl, `video_${mapped.videoId}`)
+          : null;
         videoId = mapped.videoId;
         title = mapped.title;
         description = mapped.description;
@@ -669,7 +727,7 @@ export const ytdlpRouter = t.router({
               viewCount,
               likeCount,
               thumbnailUrl,
-              thumbnailPath: null,
+              thumbnailPath: thumbnailPath,
               publishedAt,
               tags,
               raw,
@@ -688,6 +746,7 @@ export const ytdlpRouter = t.router({
                 viewCount,
                 likeCount,
                 thumbnailUrl,
+                thumbnailPath: thumbnailPath ?? existing[0]?.thumbnailPath ?? null,
                 publishedAt,
                 tags,
                 raw,
@@ -961,6 +1020,8 @@ export const ytdlpRouter = t.router({
     .input(z.object({ channelId: z.string() }))
     .query(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
+      const t0 = Date.now();
+      logger.info("[getChannelDetails] start", { channelId: input.channelId });
 
       // Get channel info
       const channelRows = await db
@@ -970,10 +1031,19 @@ export const ytdlpRouter = t.router({
         .limit(1);
 
       if (channelRows.length === 0) {
+        logger.warn("[getChannelDetails] channel not found", { channelId: input.channelId, durationMs: Date.now() - t0 });
         return null;
       }
 
       const channel = channelRows[0];
+      logger.debug("[getChannelDetails] channel row", {
+        id: channel.id,
+        channelId: channel.channelId,
+        title: channel.channelTitle,
+        thumbnailUrl: channel.thumbnailUrl,
+        thumbnailPath: channel.thumbnailPath,
+        hasDescription: !!channel.channelDescription,
+      });
 
       // Get videos from this channel (unique list)
       const videoRows = await db
@@ -1017,6 +1087,8 @@ export const ytdlpRouter = t.router({
         };
       });
 
+      const durationMs = Date.now() - t0;
+      logger.info("[getChannelDetails] done", { channelId: input.channelId, totalVideos: videos.length, durationMs });
       return { channel, videos, totalVideos: videos.length };
     }),
 
@@ -1192,6 +1264,9 @@ export const ytdlpRouter = t.router({
             .where(eq(youtubeVideos.videoId, entry.id))
             .limit(1);
 
+          const thumbPath = (entry.thumbnails?.[0]?.url || entry.thumbnail)
+            ? await downloadImageToCache(entry.thumbnails?.[0]?.url || entry.thumbnail, `video_${entry.id}`)
+            : null;
           const videoData = {
             videoId: entry.id,
             title: entry.title || "Untitled",
@@ -1202,6 +1277,7 @@ export const ytdlpRouter = t.router({
             viewCount: entry.view_count || null,
             likeCount: null,
             thumbnailUrl: entry.thumbnails?.[0]?.url || entry.thumbnail || null,
+            thumbnailPath: thumbPath,
             publishedAt: null,
             tags: null,
             raw: JSON.stringify(entry),
@@ -1213,14 +1289,13 @@ export const ytdlpRouter = t.router({
             await db.insert(youtubeVideos).values({
               id: crypto.randomUUID(),
               ...videoData,
-              thumbnailPath: null,
               createdAt: now,
             });
           } else {
             // Update existing video metadata (preserve download status)
             await db
               .update(youtubeVideos)
-              .set(videoData)
+              .set({ ...videoData, thumbnailPath: thumbPath ?? existing[0]?.thumbnailPath ?? null })
               .where(eq(youtubeVideos.videoId, entry.id));
           }
         } catch (e) {
@@ -1351,6 +1426,9 @@ export const ytdlpRouter = t.router({
             .where(eq(youtubeVideos.videoId, entry.id))
             .limit(1);
 
+          const thumbPath = (entry.thumbnails?.[0]?.url || entry.thumbnail)
+            ? await downloadImageToCache(entry.thumbnails?.[0]?.url || entry.thumbnail, `video_${entry.id}`)
+            : null;
           const videoData = {
             videoId: entry.id,
             title: entry.title || "Untitled",
@@ -1361,6 +1439,7 @@ export const ytdlpRouter = t.router({
             viewCount: entry.view_count || null,
             likeCount: null,
             thumbnailUrl: entry.thumbnails?.[0]?.url || entry.thumbnail || null,
+            thumbnailPath: thumbPath,
             publishedAt: null,
             tags: null,
             raw: JSON.stringify(entry),
@@ -1372,14 +1451,13 @@ export const ytdlpRouter = t.router({
             await db.insert(youtubeVideos).values({
               id: crypto.randomUUID(),
               ...videoData,
-              thumbnailPath: null,
               createdAt: now,
             });
           } else {
             // Update existing video metadata (preserve download status)
             await db
               .update(youtubeVideos)
-              .set(videoData)
+              .set({ ...videoData, thumbnailPath: thumbPath ?? existing[0]?.thumbnailPath ?? null })
               .where(eq(youtubeVideos.videoId, entry.id));
           }
         } catch (e) {
@@ -1517,6 +1595,12 @@ export const ytdlpRouter = t.router({
           }
         }
 
+        // Attempt to cache thumbnail locally (for offline)
+        let thumbnailPathLocal: string | null = null;
+        if (thumb) {
+          thumbnailPathLocal = await downloadImageToCache(thumb, `playlist_${pid}`);
+        }
+
         try {
           const existing = await db
             .select()
@@ -1532,7 +1616,7 @@ export const ytdlpRouter = t.router({
               title,
               description: null,
               thumbnailUrl: thumb,
-              thumbnailPath: null,
+              thumbnailPath: thumbnailPathLocal,
               itemCount,
               url,
               raw: JSON.stringify(e),
@@ -1548,6 +1632,7 @@ export const ytdlpRouter = t.router({
                 channelId: input.channelId,
                 title,
                 thumbnailUrl: thumb,
+                thumbnailPath: thumbnailPathLocal ?? existing[0]?.thumbnailPath ?? null,
                 itemCount,
                 url,
                 raw: JSON.stringify(e),
@@ -1577,6 +1662,244 @@ export const ytdlpRouter = t.router({
         thumbnailPath: p.thumbnailPath,
         itemCount: p.itemCount,
         lastFetchedAt: p.lastFetchedAt,
+      }));
+    }),
+
+  // Get playlist details and items (videos) via yt-dlp, enriching DB for offline
+  getPlaylistDetails: publicProcedure
+    .input(
+      z.object({
+        playlistId: z.string(),
+        forceRefresh: z.boolean().optional(),
+        limit: z.number().min(1).max(500).optional(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input.limit ?? 200;
+
+      const binPath = getBinaryFilePath();
+
+      // Try to read basic playlist metadata from DB first
+      let playlistMeta: any | null = null;
+      try {
+        const existing = await db
+          .select()
+          .from(channelPlaylists)
+          .where(eq(channelPlaylists.playlistId, input.playlistId))
+          .limit(1);
+        playlistMeta = existing?.[0] ?? null;
+        if (playlistMeta && !input.forceRefresh && !fs.existsSync(binPath)) {
+          return {
+            playlistId: playlistMeta.playlistId,
+            title: playlistMeta.title,
+            description: playlistMeta.description,
+            thumbnailUrl: playlistMeta.thumbnailUrl,
+            thumbnailPath: playlistMeta.thumbnailPath,
+            itemCount: playlistMeta.itemCount,
+            url: playlistMeta.url ?? `https://www.youtube.com/playlist?list=${playlistMeta.playlistId}`,
+            lastFetchedAt: playlistMeta.lastFetchedAt,
+            videos: [],
+          };
+        }
+      } catch {}
+
+      if (!fs.existsSync(binPath)) {
+        // No binary and no force refresh; return minimal info from DB if available
+        return playlistMeta
+          ? {
+              playlistId: playlistMeta.playlistId,
+              title: playlistMeta.title,
+              description: playlistMeta.description,
+              thumbnailUrl: playlistMeta.thumbnailUrl,
+              thumbnailPath: playlistMeta.thumbnailPath,
+              itemCount: playlistMeta.itemCount,
+              url: playlistMeta.url ?? `https://www.youtube.com/playlist?list=${playlistMeta.playlistId}`,
+              lastFetchedAt: playlistMeta.lastFetchedAt,
+              videos: [],
+            }
+          : null;
+      }
+
+      const url = `https://www.youtube.com/playlist?list=${input.playlistId}`;
+
+      // Fetch playlist JSON
+      const json = await new Promise<string>((resolve, reject) => {
+        const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
+        let out = ""; let err = "";
+        proc.stdout.on("data", (d) => (out += d.toString()));
+        proc.stderr.on("data", (d) => (err += d.toString()));
+        proc.on("error", reject);
+        proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
+      });
+
+      const data = JSON.parse(json);
+      const entries = (Array.isArray(data?.entries) ? data.entries : []).slice(0, limit);
+      const now = Date.now();
+
+      // Update playlist meta in DB
+      try {
+        const thumbTop = data?.thumbnails?.[data.thumbnails.length - 1]?.url || data?.thumbnails?.[0]?.url || null;
+        const downloadedThumb = thumbTop ? await downloadImageToCache(thumbTop, `playlist_${input.playlistId}`) : null;
+
+        const existing = await db
+          .select()
+          .from(channelPlaylists)
+          .where(eq(channelPlaylists.playlistId, input.playlistId))
+          .limit(1);
+
+        const metaUpdate = {
+          title: data?.title || playlistMeta?.title || "Untitled",
+          description: data?.description || playlistMeta?.description || null,
+          thumbnailUrl: thumbTop || playlistMeta?.thumbnailUrl || null,
+          thumbnailPath: downloadedThumb ?? playlistMeta?.thumbnailPath ?? null,
+          itemCount: (Array.isArray(data?.entries) ? data.entries.length : playlistMeta?.itemCount) ?? null,
+          url,
+          raw: JSON.stringify(data),
+          updatedAt: now,
+          lastFetchedAt: now,
+        };
+
+        if (existing.length === 0) {
+          await db.insert(channelPlaylists).values({
+            id: crypto.randomUUID(),
+            playlistId: input.playlistId,
+            channelId: playlistMeta?.channelId ?? null,
+            createdAt: now,
+            ...metaUpdate,
+          });
+        } else {
+          await db.update(channelPlaylists).set(metaUpdate).where(eq(channelPlaylists.playlistId, input.playlistId));
+        }
+      } catch (err) {
+        logger.warn("[ytdlp] failed to upsert playlist meta from detail", { playlistId: input.playlistId, error: String(err) });
+      }
+
+      // Upsert lightweight video metadata to DB for each entry
+      const videoIds: string[] = [];
+      for (const e of entries) {
+        const vid = e?.id;
+        if (!vid) continue;
+        videoIds.push(vid);
+        try {
+          const existing = await db.select().from(youtubeVideos).where(eq(youtubeVideos.videoId, vid)).limit(1);
+          const thumb = e?.thumbnails?.[0]?.url || e?.thumbnail || null;
+          const thumbPath = thumb ? await downloadImageToCache(thumb, `video_${vid}`) : null;
+
+          const videoData = {
+            videoId: vid,
+            title: e?.title || "Untitled",
+            description: null,
+            channelId: playlistMeta?.channelId || null,
+            channelTitle: e?.channel || e?.uploader || null,
+            durationSeconds: e?.duration || null,
+            viewCount: e?.view_count || null,
+            likeCount: null,
+            thumbnailUrl: thumb,
+            thumbnailPath: thumbPath,
+            publishedAt: null,
+            tags: null,
+            raw: JSON.stringify(e),
+            updatedAt: now,
+          } as any;
+
+          if (existing.length === 0) {
+            await db.insert(youtubeVideos).values({ id: crypto.randomUUID(), ...videoData, createdAt: now });
+          } else {
+            await db
+              .update(youtubeVideos)
+              .set({ ...videoData, thumbnailPath: thumbPath ?? existing[0]?.thumbnailPath ?? null })
+              .where(eq(youtubeVideos.videoId, vid));
+          }
+        } catch (e) {
+          logger.error("[ytdlp] Failed to upsert playlist item", { videoId: vid, error: String(e) });
+        }
+      }
+
+      // Fetch full videos with download status from DB and preserve playlist order
+      const videos = videoIds.length
+        ? await db
+            .select()
+            .from(youtubeVideos)
+            .where(inArray(youtubeVideos.videoId, videoIds))
+        : [];
+
+      const orderMap = new Map<string, number>();
+      videoIds.forEach((id, idx) => orderMap.set(id, idx));
+      videos.sort((a: any, b: any) => (orderMap.get(a.videoId)! - orderMap.get(b.videoId)!));
+
+      return {
+        playlistId: input.playlistId,
+        title: data?.title || playlistMeta?.title || "Untitled",
+        description: data?.description || playlistMeta?.description || null,
+        thumbnailUrl:
+          (Array.isArray(data?.thumbnails) && data.thumbnails.length > 0
+            ? data.thumbnails[data.thumbnails.length - 1]?.url || data.thumbnails[0]?.url
+            : null) || playlistMeta?.thumbnailUrl || null,
+        // thumbnailPath can be resolved from DB on the client if needed
+        itemCount: Array.isArray(data?.entries) ? data.entries.length : playlistMeta?.itemCount ?? null,
+        url,
+        lastFetchedAt: Date.now(),
+        videos: videos.map((v: any) => ({
+          id: v.id,
+          videoId: v.videoId,
+          title: v.title,
+          description: v.description,
+          thumbnailUrl: v.thumbnailUrl,
+          thumbnailPath: v.thumbnailPath,
+          durationSeconds: v.durationSeconds,
+          viewCount: v.viewCount,
+          publishedAt: v.publishedAt,
+          url: `https://www.youtube.com/watch?v=${v.videoId}`,
+          downloadStatus: v.downloadStatus,
+          downloadProgress: v.downloadProgress,
+          downloadFilePath: v.downloadFilePath,
+        })),
+      };
+    }),
+
+  // List recent videos across all known channels (visited/downloaded), newest first
+  listRecentVideos: publicProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(200).optional(),
+        offset: z.number().min(0).optional(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input.limit ?? 50;
+      const offset = input.offset ?? 0;
+
+      // Order by publishedAt desc, fallback to updatedAt/createdAt for missing values
+      // Using SQLite: order by coalesce(publishedAt, updatedAt, createdAt) desc
+      const vids = await db
+        .select()
+        .from(youtubeVideos)
+        .orderBy(
+          desc(
+            sql`coalesce(${youtubeVideos.publishedAt}, coalesce(${youtubeVideos.updatedAt}, ${youtubeVideos.createdAt}))`
+          )
+        )
+        .limit(limit)
+        .offset(offset);
+
+      return vids.map((v: any) => ({
+        id: v.id,
+        videoId: v.videoId,
+        title: v.title,
+        description: v.description,
+        channelId: v.channelId,
+        channelTitle: v.channelTitle,
+        thumbnailUrl: v.thumbnailUrl,
+        thumbnailPath: v.thumbnailPath,
+        durationSeconds: v.durationSeconds,
+        viewCount: v.viewCount,
+        publishedAt: v.publishedAt,
+        url: `https://www.youtube.com/watch?v=${v.videoId}`,
+        downloadStatus: v.downloadStatus,
+        downloadProgress: v.downloadProgress,
+        downloadFilePath: v.downloadFilePath,
       }));
     }),
 });

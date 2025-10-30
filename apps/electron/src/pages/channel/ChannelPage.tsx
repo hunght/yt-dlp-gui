@@ -86,9 +86,6 @@ export default function ChannelPage() {
   if (isLoading) {
     return (
       <div className="container mx-auto space-y-6 p-6">
-        <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
-          ← Back
-        </Button>
         <p className="text-sm text-muted-foreground">Loading channel...</p>
       </div>
     );
@@ -97,9 +94,6 @@ export default function ChannelPage() {
   if (!channelId) {
     return (
       <div className="container mx-auto space-y-6 p-6">
-        <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
-          ← Back
-        </Button>
         <Alert>
           <AlertTitle>Missing channel</AlertTitle>
           <AlertDescription>No channel ID provided.</AlertDescription>
@@ -111,9 +105,6 @@ export default function ChannelPage() {
   if (!data || !data.channel) {
     return (
       <div className="container mx-auto space-y-6 p-6">
-        <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
-          ← Back
-        </Button>
         <Alert>
           <AlertTitle>Channel not found</AlertTitle>
           <AlertDescription>Could not find channel with ID: {channelId}</AlertDescription>
@@ -148,9 +139,6 @@ export default function ChannelPage() {
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-      <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
-        ← Back
-      </Button>
 
       {/* Channel Header */}
       <Card>

@@ -4,7 +4,9 @@ import SettingsPage from "@/pages/settings-page/SettingsPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import PlayerPage from "@/pages/player/PlayerPage";
 import ChannelPage from "@/pages/channel/ChannelPage";
+import PlaylistPage from "@/pages/playlist/PlaylistPage";
 import LogsPage from "@/pages/logs/LogsPage";
+import SubscriptionsPage from "@/pages/subscriptions/SubscriptionsPage";
 
 export const DashboardRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -46,10 +48,29 @@ export const ChannelRoute = createRoute({
   },
 });
 
+export const PlaylistRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/playlist",
+  component: PlaylistPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      playlistId: (search.playlistId as string) || undefined,
+    };
+  },
+});
+
+export const SubscriptionsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/subscriptions",
+  component: SubscriptionsPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   DashboardRoute,
   SettingsRoute,
   LogsRoute,
   PlayerRoute,
   ChannelRoute,
+  PlaylistRoute,
+  SubscriptionsRoute,
 ]);

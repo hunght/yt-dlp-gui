@@ -27,9 +27,6 @@ export default function PlayerPage() {
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-      <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
-        ← Back
-      </Button>
 
       <Card>
         <CardHeader>

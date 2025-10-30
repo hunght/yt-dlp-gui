@@ -1,6 +1,7 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
+import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { ExternalLink as ExternalLinkIcon, Loader2 } from "lucide-react";
 
@@ -10,6 +11,7 @@ interface PlaylistsTabProps {
 }
 
 export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive }) => {
+  const navigate = useNavigate();
   const query = useQuery({
     queryKey: ["channel-playlists", channelId],
     queryFn: () => trpcClient.ytdlp.listChannelPlaylists.query({ channelId }),
@@ -66,9 +68,12 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {query.data.map((playlist: any) => {
             const playlistUrl = playlist.url ?? `https://www.youtube.com/playlist?list=${playlist.playlistId || playlist.id}`;
-            const playlistThumbnail = playlist.thumbnailPath
+            let playlistThumbnail = playlist.thumbnailPath
               ? `local-file://${playlist.thumbnailPath}`
               : playlist.thumbnailUrl;
+            if (typeof playlistThumbnail === "string" && playlistThumbnail.includes("no_thumbnail")) {
+              playlistThumbnail = null as any;
+            }
 
             return (
               <div key={playlist.id} className="rounded-lg border p-4 space-y-3">
@@ -119,7 +124,12 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive 
                     className="flex-1"
                     onClick={(e) => {
                       e.preventDefault();
-                      trpcClient.utils.openExternalUrl.mutate({ url: playlistUrl });
+                      const pid = playlist.playlistId || playlist.id;
+                      if (pid) {
+                        navigate({ to: "/playlist", search: { playlistId: pid } });
+                      } else {
+                        trpcClient.utils.openExternalUrl.mutate({ url: playlistUrl });
+                      }
                     }}
                   >
                     View Playlist

@@ -112,6 +112,7 @@ apps/electron/playwright/.cache/
 data/database.sqlite
 apps/electron/local.db
 apps/electron/*.db
+apps/electron/*.db.*
 *.sqlite-journal
 
 # Editor directories and files
@@ -119,6 +120,8 @@ apps/electron/*.db
 
 # Additional Electron-specific files
 apps/electron/local.db*.backup
+apps/electron/local.db.*.backup
+apps/electron/local.db.*.corrupted
 apps/electron/thumbnails/
 apps/electron/local.db-shm
 apps/electron/local.db-wal

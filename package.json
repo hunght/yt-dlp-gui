@@ -16,11 +16,7 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "clean": "turbo run clean && rm -rf node_modules",
-    "type-check": "turbo run type-check",
-    "db:studio": "npm run db:studio --workspace=apps/electron",
-    "db:generate": "npm run db:generate --workspace=apps/electron",
-    "db:push": "npm run db:push --workspace=apps/electron",
-    "db:migrate": "npm run db:migrate --workspace=apps/electron"
+    "type-check": "turbo run type-check"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

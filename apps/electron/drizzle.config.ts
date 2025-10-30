@@ -3,7 +3,7 @@ import { getDatabasePath } from "./src/utils/paths";
 
 export default defineConfig({
   schema: "../../packages/database/src/schema.ts",
-  out: "./drizzle",
+  out: "../../packages/database/drizzle",
   dialect: "sqlite",
   dbCredentials: {
     url: getDatabasePath(),

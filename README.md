@@ -97,11 +97,20 @@ The main Electron application with React UI.
 
 ### @yt-dlp-gui/database
 
-Shared database schema, types, and utilities using Drizzle ORM.
+Shared database schema, types, migrations, and utilities using Drizzle ORM.
+
+**Key Features:**
+- Centralized schema and migrations
+- Type-safe database access
+- Configurable database path per application
 
 **Key Scripts:**
 - `npm run build --workspace=packages/database` - Build package
 - `npm run dev --workspace=packages/database` - Watch mode
+- `DATABASE_URL="file:./local.db" npm run db:generate --workspace=packages/database` - Generate migrations
+- `DATABASE_URL="file:./local.db" npm run db:studio --workspace=packages/database` - Open Drizzle Studio
+
+See [packages/database/README.md](packages/database/README.md) for detailed usage.
 
 ### @yt-dlp-gui/tsconfig
 
@@ -109,25 +118,41 @@ Shared TypeScript configurations for consistent type checking across the monorep
 
 ## 🗄️ Database Management
 
-All database commands should be run from the root or electron workspace:
+### Schema and Migrations
+
+The database schema and migrations are centralized in `packages/database/`:
+- **Schema**: `packages/database/src/schema.ts`
+- **Migrations**: `packages/database/drizzle/`
+- **Config**: Each app has its own `drizzle.config.ts` with app-specific database path
+
+### From the Database Package (Shared)
 
 ```bash
-# Generate migrations
-npm run db:generate
-
-# Apply migrations
-npm run db:migrate
+# Generate new migrations after schema changes
+DATABASE_URL="file:./local.db" npm run db:generate --workspace=packages/database
 
 # Open Drizzle Studio
-npm run db:studio
+DATABASE_URL="file:./local.db" npm run db:studio --workspace=packages/database
+```
 
-# Push schema changes
-npm run db:push
+### From the Electron App (App-Specific)
 
-# Database health check
+```bash
+# Generate migrations (uses electron app's database path)
+npm run db:generate --workspace=apps/electron
+
+# Apply migrations
+npm run db:migrate --workspace=apps/electron
+
+# Open Drizzle Studio for electron app's database
+npm run db:studio --workspace=apps/electron
+
+# Push schema changes directly (development)
+npm run db:push --workspace=apps/electron
+
+# Database utilities
 npm run db:health --workspace=apps/electron
-
-# Backup database
+npm run db:backup --workspace=apps/electron
 npm run db:backup --workspace=apps/electron
 ```
 

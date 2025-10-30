@@ -174,22 +174,44 @@ async function runMigrations(options: MigrationOptions = {}): Promise<void> {
     await createDatabaseBackup(dbPath);
   }
 
-  // Get migrations path based on environment
-  let migrationsPath: string;
+  // Resolve migrations path with multiple fallbacks to support centralized package
+  const candidatePaths: string[] = [];
   try {
-    migrationsPath = app?.isPackaged
-      ? path.join(process.resourcesPath, "drizzle")
-      : path.join(app?.getAppPath() || process.cwd(), "drizzle");
+    if (app?.isPackaged) {
+      // Packaged: expect migrations bundled into resources
+      candidatePaths.push(path.join(process.resourcesPath, "drizzle"));
+    } else {
+      // Dev: first, conventional local folder next to app
+      candidatePaths.push(path.join(app?.getAppPath() || process.cwd(), "drizzle"));
+    }
   } catch {
-    // Fallback when not in Electron context
-    migrationsPath = path.join(process.cwd(), "drizzle");
+    // Not in Electron context
+    candidatePaths.push(path.join(process.cwd(), "drizzle"));
   }
 
-  logger.info("Migrations folder path:", migrationsPath);
+  // Additional fallbacks pointing to the shared database package
+  candidatePaths.push(
+    // From apps/electron -> packages/database/drizzle
+    path.resolve(process.cwd(), "../../packages/database/drizzle"),
+    // From repo root (in case cwd differs)
+    path.resolve(process.cwd(), "packages/database/drizzle"),
+    // Relative to compiled file location
+    path.resolve(__dirname, "../../../../packages/database/drizzle"),
+    path.resolve(__dirname, "../../../packages/database/drizzle")
+  );
 
-  // Verify migrations folder exists
-  if (!fs.existsSync(migrationsPath)) {
-    throw new Error(`Migrations folder not found: ${migrationsPath}`);
+  const migrationsPath = candidatePaths.find((p) => fs.existsSync(p));
+
+  logger.info(
+    "Migrations folder resolution candidates:",
+    JSON.stringify(candidatePaths, null, 2)
+  );
+  logger.info("Selected migrations folder:", migrationsPath || "<none>");
+
+  if (!migrationsPath) {
+    throw new Error(
+      `Migrations folder not found. Checked: \n${candidatePaths.join("\n")}`
+    );
   }
 
   if (options.verifyOnly) {

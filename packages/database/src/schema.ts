@@ -101,6 +101,24 @@ export const channelPlaylists = sqliteTable(
   ]
 );
 
+// Watch stats per video (accumulated)
+export const videoWatchStats = sqliteTable(
+  "video_watch_stats",
+  {
+    id: text("id").primaryKey(),
+    videoId: text("video_id").notNull().unique(),
+    totalWatchSeconds: integer("total_watch_seconds").default(0),
+    lastPositionSeconds: integer("last_position_seconds").default(0),
+    lastWatchedAt: integer("last_watched_at"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at"),
+  },
+  (table) => [
+    index("video_watch_stats_video_id_idx").on(table.videoId),
+    index("video_watch_stats_last_watched_at_idx").on(table.lastWatchedAt),
+  ]
+);
+
 // Define relations
 export const channelsRelations = relations(channels, ({ many }) => ({
   videos: many(youtubeVideos),
@@ -120,6 +138,9 @@ export const channelPlaylistsRelations = relations(channelPlaylists, ({ one }) =
     references: [channels.channelId],
   }),
 }));
+
+export type VideoWatchStat = typeof videoWatchStats.$inferSelect;
+export type NewVideoWatchStat = typeof videoWatchStats.$inferInsert;
 
 // TypeScript types derived from Drizzle schema
 export type Channel = typeof channels.$inferSelect;

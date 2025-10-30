@@ -8,7 +8,7 @@ import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
 import { spawn } from "child_process";
 import { eq, desc, inArray, sql } from "drizzle-orm";
-import { youtubeVideos, channels, channelPlaylists } from "@/api/db/schema";
+import { youtubeVideos, channels, channelPlaylists, videoWatchStats } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
@@ -957,6 +957,46 @@ export const ytdlpRouter = t.router({
       }
     }),
 
+  // Get a single video by its YouTube videoId
+  getVideoByVideoId: publicProcedure
+    .input(z.object({ videoId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      try {
+        const result = await db
+          .select()
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.videoId, input.videoId))
+          .limit(1);
+
+        if (result.length === 0) return null;
+        const v = result[0];
+        return {
+          id: v.id,
+          videoId: v.videoId,
+          title: v.title,
+          description: v.description,
+          channelId: v.channelId,
+          channelTitle: v.channelTitle,
+          thumbnailUrl: v.thumbnailUrl,
+          thumbnailPath: v.thumbnailPath,
+          durationSeconds: v.durationSeconds,
+          viewCount: v.viewCount,
+          publishedAt: v.publishedAt,
+          url: `https://www.youtube.com/watch?v=${v.videoId}`,
+          downloadStatus: v.downloadStatus,
+          downloadProgress: v.downloadProgress,
+          downloadFilePath: v.downloadFilePath,
+          lastDownloadedAt: v.lastDownloadedAt,
+          createdAt: v.createdAt,
+          updatedAt: v.updatedAt,
+        };
+      } catch (e) {
+        logger.error("[ytdlp] getVideoByVideoId failed", e as Error);
+        return null;
+      }
+    }),
+
   // List unique channels from downloaded videos
   listChannels: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
@@ -1901,6 +1941,105 @@ export const ytdlpRouter = t.router({
         downloadProgress: v.downloadProgress,
         downloadFilePath: v.downloadFilePath,
       }));
+    }),
+
+  // Record watch progress (accumulated seconds and last position)
+  recordWatchProgress: publicProcedure
+    .input(
+      z.object({
+        videoId: z.string(),
+        deltaSeconds: z.number().min(0).max(3600),
+        positionSeconds: z.number().min(0).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const now = Date.now();
+      try {
+        const existing = await db
+          .select()
+          .from(videoWatchStats)
+          .where(eq(videoWatchStats.videoId, input.videoId))
+          .limit(1);
+
+        if (existing.length === 0) {
+          await db.insert(videoWatchStats).values({
+            id: crypto.randomUUID(),
+            videoId: input.videoId,
+            totalWatchSeconds: Math.floor(input.deltaSeconds),
+            lastPositionSeconds: Math.floor(input.positionSeconds ?? 0),
+            lastWatchedAt: now,
+            createdAt: now,
+            updatedAt: now,
+          });
+        } else {
+          const prev = existing[0];
+          await db
+            .update(videoWatchStats)
+            .set({
+              totalWatchSeconds: Math.max(0, (prev.totalWatchSeconds ?? 0) + Math.floor(input.deltaSeconds)),
+              lastPositionSeconds: Math.floor(input.positionSeconds ?? prev.lastPositionSeconds ?? 0),
+              lastWatchedAt: now,
+              updatedAt: now,
+            })
+            .where(eq(videoWatchStats.videoId, input.videoId));
+        }
+        return { success: true };
+      } catch (e) {
+        logger.error("[ytdlp] recordWatchProgress failed", e as Error);
+        return { success: false };
+      }
+    }),
+
+  // List recently watched videos joined with metadata
+  listRecentWatched: publicProcedure
+    .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input?.limit ?? 30;
+      // Get recent watch stats
+      const stats = await db
+        .select()
+        .from(videoWatchStats)
+        .orderBy(desc(videoWatchStats.lastWatchedAt))
+        .limit(limit);
+
+      const videoIds = stats.map((s: any) => s.videoId);
+      if (videoIds.length === 0) return [] as any[];
+
+      const vids = await db
+        .select()
+        .from(youtubeVideos)
+        .where(inArray(youtubeVideos.videoId, videoIds));
+
+      const map = new Map<string, any>();
+      vids.forEach((v: any) => map.set(v.videoId, v));
+      return stats
+        .map((s: any) => {
+          const v = map.get(s.videoId);
+          if (!v) return null;
+          return {
+            id: v.id,
+            videoId: v.videoId,
+            title: v.title,
+            description: v.description,
+            channelId: v.channelId,
+            channelTitle: v.channelTitle,
+            thumbnailUrl: v.thumbnailUrl,
+            thumbnailPath: v.thumbnailPath,
+            durationSeconds: v.durationSeconds,
+            viewCount: v.viewCount,
+            publishedAt: v.publishedAt,
+            url: `https://www.youtube.com/watch?v=${v.videoId}`,
+            downloadStatus: v.downloadStatus,
+            downloadProgress: v.downloadProgress,
+            downloadFilePath: v.downloadFilePath,
+            totalWatchSeconds: s.totalWatchSeconds,
+            lastPositionSeconds: s.lastPositionSeconds,
+            lastWatchedAt: s.lastWatchedAt,
+          };
+        })
+        .filter(Boolean);
     }),
 });
 

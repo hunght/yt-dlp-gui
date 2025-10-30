@@ -1,12 +1,15 @@
 import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ExternalLink as ExternalLinkIcon, Download, Play, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SubscriptionsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ["subscriptions", { limit: 60 }],
@@ -17,6 +20,20 @@ export default function SubscriptionsPage() {
   });
 
   const videos = (query.data || []) as any[];
+
+  const addToQueueMutation = useMutation({
+    mutationFn: (url: string) => trpcClient.queue.addToQueue.mutate({ urls: [url], priority: 0 }),
+    onSuccess: (result, variables) => {
+      if ((result as any)?.success) {
+        toast.success("Added to queue");
+        // Refresh recent list to reflect status changes
+        queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+      } else {
+        toast.error((result as any)?.message || "Failed to add to queue");
+      }
+    },
+    onError: () => toast.error("Failed to add video to queue"),
+  });
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -61,10 +78,34 @@ export default function SubscriptionsPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId } })}>
-                        Open
-                      </Button>
+                      {v.downloadStatus === "completed" && v.downloadFilePath ? (
+                        <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId } })}>
+                          <Play className="mr-1 h-3 w-3" />
+                          Play
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => addToQueueMutation.mutate(`https://www.youtube.com/watch?v=${v.videoId}`)}
+                          disabled={v.downloadStatus === "downloading" || v.downloadStatus === "queued"}
+                        >
+                          {v.downloadStatus === "downloading" || v.downloadStatus === "queued" ? (
+                            <>
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              {v.downloadStatus === "queued" ? "Queued" : `Downloading ${v.downloadProgress || 0}%`}
+                            </>
+                          ) : (
+                            <>
+                              <Download className="mr-1 h-3 w-3" />
+                              Download
+                            </>
+                          )}
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" onClick={() => trpcClient.utils.openExternalUrl.mutate({ url: v.url })}>
+                        <ExternalLinkIcon className="mr-1 h-3 w-3" />
                         Watch on YouTube
                       </Button>
                     </div>

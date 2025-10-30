@@ -7,6 +7,7 @@ import ChannelPage from "@/pages/channel/ChannelPage";
 import PlaylistPage from "@/pages/playlist/PlaylistPage";
 import LogsPage from "@/pages/logs/LogsPage";
 import SubscriptionsPage from "@/pages/subscriptions/SubscriptionsPage";
+import HistoryPage from "@/pages/history/HistoryPage";
 
 export const DashboardRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -65,6 +66,12 @@ export const SubscriptionsRoute = createRoute({
   component: SubscriptionsPage,
 });
 
+export const HistoryRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/history",
+  component: HistoryPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   DashboardRoute,
   SettingsRoute,
@@ -73,4 +80,5 @@ export const rootTree = RootRoute.addChildren([
   ChannelRoute,
   PlaylistRoute,
   SubscriptionsRoute,
+  HistoryRoute,
 ]);

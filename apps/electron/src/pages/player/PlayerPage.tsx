@@ -25,6 +25,49 @@ export default function PlayerPage() {
   const toLocalFileUrl = (p: string) => `local-file://${p}`;
   const videoTitle = data?.title || data?.videoId || "Video";
 
+  // Accumulate watch time and persist to DB periodically
+  const lastTimeRef = React.useRef<number>(0);
+  const accumulatedRef = React.useRef<number>(0);
+  const flushTimerRef = React.useRef<any>(null);
+
+  const handleTimeUpdate = React.useCallback(
+    (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+      const el = e.currentTarget;
+      const current = el.currentTime;
+      const prev = lastTimeRef.current;
+      if (current > prev) {
+        accumulatedRef.current += current - prev;
+      }
+      lastTimeRef.current = current;
+    },
+    []
+  );
+
+  const flushProgress = React.useCallback(async () => {
+    if (!data?.videoId) return;
+    const delta = Math.floor(accumulatedRef.current);
+    if (delta <= 0) return;
+    accumulatedRef.current = 0;
+    try {
+      await trpcClient.ytdlp.recordWatchProgress.mutate({
+        videoId: data.videoId,
+        deltaSeconds: delta,
+        positionSeconds: Math.floor(lastTimeRef.current || 0),
+      });
+    } catch {}
+  }, [data?.videoId]);
+
+  React.useEffect(() => {
+    // Flush every 10 seconds
+    flushTimerRef.current = setInterval(() => {
+      flushProgress();
+    }, 10000);
+    return () => {
+      clearInterval(flushTimerRef.current);
+      flushProgress();
+    };
+  }, [flushProgress]);
+
   return (
     <div className="container mx-auto space-y-6 p-6">
 
@@ -59,6 +102,7 @@ export default function PlayerPage() {
                 src={toLocalFileUrl(filePath)}
                 controls
                 className="w-full max-h-[70vh] rounded border bg-black"
+                onTimeUpdate={handleTimeUpdate}
               />
               <div className="flex gap-2">
                 <a

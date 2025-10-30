@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ExternalLink as ExternalLinkIcon, Play, Loader2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
+import Thumbnail from "@/components/Thumbnail";
 
 export default function HistoryPage() {
   const navigate = useNavigate();
@@ -44,19 +45,18 @@ export default function HistoryPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {playedMeta.data.map((v: any) => {
-                let thumb = v?.thumbnailPath ? `local-file://${v.thumbnailPath}` : v?.thumbnailUrl;
-                if (typeof thumb === "string" && thumb.includes("no_thumbnail")) thumb = null as any;
+                const hideNoThumb = typeof v?.thumbnailUrl === "string" && v.thumbnailUrl.includes("no_thumbnail");
                 return (
                   <div key={v.videoId} className="rounded-lg border p-3 space-y-2">
-                    {thumb ? (
-                      <img
-                        src={thumb}
+                    {hideNoThumb ? (
+                      <div className="w-full aspect-video rounded bg-muted" />
+                    ) : (
+                      <Thumbnail
+                        thumbnailPath={v?.thumbnailPath}
+                        thumbnailUrl={v?.thumbnailUrl}
                         alt={v.title}
                         className="w-full aspect-video rounded object-cover"
-                        onError={(e) => (e.currentTarget.style.display = "none")}
                       />
-                    ) : (
-                      <div className="w-full aspect-video rounded bg-muted" />
                     )}
                     <div className="space-y-1">
                       <div className="text-sm font-medium line-clamp-2">{v.title}</div>

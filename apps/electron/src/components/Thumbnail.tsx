@@ -4,7 +4,10 @@ import { trpcClient } from "@/utils/trpc";
 import { Play } from "lucide-react";
 
 interface ThumbnailProps {
+  // Absolute path to cached local image (under app userData). If provided, we'll try this first.
   thumbnailPath?: string | null;
+  // Remote image URL to use as fallback when local image is missing/unreadable.
+  thumbnailUrl?: string | null;
   alt: string;
   className?: string;
   fallbackIcon?: React.ReactNode;
@@ -12,16 +15,15 @@ interface ThumbnailProps {
 
 export default function Thumbnail({
   thumbnailPath,
+  thumbnailUrl,
   alt,
   className = "aspect-video w-full rounded-t-lg object-cover",
   fallbackIcon = <Play className="h-12 w-12 text-gray-400" />,
 }: ThumbnailProps) {
-  // Add logging for debugging
-  console.log("Thumbnail component props:", {
-    thumbnailPath,
-    alt,
-    className,
-  });
+  // Use small, useful logs only in development
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("<Thumbnail>", { thumbnailPath, thumbnailUrl, alt });
+  }
 
   // Use tRPC to convert local image to data URL with caching and loading states
   const {
@@ -32,15 +34,12 @@ export default function Thumbnail({
     queryKey: ["thumbnail", thumbnailPath],
     queryFn: async () => {
       if (!thumbnailPath) {
-        console.log("No thumbnailPath provided, returning null");
         return null;
       }
 
-      console.log("Converting thumbnail to data URL:", thumbnailPath);
       const result = await trpcClient.utils.convertImageToDataUrl.query({
         imagePath: thumbnailPath,
       });
-      console.log("Thumbnail conversion result:", result ? "Success" : "Failed");
       return result;
     },
     enabled: !!thumbnailPath,
@@ -48,20 +47,12 @@ export default function Thumbnail({
     retry: 1,
   });
 
-  console.log("Thumbnail query state:", {
-    thumbnailDataUrl: thumbnailDataUrl ? "Present" : "Missing",
-    isThumbnailLoading,
-    thumbnailError: thumbnailError?.message || "None",
-  });
+  // Track one-time webp->jpg fallback try for remote URLs
+  const [remoteSrc, setRemoteSrc] = React.useState<string | null | undefined>(thumbnailUrl ?? null);
+  React.useEffect(() => setRemoteSrc(thumbnailUrl ?? null), [thumbnailUrl]);
 
-  // Only use local thumbnail or fallback
-  const hasLocalThumbnail = thumbnailDataUrl && !thumbnailError;
-
-  console.log("Thumbnail render decision:", {
-    hasLocalThumbnail,
-    isThumbnailLoading,
-    willShowFallback: !hasLocalThumbnail && !isThumbnailLoading,
-  });
+  // Prefer local cached image when available
+  const hasLocalThumbnail = !!thumbnailDataUrl && !thumbnailError;
 
   if (hasLocalThumbnail) {
     return (
@@ -70,14 +61,36 @@ export default function Thumbnail({
         alt={alt}
         className={className}
         onError={(e) => {
-          console.error("Failed to load local thumbnail image");
           e.currentTarget.style.display = "none";
         }}
       />
     );
   }
 
-  // Fallback when no thumbnail is available or loading
+  // Next: try remote URL if provided
+  if (remoteSrc && !isThumbnailLoading) {
+    return (
+      <img
+        src={remoteSrc}
+        alt={alt}
+        className={className}
+        onError={() => {
+          // Attempt one fallback from .webp to .jpg for ytimg URLs
+          if (/\.webp($|\?)/.test(remoteSrc)) {
+            const fallbackUrl = remoteSrc.replace(/\.webp($|\?)/, ".jpg$1").replace(/vi_webp/, "vi");
+            if (fallbackUrl !== remoteSrc) {
+              setRemoteSrc(fallbackUrl);
+              return;
+            }
+          }
+          // Final fallback: hide image by clearing src
+          setRemoteSrc(null);
+        }}
+      />
+    );
+  }
+
+  // Placeholder when nothing to show (or still loading)
   return (
     <div className={`flex items-center justify-center bg-gray-200 ${className}`}>
       {isThumbnailLoading ? (

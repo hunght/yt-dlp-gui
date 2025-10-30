@@ -4,6 +4,7 @@ import { trpcClient } from "@/utils/trpc";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { ExternalLink as ExternalLinkIcon, Loader2 } from "lucide-react";
+import Thumbnail from "@/components/Thumbnail";
 
 interface PlaylistsTabProps {
   channelId: string;
@@ -68,32 +69,20 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {query.data.map((playlist: any) => {
             const playlistUrl = playlist.url ?? `https://www.youtube.com/playlist?list=${playlist.playlistId || playlist.id}`;
-            let playlistThumbnail = playlist.thumbnailPath
-              ? `local-file://${playlist.thumbnailPath}`
-              : playlist.thumbnailUrl;
-            if (typeof playlistThumbnail === "string" && playlistThumbnail.includes("no_thumbnail")) {
-              playlistThumbnail = null as any;
-            }
+            const hideNoThumb = typeof playlist.thumbnailUrl === "string" && playlist.thumbnailUrl.includes("no_thumbnail");
 
             return (
               <div key={playlist.id} className="rounded-lg border p-4 space-y-3">
                 {/* Playlist Thumbnail */}
-                {playlistThumbnail ? (
-                  <img
-                    src={playlistThumbnail}
+                {hideNoThumb ? (
+                  <div className="w-full aspect-video rounded bg-muted" />
+                ) : (
+                  <Thumbnail
+                    thumbnailPath={playlist.thumbnailPath}
+                    thumbnailUrl={playlist.thumbnailUrl}
                     alt={playlist.title}
                     className="w-full aspect-video rounded object-cover"
-                    onError={(e) => {
-                      console.warn("Playlist image failed", {
-                        url: playlistUrl,
-                        thumb: playlistThumbnail,
-                        playlist,
-                      });
-                      e.currentTarget.style.display = "none";
-                    }}
                   />
-                ) : (
-                  <div className="w-full aspect-video rounded bg-muted" />
                 )}
 
                 {/* Playlist Info */}

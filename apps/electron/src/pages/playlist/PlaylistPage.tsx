@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Play, List as ListIcon } from "lucide-react";
 import { toast } from "sonner";
+import Thumbnail from "@/components/Thumbnail";
 
 export default function PlaylistPage() {
   const navigate = useNavigate();
@@ -81,10 +82,6 @@ export default function PlaylistPage() {
 
   const data = query.data as any | null;
   const title = data?.title || playlistId || "Playlist";
-  let thumb = data?.thumbnailPath ? `local-file://${data.thumbnailPath}` : data?.thumbnailUrl || null;
-  if (typeof thumb === "string" && thumb.includes("no_thumbnail")) {
-    thumb = null as any;
-  }
 
   const progress = data?.itemCount && data?.currentVideoIndex
     ? Math.round((data.currentVideoIndex / data.itemCount) * 100)
@@ -127,10 +124,15 @@ export default function PlaylistPage() {
           ) : (
             <div className="space-y-4">
               <div className="flex gap-4 items-start">
-                {thumb ? (
-                  <img src={thumb} alt={title} className="w-48 aspect-video rounded object-cover" />
-                ) : (
+                {typeof data?.thumbnailUrl === "string" && data.thumbnailUrl.includes("no_thumbnail") ? (
                   <div className="w-48 aspect-video rounded bg-muted" />
+                ) : (
+                  <Thumbnail
+                    thumbnailPath={data?.thumbnailPath}
+                    thumbnailUrl={data?.thumbnailUrl}
+                    alt={title}
+                    className="w-48 aspect-video rounded object-cover"
+                  />
                 )}
                 <div className="flex-1 space-y-2">
                   {data?.description && (
@@ -177,10 +179,6 @@ export default function PlaylistPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(data?.videos || []).map((v: any, index: number) => {
-                  let vThumb = v.thumbnailPath ? `local-file://${v.thumbnailPath}` : v.thumbnailUrl;
-                  if (typeof vThumb === "string" && vThumb.includes("no_thumbnail")) {
-                    vThumb = null as any;
-                  }
                   const isCurrentVideo = index === (data?.currentVideoIndex || 0);
                   return (
                     <div
@@ -190,18 +188,12 @@ export default function PlaylistPage() {
                       }`}
                     >
                       <div className="relative">
-                        {vThumb ? (
-                          <img
-                            src={vThumb}
-                            alt={v.title}
-                            className="w-full aspect-video rounded object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full aspect-video rounded bg-muted" />
-                        )}
+                        <Thumbnail
+                          thumbnailPath={v.thumbnailPath}
+                          thumbnailUrl={v.thumbnailUrl}
+                          alt={v.title}
+                          className="w-full aspect-video rounded object-cover"
+                        />
                         {isCurrentVideo && (
                           <div className="absolute top-2 right-2">
                             <Badge variant="default" className="flex items-center gap-1">

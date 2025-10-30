@@ -5,6 +5,7 @@ import { trpcClient } from "@/utils/trpc";
 import { Button } from "@/components/ui/button";
 import { ExternalLink as ExternalLinkIcon, Download, Play, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import Thumbnail from "@/components/Thumbnail";
 
 interface LatestTabProps {
   channelId: string;
@@ -105,26 +106,19 @@ export const LatestTab: React.FC<LatestTabProps> = ({ channelId, onDownload }) =
       ) : query.data && query.data.length > 0 ? (
         <div className="space-y-4">
           {query.data.map((video) => {
-            const videoThumbnail = video.thumbnailPath
-              ? `local-file://${video.thumbnailPath}`
-              : video.thumbnailUrl;
             const videoUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
 
             return (
               <div key={video.id} className="flex items-start gap-4 rounded-lg border p-4">
                 {/* Video Thumbnail */}
-                {videoThumbnail ? (
-                  <img
-                    src={videoThumbnail}
+                <div className="h-24 w-40 flex-shrink-0">
+                  <Thumbnail
+                    thumbnailPath={video.thumbnailPath}
+                    thumbnailUrl={video.thumbnailUrl}
                     alt={video.title}
-                    className="h-24 w-40 flex-shrink-0 rounded object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
+                    className="h-24 w-40 rounded object-cover"
                   />
-                ) : (
-                  <div className="h-24 w-40 flex-shrink-0 rounded bg-muted" />
-                )}
+                </div>
 
                 {/* Video Info */}
                 <div className="flex-1 space-y-1">

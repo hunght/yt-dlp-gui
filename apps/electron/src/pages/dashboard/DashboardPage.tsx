@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { logger } from "@/helpers/logger";
 import { DownloadQueueCard } from "@/components/DownloadQueueCard";
+import Thumbnail from "@/components/Thumbnail";
 
 const isValidUrl = (value: string) => {
   try {
@@ -289,25 +290,15 @@ export default function DashboardPage() {
           ) : completedQuery.data && completedQuery.data.length > 0 ? (
             <div className="divide-y">
               {completedQuery.data.map((d) => {
-                const thumbSrc = d.thumbnailPath
-                  ? `local-file://${d.thumbnailPath}`
-                  : d.thumbnailUrl || null;
-
                 return (
                   <div key={d.videoId} className="flex items-center gap-3 py-2">
                     {/* Thumbnail */}
-                    {thumbSrc ? (
-                      <img
-                        src={thumbSrc}
-                        alt={d.title || d.videoId || "thumbnail"}
-                        className="h-12 w-20 flex-shrink-0 rounded object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <div className="h-12 w-20 flex-shrink-0 rounded bg-muted" />
-                    )}
+                    <Thumbnail
+                      thumbnailPath={d.thumbnailPath}
+                      thumbnailUrl={d.thumbnailUrl}
+                      alt={d.title || d.videoId || "thumbnail"}
+                      className="h-12 w-20 flex-shrink-0 rounded object-cover"
+                    />
 
                     {/* Meta */}
                     <div className="min-w-0 flex-1">

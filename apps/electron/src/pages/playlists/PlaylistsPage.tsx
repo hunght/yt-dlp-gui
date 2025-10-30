@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Search, Play, Clock, Eye } from "lucide-react";
 import { toast } from "sonner";
+import Thumbnail from "@/components/Thumbnail";
 
 export default function PlaylistsPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -130,9 +131,6 @@ export default function PlaylistsPage() {
           ) : filteredPlaylists.length > 0 ? (
             <div className="space-y-4">
               {filteredPlaylists.map((playlist) => {
-                const thumbnailSrc = playlist.thumbnailPath
-                  ? `local-file://${playlist.thumbnailPath}`
-                  : playlist.thumbnailUrl;
                 const hasWatchHistory = (playlist.viewCount ?? 0) > 0;
                 const progress = playlist.itemCount && playlist.currentVideoIndex
                   ? Math.round((playlist.currentVideoIndex / playlist.itemCount) * 100)
@@ -150,25 +148,17 @@ export default function PlaylistsPage() {
                       onClick={() => handlePlaylistClick(playlist.playlistId)}
                       className="relative flex-shrink-0"
                     >
-                      {thumbnailSrc ? (
-                        <div className="relative">
-                          <img
-                            src={thumbnailSrc}
-                            alt={playlist.title}
-                            className="h-24 w-40 rounded object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center rounded bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                            <Play className="h-8 w-8 text-white" />
-                          </div>
+                      <div className="relative">
+                        <Thumbnail
+                          thumbnailPath={playlist.thumbnailPath}
+                          thumbnailUrl={playlist.thumbnailUrl}
+                          alt={playlist.title}
+                          className="h-24 w-40 rounded object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center rounded bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                          <Play className="h-8 w-8 text-white" />
                         </div>
-                      ) : (
-                        <div className="flex h-24 w-40 items-center justify-center rounded bg-muted">
-                          <Play className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
+                      </div>
                       {playlist.itemCount && (
                         <div className="absolute bottom-1 right-1 rounded bg-black/80 px-1.5 py-0.5 text-xs text-white">
                           {playlist.itemCount} videos

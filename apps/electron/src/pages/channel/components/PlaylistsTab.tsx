@@ -65,8 +65,10 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive 
       ) : query.data && query.data.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {query.data.map((playlist: any) => {
-            const playlistUrl = `https://www.youtube.com/playlist?list=${playlist.id}`;
-            const playlistThumbnail = playlist.thumbnails?.[0]?.url;
+            const playlistUrl = playlist.url ?? `https://www.youtube.com/playlist?list=${playlist.playlistId || playlist.id}`;
+            const playlistThumbnail = playlist.thumbnailPath
+              ? `local-file://${playlist.thumbnailPath}`
+              : playlist.thumbnailUrl;
 
             return (
               <div key={playlist.id} className="rounded-lg border p-4 space-y-3">
@@ -77,6 +79,11 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive 
                     alt={playlist.title}
                     className="w-full aspect-video rounded object-cover"
                     onError={(e) => {
+                      console.warn("Playlist image failed", {
+                        url: playlistUrl,
+                        thumb: playlistThumbnail,
+                        playlist,
+                      });
                       e.currentTarget.style.display = "none";
                     }}
                   />

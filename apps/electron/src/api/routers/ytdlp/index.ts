@@ -1477,13 +1477,45 @@ export const ytdlpRouter = t.router({
       const entries = (Array.isArray(data?.entries) ? data.entries : []).slice(0, limit);
       const now = Date.now();
 
+      if (entries[0]) {
+        logger.info("[ytdlp] listChannelPlaylists flat entry sample", {
+          keys: Object.keys(entries[0] || {}),
+          id: entries[0]?.id || entries[0]?.playlist_id,
+          title: entries[0]?.title,
+          thumbTop: entries[0]?.thumbnails?.[0]?.url || entries[0]?.thumbnail || null,
+        });
+      }
+
       for (const e of entries) {
         const pid = e?.id || e?.playlist_id;
         if (!pid) continue;
         const title = e?.title || "Untitled";
-        const thumb = e?.thumbnails?.[0]?.url || e?.thumbnail || null;
+        let thumb = e?.thumbnails?.[0]?.url || e?.thumbnail || null;
         const url = e?.url || e?.webpage_url || `https://www.youtube.com/playlist?list=${pid}`;
         const itemCount = e?.playlist_count || e?.n_entries || null;
+
+        if (!thumb) {
+          logger.debug("[ytdlp] playlist thumbnail missing, enriching", { playlistId: pid, url });
+          try {
+            const detailJson = await new Promise<string>((resolve, reject) => {
+              const proc = spawn(binPath, ["-J", url], { stdio: ["ignore", "pipe", "pipe"] });
+              let out = ""; let err = "";
+              proc.stdout.on("data", (d) => (out += d.toString()));
+              proc.stderr.on("data", (d) => (err += d.toString()));
+              proc.on("error", reject);
+              proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
+            });
+            const detail = JSON.parse(detailJson);
+            if (Array.isArray(detail?.thumbnails) && detail.thumbnails.length > 0) {
+              thumb = detail.thumbnails[detail.thumbnails.length - 1]?.url || detail.thumbnails[0]?.url || null;
+              logger.debug("[ytdlp] playlist thumbnail enriched", { playlistId: pid, thumb });
+            } else {
+              logger.warn("[ytdlp] playlist detail has no thumbnails", { playlistId: pid, detailKeys: Object.keys(detail || {}) });
+            }
+          } catch (err) {
+            logger.warn("[ytdlp] playlist enrich failed", { playlistId: pid, error: String(err) });
+          }
+        }
 
         try {
           const existing = await db
@@ -1508,6 +1540,7 @@ export const ytdlpRouter = t.router({
               updatedAt: now,
               lastFetchedAt: now,
             });
+            logger.info("[ytdlp] playlist inserted", { playlistId: pid, hasThumb: !!thumb });
           } else {
             await db
               .update(channelPlaylists)
@@ -1522,8 +1555,11 @@ export const ytdlpRouter = t.router({
                 lastFetchedAt: now,
               })
               .where(eq(channelPlaylists.playlistId, pid));
+            logger.debug("[ytdlp] playlist updated", { playlistId: pid, hasThumb: !!thumb });
           }
-        } catch {}
+        } catch (err) {
+          logger.error("[ytdlp] playlist upsert failed", { playlistId: pid, error: String(err) });
+        }
       }
 
       const cached = await db

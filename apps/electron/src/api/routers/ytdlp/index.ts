@@ -2041,6 +2041,149 @@ export const ytdlpRouter = t.router({
         })
         .filter(Boolean);
     }),
+
+  // List all playlists across all channels
+  listAllPlaylists: publicProcedure
+    .input(z.object({ limit: z.number().min(1).max(500).optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input?.limit ?? 100;
+
+      try {
+        const playlists = await db
+          .select({
+            id: channelPlaylists.id,
+            playlistId: channelPlaylists.playlistId,
+            channelId: channelPlaylists.channelId,
+            title: channelPlaylists.title,
+            description: channelPlaylists.description,
+            thumbnailUrl: channelPlaylists.thumbnailUrl,
+            thumbnailPath: channelPlaylists.thumbnailPath,
+            itemCount: channelPlaylists.itemCount,
+            url: channelPlaylists.url,
+            viewCount: channelPlaylists.viewCount,
+            lastViewedAt: channelPlaylists.lastViewedAt,
+            currentVideoIndex: channelPlaylists.currentVideoIndex,
+            totalWatchTimeSeconds: channelPlaylists.totalWatchTimeSeconds,
+            createdAt: channelPlaylists.createdAt,
+            updatedAt: channelPlaylists.updatedAt,
+            lastFetchedAt: channelPlaylists.lastFetchedAt,
+          })
+          .from(channelPlaylists)
+          .orderBy(desc(channelPlaylists.lastViewedAt), desc(channelPlaylists.updatedAt))
+          .limit(limit);
+
+        // Get channel info for each playlist
+        const channelIds = [...new Set(playlists.map((p) => p.channelId).filter(Boolean))];
+        const channelsData = channelIds.length > 0
+          ? await db
+              .select()
+              .from(channels)
+              .where(inArray(channels.channelId, channelIds as string[]))
+          : [];
+
+        const channelMap = new Map(channelsData.map((c) => [c.channelId, c]));
+
+        return playlists.map((p) => {
+          const channel = p.channelId ? channelMap.get(p.channelId) : null;
+          return {
+            ...p,
+            channelTitle: channel?.channelTitle || null,
+          };
+        });
+      } catch (e) {
+        logger.error("[ytdlp] listAllPlaylists failed", e as Error);
+        return [];
+      }
+    }),
+
+  // Update playlist view stats
+  updatePlaylistView: publicProcedure
+    .input(z.object({ playlistId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const now = Date.now();
+
+      try {
+        const existing = await db
+          .select()
+          .from(channelPlaylists)
+          .where(eq(channelPlaylists.playlistId, input.playlistId))
+          .limit(1);
+
+        if (existing.length === 0) {
+          return { success: false, message: "Playlist not found" };
+        }
+
+        const current = existing[0];
+        const newViewCount = (current.viewCount || 0) + 1;
+
+        await db
+          .update(channelPlaylists)
+          .set({
+            viewCount: newViewCount,
+            lastViewedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(channelPlaylists.playlistId, input.playlistId));
+
+        return {
+          success: true,
+          viewCount: newViewCount,
+          lastViewedAt: now,
+        };
+      } catch (e) {
+        logger.error("[ytdlp] updatePlaylistView failed", e as Error);
+        return { success: false, message: "Failed to update view stats" };
+      }
+    }),
+
+  // Update playlist playback position
+  updatePlaylistPlayback: publicProcedure
+    .input(
+      z.object({
+        playlistId: z.string(),
+        currentVideoIndex: z.number().min(0),
+        watchTimeSeconds: z.number().min(0).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const now = Date.now();
+
+      try {
+        const existing = await db
+          .select()
+          .from(channelPlaylists)
+          .where(eq(channelPlaylists.playlistId, input.playlistId))
+          .limit(1);
+
+        if (existing.length === 0) {
+          return { success: false, message: "Playlist not found" };
+        }
+
+        const current = existing[0];
+        const newTotalWatchTime = (current.totalWatchTimeSeconds || 0) + (input.watchTimeSeconds || 0);
+
+        await db
+          .update(channelPlaylists)
+          .set({
+            currentVideoIndex: input.currentVideoIndex,
+            totalWatchTimeSeconds: newTotalWatchTime,
+            updatedAt: now,
+          })
+          .where(eq(channelPlaylists.playlistId, input.playlistId));
+
+        return {
+          success: true,
+          currentVideoIndex: input.currentVideoIndex,
+          totalWatchTimeSeconds: newTotalWatchTime,
+        };
+      } catch (e) {
+        logger.error("[ytdlp] updatePlaylistPlayback failed", e as Error);
+        return { success: false, message: "Failed to update playback position" };
+      }
+    }),
 });
 
 export type YtDlpRouter = typeof ytdlpRouter;

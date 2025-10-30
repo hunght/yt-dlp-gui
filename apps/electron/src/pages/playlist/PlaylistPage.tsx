@@ -1,16 +1,21 @@
 import React from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Play, List as ListIcon } from "lucide-react";
+import { toast } from "sonner";
 
 export default function PlaylistPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/playlist" });
   const playlistId = search.playlistId as string | undefined;
+  const queryClient = useQueryClient();
+
+  const [currentVideoIndex, setCurrentVideoIndex] = React.useState(0);
 
   const query = useQuery({
     queryKey: ["playlist-details", playlistId],
@@ -26,6 +31,18 @@ export default function PlaylistPage() {
     refetchOnWindowFocus: false,
   });
 
+  const updatePlaybackMutation = useMutation({
+    mutationFn: ({ videoIndex, watchTime }: { videoIndex: number; watchTime?: number }) =>
+      trpcClient.ytdlp.updatePlaylistPlayback.mutate({
+        playlistId: playlistId!,
+        currentVideoIndex: videoIndex,
+        watchTimeSeconds: watchTime,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ytdlp", "all-playlists"] });
+    },
+  });
+
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const handleRefresh = async () => {
@@ -39,12 +56,39 @@ export default function PlaylistPage() {
     }
   };
 
+  const handlePlayAll = () => {
+    if (!data?.videos || data.videos.length === 0) {
+      toast.error("No videos in playlist");
+      return;
+    }
+    // Start from saved position or beginning
+    const startIndex = data.currentVideoIndex || 0;
+    const video = data.videos[startIndex];
+    if (video) {
+      setCurrentVideoIndex(startIndex);
+      navigate({ to: "/player", search: { videoId: video.videoId } });
+    }
+  };
+
+  const handlePlayVideo = (videoIndex: number) => {
+    setCurrentVideoIndex(videoIndex);
+    updatePlaybackMutation.mutate({ videoIndex });
+    const video = data?.videos[videoIndex];
+    if (video) {
+      navigate({ to: "/player", search: { videoId: video.videoId } });
+    }
+  };
+
   const data = query.data as any | null;
   const title = data?.title || playlistId || "Playlist";
   let thumb = data?.thumbnailPath ? `local-file://${data.thumbnailPath}` : data?.thumbnailUrl || null;
   if (typeof thumb === "string" && thumb.includes("no_thumbnail")) {
     thumb = null as any;
   }
+
+  const progress = data?.itemCount && data?.currentVideoIndex
+    ? Math.round((data.currentVideoIndex / data.itemCount) * 100)
+    : 0;
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -96,39 +140,80 @@ export default function PlaylistPage() {
                   )}
                   <div className="text-xs text-muted-foreground flex items-center gap-3">
                     {typeof data?.itemCount === "number" && <span>{data.itemCount} items</span>}
+                    {progress > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        {progress}% complete
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex gap-2 pt-2">
                     <Button
                       size="sm"
-                      variant="ghost"
-                      className="h-6 px-2"
+                      onClick={handlePlayAll}
+                      className="flex items-center gap-2"
+                    >
+                      <Play className="h-4 w-4" />
+                      {progress > 0 ? "Continue Playlist" : "Play All"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={handleRefresh}
                       disabled={query.isFetching || isRefreshing}
                     >
                       {query.isFetching || isRefreshing ? "Refreshing…" : "Refresh"}
                     </Button>
                   </div>
+                  {progress > 0 && (
+                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(data?.videos || []).map((v: any) => {
+                {(data?.videos || []).map((v: any, index: number) => {
                   let vThumb = v.thumbnailPath ? `local-file://${v.thumbnailPath}` : v.thumbnailUrl;
                   if (typeof vThumb === "string" && vThumb.includes("no_thumbnail")) {
                     vThumb = null as any;
                   }
+                  const isCurrentVideo = index === (data?.currentVideoIndex || 0);
                   return (
-                    <div key={v.videoId} className="rounded-lg border p-3 space-y-2">
-                      {vThumb ? (
-                        <img
-                          src={vThumb}
-                          alt={v.title}
-                          className="w-full aspect-video rounded object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full aspect-video rounded bg-muted" />
-                      )}
+                    <div
+                      key={v.videoId}
+                      className={`rounded-lg border p-3 space-y-2 ${
+                        isCurrentVideo ? "border-primary bg-primary/5" : ""
+                      }`}
+                    >
+                      <div className="relative">
+                        {vThumb ? (
+                          <img
+                            src={vThumb}
+                            alt={v.title}
+                            className="w-full aspect-video rounded object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full aspect-video rounded bg-muted" />
+                        )}
+                        {isCurrentVideo && (
+                          <div className="absolute top-2 right-2">
+                            <Badge variant="default" className="flex items-center gap-1">
+                              <ListIcon className="h-3 w-3" />
+                              Current
+                            </Badge>
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 left-2 text-xs text-white bg-black/70 px-1.5 py-0.5 rounded">
+                          #{index + 1}
+                        </div>
+                      </div>
                       <div className="space-y-1">
                         <div className="text-sm font-medium line-clamp-2">{v.title}</div>
                         <div className="text-xs text-muted-foreground flex gap-3">
@@ -144,18 +229,16 @@ export default function PlaylistPage() {
                         <Button
                           size="sm"
                           className="flex-1"
-                          onClick={() =>
-                            navigate({ to: "/player", search: { videoId: v.videoId } })
-                          }
+                          onClick={() => handlePlayVideo(index)}
                         >
-                          Open
+                          Play
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => trpcClient.utils.openExternalUrl.mutate({ url: v.url })}
                         >
-                          Watch on YouTube
+                          YouTube
                         </Button>
                       </div>
                     </div>

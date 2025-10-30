@@ -4,7 +4,9 @@ import SettingsPage from "@/pages/settings-page/SettingsPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import PlayerPage from "@/pages/player/PlayerPage";
 import ChannelPage from "@/pages/channel/ChannelPage";
+import ChannelsPage from "@/pages/channels/ChannelsPage";
 import PlaylistPage from "@/pages/playlist/PlaylistPage";
+import PlaylistsPage from "@/pages/playlists/PlaylistsPage";
 import LogsPage from "@/pages/logs/LogsPage";
 import SubscriptionsPage from "@/pages/subscriptions/SubscriptionsPage";
 import HistoryPage from "@/pages/history/HistoryPage";
@@ -49,6 +51,12 @@ export const ChannelRoute = createRoute({
   },
 });
 
+export const ChannelsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/channels",
+  component: ChannelsPage,
+});
+
 export const PlaylistRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/playlist",
@@ -58,6 +66,12 @@ export const PlaylistRoute = createRoute({
       playlistId: (search.playlistId as string) || undefined,
     };
   },
+});
+
+export const PlaylistsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/playlists",
+  component: PlaylistsPage,
 });
 
 export const SubscriptionsRoute = createRoute({
@@ -78,7 +92,9 @@ export const rootTree = RootRoute.addChildren([
   LogsRoute,
   PlayerRoute,
   ChannelRoute,
+  ChannelsRoute,
   PlaylistRoute,
+  PlaylistsRoute,
   SubscriptionsRoute,
   HistoryRoute,
 ]);

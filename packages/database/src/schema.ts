@@ -91,6 +91,12 @@ export const channelPlaylists = sqliteTable(
     url: text("url"),
     raw: text("raw_json"),
 
+    // Playback stats
+    viewCount: integer("view_count").default(0), // Number of times playlist was opened
+    lastViewedAt: integer("last_viewed_at"), // Last time playlist was viewed
+    currentVideoIndex: integer("current_video_index").default(0), // Current position in playlist
+    totalWatchTimeSeconds: integer("total_watch_time_seconds").default(0), // Total watch time across all videos
+
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at"),
     lastFetchedAt: integer("last_fetched_at"),
@@ -98,6 +104,7 @@ export const channelPlaylists = sqliteTable(
   (table) => [
     index("channel_playlists_channel_id_idx").on(table.channelId),
     index("channel_playlists_updated_at_idx").on(table.updatedAt),
+    index("channel_playlists_last_viewed_at_idx").on(table.lastViewedAt),
   ]
 );
 

@@ -77,14 +77,46 @@ export const youtubeVideos = sqliteTable(
   ]
 );
 
+export const channelPlaylists = sqliteTable(
+  "channel_playlists",
+  {
+    id: text("id").primaryKey(),
+    playlistId: text("playlist_id").notNull().unique(),
+    channelId: text("channel_id").references(() => channels.channelId),
+    title: text("title").notNull(),
+    description: text("description"),
+    thumbnailUrl: text("thumbnail_url"),
+    thumbnailPath: text("thumbnail_path"),
+    itemCount: integer("item_count"),
+    url: text("url"),
+    raw: text("raw_json"),
+
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at"),
+    lastFetchedAt: integer("last_fetched_at"),
+  },
+  (table) => [
+    index("channel_playlists_channel_id_idx").on(table.channelId),
+    index("channel_playlists_updated_at_idx").on(table.updatedAt),
+  ]
+);
+
 // Define relations
 export const channelsRelations = relations(channels, ({ many }) => ({
   videos: many(youtubeVideos),
+  playlists: many(channelPlaylists),
 }));
 
 export const youtubeVideosRelations = relations(youtubeVideos, ({ one }) => ({
   channel: one(channels, {
     fields: [youtubeVideos.channelId],
+    references: [channels.channelId],
+  }),
+}));
+
+export const channelPlaylistsRelations = relations(channelPlaylists, ({ one }) => ({
+  channel: one(channels, {
+    fields: [channelPlaylists.channelId],
     references: [channels.channelId],
   }),
 }));
@@ -95,3 +127,6 @@ export type NewChannel = typeof channels.$inferInsert;
 
 export type YoutubeVideo = typeof youtubeVideos.$inferSelect;
 export type NewYoutubeVideo = typeof youtubeVideos.$inferInsert;
+
+export type ChannelPlaylist = typeof channelPlaylists.$inferSelect;
+export type NewChannelPlaylist = typeof channelPlaylists.$inferInsert;

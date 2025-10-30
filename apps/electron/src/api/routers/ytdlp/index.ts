@@ -8,7 +8,7 @@ import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
 import { spawn } from "child_process";
 import { eq, desc, inArray } from "drizzle-orm";
-import { youtubeVideos, channels } from "@/api/db/schema";
+import { youtubeVideos, channels, channelPlaylists } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
@@ -1043,11 +1043,64 @@ export const ytdlpRouter = t.router({
 
   // List latest videos from a channel via yt-dlp (metadata-only, fast)
   listChannelLatest: publicProcedure
-    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(100).optional() }))
+    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(100).optional(), forceRefresh: z.boolean().optional() }))
     .query(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
+      const limit = input.limit ?? 24;
+
+      // 1) Try DB first (offline-first)
+      try {
+        const cached = await db
+          .select()
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.channelId, input.channelId))
+          .orderBy(desc(youtubeVideos.publishedAt))
+          .limit(limit);
+        if (cached.length > 0 && !input.forceRefresh) {
+          return cached.map((v: any) => ({
+            id: v.id,
+            videoId: v.videoId,
+            title: v.title,
+            description: v.description,
+            thumbnailUrl: v.thumbnailUrl,
+            thumbnailPath: v.thumbnailPath,
+            durationSeconds: v.durationSeconds,
+            viewCount: v.viewCount,
+            publishedAt: v.publishedAt,
+            url: `https://www.youtube.com/watch?v=${v.videoId}`,
+            downloadStatus: v.downloadStatus,
+            downloadProgress: v.downloadProgress,
+            downloadFilePath: v.downloadFilePath,
+          }));
+        }
+      } catch {}
+
       const binPath = getBinaryFilePath();
-      if (!fs.existsSync(binPath)) return [] as Array<any>;
+      if (!fs.existsSync(binPath)) {
+        // No binary available -> return DB even if empty
+        const fallback = await db
+          .select()
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.channelId, input.channelId))
+          .orderBy(desc(youtubeVideos.publishedAt))
+          .limit(limit);
+        return fallback.map((v: any) => ({
+          id: v.id,
+          videoId: v.videoId,
+          title: v.title,
+          description: v.description,
+          thumbnailUrl: v.thumbnailUrl,
+          thumbnailPath: v.thumbnailPath,
+          durationSeconds: v.durationSeconds,
+          viewCount: v.viewCount,
+          publishedAt: v.publishedAt,
+          url: `https://www.youtube.com/watch?v=${v.videoId}`,
+          downloadStatus: v.downloadStatus,
+          downloadProgress: v.downloadProgress,
+          downloadFilePath: v.downloadFilePath,
+        }));
+      }
+
       const url = `https://www.youtube.com/channel/${input.channelId}/videos?view=0&sort=dd&flow=grid`;
       const listing = await new Promise<string>((resolve, reject) => {
         const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
@@ -1068,7 +1121,7 @@ export const ytdlpRouter = t.router({
       }
 
       const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter((e: any) => e?.id);
-      const limit = input.limit ?? 24;
+      // limit already computed above
       const now = Date.now();
 
       // Upsert lightweight metadata to DB for caching (avoid expensive individual fetches)
@@ -1149,11 +1202,64 @@ export const ytdlpRouter = t.router({
 
   // List popular videos from a channel via yt-dlp (metadata-only, fast)
   listChannelPopular: publicProcedure
-    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(100).optional() }))
+    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(100).optional(), forceRefresh: z.boolean().optional() }))
     .query(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
+      const limit = input.limit ?? 24;
+
+      // 1) Try DB first (offline-first) – Use viewCount desc when available
+      try {
+        const cached = await db
+          .select()
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.channelId, input.channelId))
+          .limit(limit);
+        if (cached.length > 0 && !input.forceRefresh) {
+          // Sort by viewCount desc locally, fallback by updatedAt
+          const sorted = [...cached].sort((a: any, b: any) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
+          return sorted.map((v: any) => ({
+            id: v.id,
+            videoId: v.videoId,
+            title: v.title,
+            description: v.description,
+            thumbnailUrl: v.thumbnailUrl,
+            thumbnailPath: v.thumbnailPath,
+            durationSeconds: v.durationSeconds,
+            viewCount: v.viewCount,
+            publishedAt: v.publishedAt,
+            url: `https://www.youtube.com/watch?v=${v.videoId}`,
+            downloadStatus: v.downloadStatus,
+            downloadProgress: v.downloadProgress,
+            downloadFilePath: v.downloadFilePath,
+          }));
+        }
+      } catch {}
+
       const binPath = getBinaryFilePath();
-      if (!fs.existsSync(binPath)) return [] as Array<any>;
+      if (!fs.existsSync(binPath)) {
+        const fallback = await db
+          .select()
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.channelId, input.channelId))
+          .limit(limit);
+        const sorted = [...fallback].sort((a: any, b: any) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
+        return sorted.map((v: any) => ({
+          id: v.id,
+          videoId: v.videoId,
+          title: v.title,
+          description: v.description,
+          thumbnailUrl: v.thumbnailUrl,
+          thumbnailPath: v.thumbnailPath,
+          durationSeconds: v.durationSeconds,
+          viewCount: v.viewCount,
+          publishedAt: v.publishedAt,
+          url: `https://www.youtube.com/watch?v=${v.videoId}`,
+          downloadStatus: v.downloadStatus,
+          downloadProgress: v.downloadProgress,
+          downloadFilePath: v.downloadFilePath,
+        }));
+      }
+
       const url = `https://www.youtube.com/channel/${input.channelId}/videos?view=0&sort=p&flow=grid`;
       const listing = await new Promise<string>((resolve, reject) => {
         const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
@@ -1174,7 +1280,7 @@ export const ytdlpRouter = t.router({
       }
 
       const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter((e: any) => e?.id);
-      const limit = input.limit ?? 24;
+      // limit already computed above
       const now = Date.now();
 
       // Upsert lightweight metadata to DB for caching (avoid expensive individual fetches)
@@ -1253,12 +1359,57 @@ export const ytdlpRouter = t.router({
       }));
     }),
 
-  // List playlists of a channel via yt-dlp (metadata-only)
+  // List playlists of a channel via yt-dlp (offline-first, cached in DB)
   listChannelPlaylists: publicProcedure
-    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(200).optional() }))
-    .query(async ({ input }) => {
+    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(200).optional(), forceRefresh: z.boolean().optional() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input.limit ?? 30;
+
+      // 1) Try DB first (offline-first)
+      try {
+        const cached = await db
+          .select()
+          .from(channelPlaylists)
+          .where(eq(channelPlaylists.channelId, input.channelId))
+          .orderBy(desc(channelPlaylists.updatedAt))
+          .limit(limit);
+        if (cached.length > 0 && !input.forceRefresh) {
+          return cached.map((p: any) => ({
+            id: p.id,
+            playlistId: p.playlistId,
+            title: p.title,
+            url: p.url ?? `https://www.youtube.com/playlist?list=${p.playlistId}`,
+            thumbnailUrl: p.thumbnailUrl,
+            thumbnailPath: p.thumbnailPath,
+            itemCount: p.itemCount,
+            lastFetchedAt: p.lastFetchedAt,
+          }));
+        }
+      } catch {}
+
       const binPath = getBinaryFilePath();
-      if (!fs.existsSync(binPath)) return [] as Array<{ id: string; title: string; url: string }>
+      if (!fs.existsSync(binPath)) {
+        // No binary -> return cached
+        const fallback = await db
+          .select()
+          .from(channelPlaylists)
+          .where(eq(channelPlaylists.channelId, input.channelId))
+          .orderBy(desc(channelPlaylists.updatedAt))
+          .limit(limit);
+        return fallback.map((p: any) => ({
+          id: p.id,
+          playlistId: p.playlistId,
+          title: p.title,
+          url: p.url ?? `https://www.youtube.com/playlist?list=${p.playlistId}`,
+          thumbnailUrl: p.thumbnailUrl,
+          thumbnailPath: p.thumbnailPath,
+          itemCount: p.itemCount,
+          lastFetchedAt: p.lastFetchedAt,
+        }));
+      }
+
+      // 2) Refresh from yt-dlp
       const url = `https://www.youtube.com/channel/${input.channelId}/playlists`;
       const json = await new Promise<string>((resolve, reject) => {
         const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
@@ -1269,14 +1420,74 @@ export const ytdlpRouter = t.router({
         proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
       });
       const data = JSON.parse(json);
-      const entries = Array.isArray(data?.entries) ? data.entries : [];
-      const mapped = entries.map((e: any) => {
-        const id = e?.id || e?.playlist_id;
-        const url = e?.url || e?.webpage_url || (id ? `https://www.youtube.com/playlist?list=${id}` : undefined);
-        return { id, title: e?.title, url };
-      }).filter((e: any) => e.id && e.url);
-      const limit = input.limit ?? 30;
-      return mapped.slice(0, limit);
+      const entries = (Array.isArray(data?.entries) ? data.entries : []).slice(0, limit);
+      const now = Date.now();
+
+      for (const e of entries) {
+        const pid = e?.id || e?.playlist_id;
+        if (!pid) continue;
+        const title = e?.title || "Untitled";
+        const thumb = e?.thumbnails?.[0]?.url || e?.thumbnail || null;
+        const url = e?.url || e?.webpage_url || `https://www.youtube.com/playlist?list=${pid}`;
+        const itemCount = e?.playlist_count || e?.n_entries || null;
+
+        try {
+          const existing = await db
+            .select()
+            .from(channelPlaylists)
+            .where(eq(channelPlaylists.playlistId, pid))
+            .limit(1);
+
+          if (existing.length === 0) {
+            await db.insert(channelPlaylists).values({
+              id: crypto.randomUUID(),
+              playlistId: pid,
+              channelId: input.channelId,
+              title,
+              description: null,
+              thumbnailUrl: thumb,
+              thumbnailPath: null,
+              itemCount,
+              url,
+              raw: JSON.stringify(e),
+              createdAt: now,
+              updatedAt: now,
+              lastFetchedAt: now,
+            });
+          } else {
+            await db
+              .update(channelPlaylists)
+              .set({
+                channelId: input.channelId,
+                title,
+                thumbnailUrl: thumb,
+                itemCount,
+                url,
+                raw: JSON.stringify(e),
+                updatedAt: now,
+                lastFetchedAt: now,
+              })
+              .where(eq(channelPlaylists.playlistId, pid));
+          }
+        } catch {}
+      }
+
+      const cached = await db
+        .select()
+        .from(channelPlaylists)
+        .where(eq(channelPlaylists.channelId, input.channelId))
+        .orderBy(desc(channelPlaylists.updatedAt))
+        .limit(limit);
+      return cached.map((p: any) => ({
+        id: p.id,
+        playlistId: p.playlistId,
+        title: p.title,
+        url: p.url ?? `https://www.youtube.com/playlist?list=${p.playlistId}`,
+        thumbnailUrl: p.thumbnailUrl,
+        thumbnailPath: p.thumbnailPath,
+        itemCount: p.itemCount,
+        lastFetchedAt: p.lastFetchedAt,
+      }));
     }),
 });
 

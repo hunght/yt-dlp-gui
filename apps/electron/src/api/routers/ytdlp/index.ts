@@ -1041,6 +1041,60 @@ export const ytdlpRouter = t.router({
       } as const;
     }),
 
+  // Refresh channel information from YouTube (fetches fresh data including logo)
+  refreshChannelInfo: publicProcedure
+    .input(z.object({ channelId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const binPath = getBinaryFilePath();
+
+      try {
+        // Fetch fresh channel data from YouTube
+        const channelUrl = `https://www.youtube.com/channel/${input.channelId}`;
+        logger.info("[ytdlp] Refreshing channel info from YouTube", { channelId: input.channelId });
+
+        const meta = await runYtDlpJson(binPath, channelUrl);
+
+        // Extract channel data from the response
+        const channelData = extractChannelData(meta);
+
+        if (!channelData || !channelData.channelId) {
+          throw new Error("Failed to extract channel data from YouTube response");
+        }
+
+        // Update channel in database
+        await upsertChannelData(db, channelData);
+
+        logger.info("[ytdlp] Successfully refreshed channel info", {
+          channelId: channelData.channelId,
+          channelTitle: channelData.channelTitle,
+          hasThumbnail: !!channelData.thumbnailUrl
+        });
+
+        // Fetch and return updated channel from DB
+        const updatedChannel = await db
+          .select()
+          .from(channels)
+          .where(eq(channels.channelId, input.channelId))
+          .limit(1);
+
+        return {
+          success: true,
+          channel: updatedChannel[0] || null,
+        };
+      } catch (error: any) {
+        logger.error("[ytdlp] Failed to refresh channel info", {
+          channelId: input.channelId,
+          error: error.message
+        });
+        return {
+          success: false,
+          error: error.message || "Failed to refresh channel information",
+          channel: null,
+        };
+      }
+    }),
+
   // List latest videos from a channel via yt-dlp (metadata-only, fast)
   listChannelLatest: publicProcedure
     .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(100).optional(), forceRefresh: z.boolean().optional() }))

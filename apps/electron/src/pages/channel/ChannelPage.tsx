@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,11 +9,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ExternalLink } from "@/components/ExternalLink";
 import { toast } from "sonner";
 import { LatestTab, PopularTab, LibraryTab, PlaylistsTab } from "./components";
+import { RefreshCw } from "lucide-react";
 
 export default function ChannelPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/channel" });
   const channelId = search.channelId;
+  const queryClient = useQueryClient();
 
   // Track active tab for lazy loading
   const [activeTab, setActiveTab] = React.useState("latest");
@@ -47,6 +49,23 @@ export default function ChannelPage() {
 
   const addToQueueMutation = useMutation({
     mutationFn: (url: string) => trpcClient.queue.addToQueue.mutate({ urls: [url], priority: 0 }),
+  });
+
+  const refreshChannelMutation = useMutation({
+    mutationFn: () => trpcClient.ytdlp.refreshChannelInfo.mutate({ channelId: channelId! }),
+    onSuccess: (result) => {
+      if (result.success) {
+        // Invalidate and refetch channel data
+        queryClient.invalidateQueries({ queryKey: ["channel", channelId] });
+        toast.success("Channel information refreshed successfully");
+      } else {
+        toast.error((result as any).error || "Failed to refresh channel information");
+      }
+    },
+    onError: (error: any) => {
+      toast.error("Failed to refresh channel information");
+      console.error(error);
+    },
   });
 
   const handleDownloadVideo = async (videoUrl: string, videoTitle: string) => {
@@ -118,6 +137,15 @@ export default function ChannelPage() {
     ? `local-file://${channel.thumbnailPath}`
     : (isAllowedImageSrc(channel.thumbnailUrl) ? channel.thumbnailUrl : undefined);
 
+  // Debug logging
+  console.log("[ChannelPage] Channel logo debug:", {
+    channelId: channel.channelId,
+    thumbnailPath: channel.thumbnailPath,
+    thumbnailUrl: channel.thumbnailUrl,
+    computedThumbnailSrc: thumbnailSrc,
+    isAllowed: thumbnailSrc ? isAllowedImageSrc(thumbnailSrc) : false,
+  });
+
   return (
     <div className="container mx-auto space-y-6 p-6">
       <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
@@ -129,12 +157,13 @@ export default function ChannelPage() {
         <CardContent className="pt-6">
           <div className="flex items-start gap-6">
             {/* Channel Avatar */}
-            {thumbnailSrc && isAllowedImageSrc(thumbnailSrc) ? (
+            {thumbnailSrc ? (
               <img
                 src={thumbnailSrc}
                 alt={channel.channelTitle}
                 className="h-24 w-24 rounded-full object-cover"
                 onError={(e) => {
+                  console.error("[ChannelPage] Failed to load channel logo:", thumbnailSrc);
                   e.currentTarget.style.display = "none";
                 }}
               />
@@ -144,7 +173,19 @@ export default function ChannelPage() {
 
             {/* Channel Info */}
             <div className="flex-1 space-y-2">
-              <h1 className="text-2xl font-bold">{channel.channelTitle}</h1>
+              <div className="flex items-start justify-between gap-4">
+                <h1 className="text-2xl font-bold">{channel.channelTitle}</h1>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => refreshChannelMutation.mutate()}
+                  disabled={refreshChannelMutation.isPending}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${refreshChannelMutation.isPending ? "animate-spin" : ""}`} />
+                  {refreshChannelMutation.isPending ? "Refreshing..." : "Refresh Info"}
+                </Button>
+              </div>
 
               {channel.channelDescription && (
                 <p className="text-sm text-muted-foreground line-clamp-3">

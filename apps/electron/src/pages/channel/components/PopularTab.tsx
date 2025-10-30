@@ -60,6 +60,19 @@ export const PopularTab: React.FC<PopularTabProps> = ({ channelId, onDownload })
     refetchOnWindowFocus: false,
   });
 
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    try {
+      setIsRefreshing(true);
+      await trpcClient.ytdlp.listChannelPopular.query({ channelId, limit: 24, forceRefresh: true });
+      await query.refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <>
       {query.dataUpdatedAt > 0 && (
@@ -78,10 +91,10 @@ export const PopularTab: React.FC<PopularTabProps> = ({ channelId, onDownload })
             size="sm"
             variant="ghost"
             className="h-6 px-2"
-            onClick={() => query.refetch()}
-            disabled={query.isFetching}
+            onClick={handleRefresh}
+            disabled={query.isFetching || isRefreshing}
           >
-            {query.isFetching ? "Refreshing..." : "Refresh"}
+            {query.isFetching || isRefreshing ? "Refreshing..." : "Refresh"}
           </Button>
         </div>
       )}

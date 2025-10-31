@@ -101,6 +101,80 @@ export function parseVttToText(content: string): string {
   return out.join(" ").replace(/\s+/g, " ").trim();
 }
 
+// VTT -> segments with timestamps
+export function parseVttToSegments(content: string): Array<{ start: number; end: number; text: string }> {
+  const lines = content.split(/\r?\n/);
+  const segs: Array<{ start: number; end: number; text: string }> = [];
+  let i = 0;
+  const recent: string[] = [];
+
+  const parseTime = (t: string): number => {
+    const m = t.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
+    if (!m) return 0;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    const ss = Number(m[3]);
+    const ms = Number(m[4]);
+    return hh * 3600 + mm * 60 + ss + ms / 1000;
+  };
+
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    i++;
+    if (!line) continue;
+    if (/^WEBVTT/i.test(line) || /^NOTE/i.test(line) || /^Kind:/i.test(line) || /^Language:/i.test(line)) {
+      // skip headers/notes
+      continue;
+    }
+    // cue number (optional)
+    if (/^\d+$/.test(line)) {
+      // read next line for timing
+      if (i >= lines.length) break;
+    }
+    const timing = lines[i - 1].includes("-->") ? lines[i - 1] : lines[i]?.trim() ?? "";
+    let timingLine = timing;
+    if (!/\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(timingLine)) {
+      // Not a timing line; try current line
+      if (!/\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(line)) continue;
+      timingLine = line;
+    } else {
+      // consumed one extra line for timing
+      i++;
+    }
+    const tm = timingLine.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s+--\>\s+(\d{2}:\d{2}:\d{2}\.\d{3})/);
+    if (!tm) continue;
+    const start = parseTime(tm[1]);
+    const end = parseTime(tm[2]);
+
+    // collect text lines until blank
+    const textLines: string[] = [];
+    while (i < lines.length && lines[i].trim() !== "") {
+      const raw = lines[i];
+      i++;
+      // strip tags including <c> and timestamps embedded
+      const withoutTags = raw.replace(/<[^>]+>/g, "");
+      const cleaned = withoutTags.replace(/\s+/g, " ").trim();
+      if (cleaned) textLines.push(cleaned);
+    }
+
+    const text = textLines.join(" ").trim();
+    if (!text) continue;
+
+    // Deduplicate against recent cue texts (lowercased)
+    const lc = text.toLowerCase();
+    const tail = recent.join(" ");
+    const tailSlice = tail.slice(Math.max(0, tail.length - 600));
+    const isDup = recent.includes(lc) || (lc.length > 10 && tailSlice.includes(lc));
+    if (isDup) continue;
+
+    segs.push({ start, end, text });
+    recent.push(lc);
+    if (recent.length > 16) recent.shift();
+  }
+
+  return segs;
+}
+
 async function upsertVideoSearchFts(db: any, videoId: string, title: string | null | undefined, transcript: string | null | undefined) {
   try {
     // REPLACE mimics UPSERT for FTS virtual tables
@@ -1103,6 +1177,36 @@ export const ytdlpRouter = t.router({
       }
 
       return { success: true as const, videoId: input.videoId, language: detectedLang, length: text.length } as const;
+    }),
+
+  // Return transcript segments with timestamps for highlighting
+  getTranscriptSegments: publicProcedure
+    .input(z.object({ videoId: z.string(), lang: z.string().optional() }))
+    .query(async ({ input }) => {
+      const transcriptsDir = getTranscriptsDir();
+      try {
+        const files = fs
+          .readdirSync(transcriptsDir)
+          .filter((f) => f.startsWith(input.videoId) && f.endsWith(".vtt"));
+        if (files.length === 0) return { segments: [] as Array<{ start: number; end: number; text: string }>, language: input.lang } as const;
+
+        const pickByLang = (lang: string, arr: string[]) => {
+          const re = new RegExp(`\\.${lang}(?:[.-]|\\.vtt$)`, "i");
+          const candidates = arr.filter((f) => re.test(f));
+          if (candidates.length > 0) return candidates;
+          return arr; // fallback to any
+        };
+
+        const candidates = input.lang ? pickByLang(input.lang, files) : files;
+        const withStat = candidates.map((f) => ({ f, s: fs.statSync(path.join(transcriptsDir, f)) }));
+        withStat.sort((a, b) => b.s.mtimeMs - a.s.mtimeMs);
+        const vttPath = path.join(transcriptsDir, withStat[0].f);
+        const raw = fs.readFileSync(vttPath, "utf8");
+        const segments = parseVttToSegments(raw);
+        return { segments, language: input.lang } as const;
+      } catch {
+        return { segments: [] as Array<{ start: number; end: number; text: string }>, language: input.lang } as const;
+      }
     }),
 
   // List available subtitles (manual and auto) for a video

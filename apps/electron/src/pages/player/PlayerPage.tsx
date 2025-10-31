@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 interface Annotation {
   id: string;
@@ -108,6 +109,28 @@ export default function PlayerPage() {
       return await trpcClient.ytdlp.getTranscript.query({ videoId });
     },
     enabled: !!videoId,
+    placeholderData: (prev) => prev as any,
+  });
+
+  // Transcript segments (timestamped) for highlighting
+  // Determine effective language to use for segments
+  const effectiveLang = React.useMemo(() => {
+    return selectedLang ?? ((transcriptQuery.data as any)?.language as string | undefined);
+  }, [selectedLang, transcriptQuery.data]);
+
+  const transcriptSegmentsQuery = useQuery({
+    queryKey: [
+      "transcript-segments",
+      videoId,
+      effectiveLang ?? "__default__",
+    ],
+    queryFn: async () => {
+      if (!videoId) return { segments: [] as Array<{ start: number; end: number; text: string }> };
+      const lang = effectiveLang;
+      return await trpcClient.ytdlp.getTranscriptSegments.query({ videoId, lang });
+    },
+    enabled: !!videoId,
+    placeholderData: (prev) => prev as any,
   });
 
   // Transcript settings dialog state
@@ -348,9 +371,76 @@ export default function PlayerPage() {
       .flat();
   }, []);
 
-  const transcriptParagraphs = React.useMemo(() => {
-    return formatTranscript(transcriptQuery.data?.text);
-  }, [transcriptQuery.data?.text, formatTranscript]);
+  // Active segment index based on current time
+  const segments = ((transcriptSegmentsQuery.data as any)?.segments ?? []) as Array<{
+    start: number;
+    end: number;
+    text: string;
+  }>;
+  const [activeSegIndex, setActiveSegIndex] = React.useState<number | null>(null);
+  const [followPlayback, setFollowPlayback] = React.useState<boolean>(true);
+  React.useEffect(() => {
+    if (!segments.length) {
+      setActiveSegIndex(null);
+      return;
+    }
+    const idx = segments.findIndex((s) => currentTime >= s.start && currentTime < s.end);
+    setActiveSegIndex(idx >= 0 ? idx : null);
+  }, [currentTime, segments]);
+
+  // Scroll active segment into view
+  const transcriptContainerRef = React.useRef<HTMLDivElement>(null);
+  const segRefs = React.useRef<Array<HTMLParagraphElement | null>>([]);
+  React.useEffect(() => {
+    if (activeSegIndex == null || !followPlayback) return;
+    const el = segRefs.current[activeSegIndex];
+    const cont = transcriptContainerRef.current;
+    if (!el || !cont) return;
+    const elTop = el.offsetTop;
+    const targetScroll = Math.max(0, elTop - cont.clientHeight * 0.3);
+    cont.scrollTo({ top: targetScroll, behavior: "smooth" });
+  }, [activeSegIndex, followPlayback]);
+
+  // Keyboard navigation within transcript container
+  const handleTranscriptKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!segments.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = activeSegIndex == null ? 0 : Math.min(segments.length - 1, activeSegIndex + 1);
+      const t = segments[next].start + 0.05;
+      if (videoRef.current) {
+        videoRef.current.currentTime = t;
+        videoRef.current.pause();
+      }
+      setActiveSegIndex(next);
+      setFollowPlayback(false);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prev = activeSegIndex == null ? 0 : Math.max(0, activeSegIndex - 1);
+      const t = segments[prev].start + 0.05;
+      if (videoRef.current) {
+        videoRef.current.currentTime = t;
+        videoRef.current.pause();
+      }
+      setActiveSegIndex(prev);
+      setFollowPlayback(false);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const idx = activeSegIndex ?? 0;
+      const t = segments[idx]?.start ?? 0;
+      if (videoRef.current) {
+        videoRef.current.currentTime = t;
+        videoRef.current.pause();
+      }
+      // open annotation form at current time
+      setShowAnnotationForm(true);
+      return;
+    }
+  };
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -463,7 +553,7 @@ export default function PlayerPage() {
                             <label className="text-xs text-muted-foreground">Lang</label>
                             <select
                               className="text-xs border rounded px-2 py-1 bg-background hover:bg-muted/30"
-                              value={selectedLang ?? (transcriptQuery.data?.language as string | undefined) ?? ""}
+                              value={selectedLang ?? ((transcriptQuery.data as any)?.language as string | undefined) ?? ""}
                               onChange={(e) => setSelectedLang(e.target.value)}
                               disabled={availableSubsQuery.isLoading || downloadTranscriptMutation.isPending}
                             >
@@ -473,20 +563,26 @@ export default function PlayerPage() {
                                 </option>
                               ))}
                               {filteredLanguages.length === 0 && (
-                                <option value={(transcriptQuery.data?.language as string | undefined) ?? "en"}>{(transcriptQuery.data?.language as string | undefined) ?? "en"}</option>
+                                <option value={((transcriptQuery.data as any)?.language as string | undefined) ?? "en"}>{((transcriptQuery.data as any)?.language as string | undefined) ?? "en"}</option>
                               )}
                             </select>
                           </>
                         )}
+                        {/* Follow playback toggle */}
+                        <div className="flex items-center gap-1 pl-2">
+                          <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
+                          <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Follow</label>
+                        </div>
                         {/* Transcript Settings Button */}
                         <Button size="sm" variant="outline" onClick={() => setShowTranscriptSettings(true)}>
                           <SettingsIcon className="w-3.5 h-3.5 mr-1" />
                           Settings
                         </Button>
-                        {/* Paragraph count */}
+                        {/* Lines count */}
                         <span className="text-xs text-muted-foreground">
-                          {transcriptParagraphs.length} {transcriptParagraphs.length === 1 ? "paragraph" : "paragraphs"}
+                          {segments.length} {segments.length === 1 ? "line" : "lines"}
                         </span>
+
                         {/* Manual download fallback */}
                         {!transcriptQuery.data && data?.filePath && (
                           <Button size="sm" variant="outline" onClick={() => downloadTranscriptMutation.mutate()} disabled={downloadTranscriptMutation.isPending}>
@@ -496,24 +592,28 @@ export default function PlayerPage() {
                       </div>
                     </div>
                     <div
-                      className="relative p-6 rounded-lg border bg-gradient-to-br from-background to-muted/20 max-h-[500px] overflow-y-auto overflow-x-hidden shadow-sm"
+                      className="relative p-3 rounded-lg border bg-gradient-to-br from-background to-muted/20 h-[150px] overflow-y-auto overflow-x-hidden shadow-sm"
+                      ref={transcriptContainerRef}
                       onMouseUp={handleTranscriptSelect}
+                      onKeyDown={handleTranscriptKeyDown}
+                      tabIndex={0}
                       style={{
                         scrollbarWidth: "thin",
                         scrollbarColor: "hsl(var(--muted)) transparent",
                       }}
                     >
-                      {transcriptQuery.isFetching || downloadTranscriptMutation.isPending ? (
-                        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Fetching transcript…
-                        </div>
-                      ) : transcriptParagraphs.length > 0 ? (
-                        <div className="space-y-4">
-                          {transcriptParagraphs.map((paragraph, idx) => (
+                      {segments.length > 0 ? (
+                        <div className="space-y-1">
+                          {segments.map((seg, idx) => (
                             <p
-                              key={idx}
-                              className="text-sm leading-7 text-foreground/90 cursor-text select-text font-normal tracking-wide transition-colors hover:text-foreground"
+                              key={`${seg.start}-${idx}`}
+                              ref={(el) => (segRefs.current[idx] = el)}
+                              className={
+                                "text-sm leading-6 cursor-text select-text transition-colors rounded-md py-0.5 px-2 " +
+                                (activeSegIndex === idx
+                                  ? "bg-primary/10 border-l-2 border-primary text-foreground"
+                                  : "text-foreground/90 hover:text-foreground")
+                              }
                               style={{
                                 fontFamily:
                                   fontFamily === "serif"
@@ -523,8 +623,10 @@ export default function PlayerPage() {
                                     : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
                                 fontSize: `${fontSize}px`,
                               }}
+                              data-start={seg.start}
+                              data-end={seg.end}
                             >
-                              {paragraph}
+                              {seg.text}
                             </p>
                           ))}
                         </div>
@@ -543,7 +645,7 @@ export default function PlayerPage() {
                       <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-lg" />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Select text to create annotations and notes
+                       Select text to create annotations and notes
                     </p>
                   </div>
 
@@ -677,7 +779,7 @@ export default function PlayerPage() {
               <div className="space-y-2">
                 <Label className="text-xs">Language</Label>
                 <Select
-                  value={selectedLang ?? (transcriptQuery.data?.language as string | undefined) ?? ""}
+                  value={selectedLang ?? ((transcriptQuery.data as any)?.language as string | undefined) ?? ""}
                   onValueChange={(v) => setSelectedLang(v)}
                 >
                   <SelectTrigger className="h-8 text-xs">

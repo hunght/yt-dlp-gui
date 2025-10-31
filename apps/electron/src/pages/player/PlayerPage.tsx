@@ -6,6 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import { X, Clock, FileText } from "lucide-react";
+
+interface Annotation {
+  id: string;
+  videoId: string;
+  timestampSeconds: number;
+  selectedText?: string | null;
+  note: string;
+  createdAt: number;
+  updatedAt?: number | null;
+}
 
 export default function PlayerPage() {
   const navigate = useNavigate();
@@ -13,6 +25,10 @@ export default function PlayerPage() {
   const search = useSearch({ from: "/player" });
   const videoId = search.videoId as string | undefined;
   const queryClient = useQueryClient();
+
+  // Video reference for playback control and current time tracking
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const [currentTime, setCurrentTime] = React.useState(0);
 
   const { data, isLoading } = useQuery({
     queryKey: ["video-playback", videoId],
@@ -28,6 +44,94 @@ export default function PlayerPage() {
     },
   });
 
+  // Transcript
+  const transcriptQuery = useQuery({
+    queryKey: ["transcript", videoId],
+    queryFn: async () => {
+      if (!videoId) return null;
+      return await trpcClient.ytdlp.getTranscript.query({ videoId });
+    },
+    enabled: !!videoId,
+  });
+
+  // Annotations for this video
+  const annotationsQuery = useQuery({
+    queryKey: ["annotations", videoId],
+    queryFn: async () => {
+      if (!videoId) return [];
+      return await trpcClient.ytdlp.getAnnotations.query({ videoId });
+    },
+    enabled: !!videoId,
+  });
+
+  // Auto-download transcript on mount if not present and file exists
+  const downloadTranscriptMutation = useMutation({
+    mutationFn: async () => {
+      if (!videoId) throw new Error("Missing videoId");
+      return await trpcClient.ytdlp.downloadTranscript.mutate({ videoId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transcript", videoId] });
+    },
+  });
+
+  React.useEffect(() => {
+    if (!videoId) return;
+    if (transcriptQuery.data) return; // Already have transcript
+    if (!data?.filePath) return; // File not downloaded yet
+    if (downloadTranscriptMutation.isPending) return;
+
+    // Auto-download transcript
+    downloadTranscriptMutation.mutate();
+  }, [videoId, data?.filePath, transcriptQuery.data, downloadTranscriptMutation]);
+
+  // Handle text selection in transcript for annotations
+  const [selectedText, setSelectedText] = React.useState("");
+  const [annotationNote, setAnnotationNote] = React.useState("");
+  const [showAnnotationForm, setShowAnnotationForm] = React.useState(false);
+
+  const handleTranscriptSelect = () => {
+    const selection = window.getSelection()?.toString() || "";
+    if (selection.length > 0) {
+      setSelectedText(selection);
+      setShowAnnotationForm(true);
+    }
+  };
+
+  const createAnnotationMutation = useMutation({
+    mutationFn: async () => {
+      if (!videoId) throw new Error("Missing videoId");
+      return await trpcClient.ytdlp.createAnnotation.mutate({
+        videoId,
+        timestampSeconds: currentTime,
+        selectedText: selectedText || undefined,
+        note: annotationNote,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["annotations", videoId] });
+      setAnnotationNote("");
+      setSelectedText("");
+      setShowAnnotationForm(false);
+    },
+  });
+
+  const deleteAnnotationMutation = useMutation({
+    mutationFn: async (annotationId: string) => {
+      return await trpcClient.ytdlp.deleteAnnotation.mutate({ id: annotationId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["annotations", videoId] });
+    },
+  });
+
+  const handleSeekToAnnotation = (timestampSeconds: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = timestampSeconds;
+      videoRef.current.play();
+    }
+  };
+
   const filePath = data?.filePath || null;
   const toLocalFileUrl = (p: string) => `local-file://${p}`;
   const videoTitle = data?.title || data?.videoId || "Video";
@@ -41,6 +145,7 @@ export default function PlayerPage() {
     (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
       const el = e.currentTarget;
       const current = el.currentTime;
+      setCurrentTime(current);
       const prev = lastTimeRef.current;
       if (current > prev) {
         accumulatedRef.current += current - prev;
@@ -132,6 +237,33 @@ export default function PlayerPage() {
     }
   }, [data?.status, filePath, videoId, queryClient]);
 
+  // Format transcript text into paragraphs for better readability
+  const formatTranscript = React.useCallback((text: string | null | undefined): string[] => {
+    if (!text) return [];
+    // Split by double newlines, periods followed by spaces, or newlines
+    // Then group into meaningful paragraphs
+    return text
+      .split(/\n\n+/)
+      .map((para) => para.trim())
+      .filter((para) => para.length > 0)
+      .map((para) => {
+        // If paragraph is too long, try to split by sentences
+        if (para.length > 300) {
+          return para
+            .replace(/([.!?])\s+/g, "$1\n")
+            .split("\n")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+        }
+        return [para];
+      })
+      .flat();
+  }, []);
+
+  const transcriptParagraphs = React.useMemo(() => {
+    return formatTranscript(transcriptQuery.data?.text);
+  }, [transcriptQuery.data?.text, formatTranscript]);
+
   return (
     <div className="container mx-auto space-y-6 p-6">
 
@@ -204,13 +336,14 @@ export default function PlayerPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <video
+                ref={videoRef}
                 key={filePath}
                 src={toLocalFileUrl(filePath)}
                 autoPlay
                 controls
-                className="w-full max-h-[70vh] rounded border bg-black"
+                className="w-full max-h-[60vh] rounded border bg-black"
                 onTimeUpdate={handleTimeUpdate}
               />
               <div className="flex gap-2">
@@ -223,6 +356,165 @@ export default function PlayerPage() {
                   Open file
                 </a>
               </div>
+
+              {/* Transcript with Annotation UI */}
+              {transcriptQuery.data && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Transcript Panel */}
+                  <div className="lg:col-span-2 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                      <h3 className="font-semibold text-base">Transcript</h3>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {transcriptParagraphs.length} {transcriptParagraphs.length === 1 ? "paragraph" : "paragraphs"}
+                      </span>
+                    </div>
+                    <div
+                      className="relative p-6 rounded-lg border bg-gradient-to-br from-background to-muted/20 max-h-[500px] overflow-y-auto overflow-x-hidden shadow-sm"
+                      onMouseUp={handleTranscriptSelect}
+                      style={{
+                        scrollbarWidth: "thin",
+                        scrollbarColor: "hsl(var(--muted)) transparent",
+                      }}
+                    >
+                      {transcriptParagraphs.length > 0 ? (
+                        <div className="space-y-4">
+                          {transcriptParagraphs.map((paragraph, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm leading-7 text-foreground/90 cursor-text select-text font-normal tracking-wide transition-colors hover:text-foreground"
+                              style={{
+                                fontFamily: "system-ui, -apple-system, sans-serif",
+                              }}
+                            >
+                              {paragraph}
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic text-center py-8">No transcript content available</p>
+                      )}
+                      <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background to-transparent pointer-events-none rounded-t-lg" />
+                      <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-lg" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Select text to create annotations and notes
+                    </p>
+                  </div>
+
+                  {/* Annotations Panel */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <h3 className="font-semibold text-base">
+                        Notes
+                        {annotationsQuery.data && annotationsQuery.data.length > 0 && (
+                          <span className="ml-2 text-sm font-normal text-muted-foreground">
+                            ({annotationsQuery.data.length})
+                          </span>
+                        )}
+                      </h3>
+                    </div>
+                    <div className="max-h-[500px] overflow-y-auto overflow-x-hidden space-y-2 border rounded-lg p-3 bg-gradient-to-br from-background to-muted/10 shadow-sm">
+                      {annotationsQuery.data && annotationsQuery.data.length > 0 ? (
+                        annotationsQuery.data.map((ann: Annotation) => (
+                          <div
+                            key={ann.id}
+                            className="group p-3 bg-card border rounded-lg text-xs space-y-2 hover:bg-muted/40 hover:border-primary/20 cursor-pointer transition-all duration-200 hover:shadow-sm"
+                            onClick={() => handleSeekToAnnotation(ann.timestampSeconds)}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 text-muted-foreground group-hover:text-foreground transition-colors">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span className="font-medium">
+                                  {Math.floor(ann.timestampSeconds / 60)}:{String(Math.floor(ann.timestampSeconds % 60)).padStart(2, "0")}
+                                </span>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteAnnotationMutation.mutate(ann.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-opacity"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            {ann.selectedText && (
+                              <p className="italic text-muted-foreground text-xs leading-relaxed line-clamp-2 border-l-2 border-primary/30 pl-2 py-1">
+                                "{ann.selectedText}"
+                              </p>
+                            )}
+                            <p className="text-xs leading-relaxed line-clamp-4 text-foreground/90">{ann.note}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-xs text-muted-foreground">No notes yet</p>
+                          <p className="text-xs text-muted-foreground/70 mt-1">Select transcript text to create one</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Annotation Form */}
+              {showAnnotationForm && (
+                <div className="p-4 rounded-lg border bg-gradient-to-br from-muted/40 to-muted/20 shadow-md space-y-3 transition-all duration-200 animate-in fade-in-0 slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <p className="text-sm font-semibold">
+                        Add note at {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, "0")}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowAnnotationForm(false);
+                        setAnnotationNote("");
+                        setSelectedText("");
+                      }}
+                      className="p-1.5 hover:bg-muted rounded transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {selectedText && (
+                    <div className="p-2.5 rounded bg-muted/50 border border-primary/20">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Selected text:</p>
+                      <p className="text-xs italic text-foreground/90 leading-relaxed">"{selectedText}"</p>
+                    </div>
+                  )}
+                  <Textarea
+                    placeholder="Write your note..."
+                    value={annotationNote}
+                    onChange={(e) => setAnnotationNote(e.target.value)}
+                    className="text-sm min-h-24 resize-none"
+                    autoFocus
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setShowAnnotationForm(false);
+                        setAnnotationNote("");
+                        setSelectedText("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => createAnnotationMutation.mutate()}
+                      disabled={!annotationNote.trim() || createAnnotationMutation.isPending}
+                    >
+                      {createAnnotationMutation.isPending ? "Saving..." : "Save note"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

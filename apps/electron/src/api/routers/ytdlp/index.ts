@@ -8,13 +8,14 @@ import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
 import { spawn } from "child_process";
 import { eq, desc, inArray, sql } from "drizzle-orm";
-import { youtubeVideos, channels, channelPlaylists, videoWatchStats } from "@/api/db/schema";
+import { youtubeVideos, channels, channelPlaylists, videoWatchStats, videoTranscripts, videoAnnotations } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getVersionFilePath = () => path.join(getBinDir(), "yt-dlp-version.txt");
 const getBinaryFilePath = () => path.join(getBinDir(), getYtDlpAssetName(process.platform));
 const getThumbCacheDir = () => path.join(app.getPath("userData"), "cache", "thumbnails");
+const getTranscriptsDir = () => path.join(app.getPath("userData"), "cache", "transcripts");
 
 async function ensureDir(p: string) {
   try {
@@ -39,6 +40,55 @@ async function downloadImageToCache(url: string, filenameBase: string): Promise<
   } catch (err) {
     logger.warn("[thumb] download error", { url, error: String(err) });
     return null;
+  }
+}
+
+function ensureDirSync(p: string) {
+  try {
+    fs.mkdirSync(p, { recursive: true });
+  } catch {}
+}
+
+// VTT -> plain text converter: strips timing/headers, tags, and concatenates text lines
+export function parseVttToText(content: string): string {
+  return content
+    .split(/\r?\n/)
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      // Skip webvtt header or timing lines
+      if (/^WEBVTT/i.test(trimmed)) return false;
+      if (/^NOTE/i.test(trimmed)) return false;
+      if (/^\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(trimmed)) return false;
+      if (/^\d+$/.test(trimmed)) return false; // cue number
+      return true;
+    })
+    .map((line) => {
+      // Remove all VTT/HTML tags including timing tags <00:02:53.680> and cue tags <c>, </c>
+      // This regex removes: <00:02:53.680>, <c>, </c>, and any other tags
+      let cleaned = line.replace(/<[^>]+>/g, "");
+      // Clean up extra whitespace
+      cleaned = cleaned.replace(/\s+/g, " ").trim();
+      return cleaned;
+    })
+    .filter((line) => line.length > 0) // Remove empty lines after cleaning
+    .join(" ") // Join all text content with spaces
+    .replace(/\s+/g, " ") // Normalize all whitespace to single spaces
+    .trim();
+}
+
+async function upsertVideoSearchFts(db: any, videoId: string, title: string | null | undefined, transcript: string | null | undefined) {
+  try {
+    // REPLACE mimics UPSERT for FTS virtual tables
+    await db.run(sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`);
+  } catch (e) {
+    try {
+      // If insert fails due to duplication, try delete then insert
+      await db.run(sql`DELETE FROM video_search_fts WHERE video_id = ${videoId}`);
+      await db.run(sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`);
+    } catch (err) {
+      logger.warn("[fts] upsert failed", { videoId, error: String(err) });
+    }
   }
 }
 
@@ -556,6 +606,8 @@ export const ytdlpRouter = t.router({
               createdAt: now,
               updatedAt: now,
             });
+            // Seed FTS with title only (transcript may come later)
+            await upsertVideoSearchFts(db, mapped.videoId, mapped.title, "");
           } else {
             await db
               .update(youtubeVideos)
@@ -575,6 +627,7 @@ export const ytdlpRouter = t.router({
                 updatedAt: now,
               })
               .where(eq(youtubeVideos.videoId, mapped.videoId));
+            await upsertVideoSearchFts(db, mapped.videoId, mapped.title, undefined);
           }
         } catch (e) {
           logger.error("[ytdlp] DB upsert in fetchVideoInfo failed", e as Error);
@@ -849,6 +902,165 @@ export const ytdlpRouter = t.router({
         status: v.downloadStatus,
         progress: v.downloadProgress,
       } as const;
+    }),
+
+  // Get transcript (if available) for a video
+  getTranscript: publicProcedure
+    .input(z.object({ videoId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const rows = await db
+        .select()
+        .from(videoTranscripts)
+        .where(eq(videoTranscripts.videoId, input.videoId))
+        .limit(1);
+      if (rows.length === 0) return null;
+      return rows[0];
+    }),
+
+  // Download transcript via yt-dlp and store it
+  downloadTranscript: publicProcedure
+    .input(z.object({ videoId: z.string(), lang: z.string().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const binPath = getBinaryFilePath();
+      if (!fs.existsSync(binPath)) {
+        return { success: false as const, message: "yt-dlp binary not installed" } as const;
+      }
+
+      const transcriptsDir = getTranscriptsDir();
+      ensureDirSync(transcriptsDir);
+      const url = `https://www.youtube.com/watch?v=${input.videoId}`;
+
+      // Prepare args to fetch subs only (prefer manual, fallback auto), VTT for easy parsing
+      const lang = input.lang ?? "en";
+      const args = [
+        "--skip-download",
+        "--write-subs",
+        "--write-auto-subs",
+        "--no-warnings",
+        "--sub-format",
+        "vtt",
+        "--sub-langs",
+        `${lang},${lang}-orig,${lang}.*`,
+        "-o",
+        path.join(transcriptsDir, "%(id)s.%(ext)s"),
+        url,
+      ];
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+          let err = "";
+          proc.stderr.on("data", (d) => (err += d.toString()));
+          proc.on("error", reject);
+          proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error(err || `yt-dlp exited ${code}`))));
+        });
+      } catch (e) {
+        logger.error("[transcript] yt-dlp failed", e as Error);
+        return { success: false as const, message: String(e) } as const;
+      }
+
+      // Find resulting VTT file(s) for this videoId
+      let vttPath: string | null = null;
+      try {
+        const files = fs.readdirSync(transcriptsDir).filter((f) => f.startsWith(input.videoId) && f.endsWith(".vtt"));
+        if (files.length > 0) {
+          // Pick the most recent
+          const withStat = files.map((f) => ({ f, s: fs.statSync(path.join(transcriptsDir, f)) }));
+          withStat.sort((a, b) => b.s.mtimeMs - a.s.mtimeMs);
+          vttPath = path.join(transcriptsDir, withStat[0].f);
+        }
+      } catch {}
+      if (!vttPath || !fs.existsSync(vttPath)) {
+        return { success: false as const, message: "Transcript file not found after yt-dlp" } as const;
+      }
+
+      // Read + parse VTT
+      const raw = fs.readFileSync(vttPath, "utf8");
+      const text = parseVttToText(raw);
+      const now = Date.now();
+
+      // Guess language from filename suffix like videoId.en.vtt
+      const langMatch = path.basename(vttPath).match(/\.(\w[\w-]*)\.vtt$/i);
+      const detectedLang = langMatch?.[1] ?? lang;
+
+      // Upsert transcript row
+      try {
+        const existing = await db
+          .select()
+          .from(videoTranscripts)
+          .where(eq(videoTranscripts.videoId, input.videoId))
+          .limit(1);
+
+        if (existing.length === 0) {
+          await db.insert(videoTranscripts).values({
+            id: crypto.randomUUID(),
+            videoId: input.videoId,
+            language: detectedLang,
+            isAutoGenerated: true,
+            source: "yt-dlp",
+            text,
+            createdAt: now,
+            updatedAt: now,
+          });
+        } else {
+          await db
+            .update(videoTranscripts)
+            .set({
+              language: detectedLang,
+              isAutoGenerated: true,
+              source: "yt-dlp",
+              text,
+              updatedAt: now,
+            })
+            .where(eq(videoTranscripts.videoId, input.videoId));
+        }
+      } catch (e) {
+        logger.error("[transcript] upsert failed", e as Error);
+        return { success: false as const, message: "Failed to store transcript" } as const;
+      }
+
+      // Update FTS index with title + transcript
+      try {
+        const vid = await db
+          .select({ title: youtubeVideos.title })
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.videoId, input.videoId))
+          .limit(1);
+        const title = vid[0]?.title ?? null;
+        await upsertVideoSearchFts(db, input.videoId, title, text);
+      } catch (e) {
+        logger.warn("[fts] update after transcript save failed", { videoId: input.videoId, error: String(e) });
+      }
+
+      return { success: true as const, videoId: input.videoId, language: detectedLang, length: text.length } as const;
+    }),
+
+  // Full-text search across video titles + transcripts
+  searchVideosText: publicProcedure
+    .input(z.object({ q: z.string().min(1), limit: z.number().min(1).max(100).optional() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input.limit ?? 20;
+      try {
+        const rows = await db.all(sql`SELECT video_id, title FROM video_search_fts WHERE video_search_fts MATCH ${input.q} LIMIT ${limit}`);
+        // Join with youtube_videos to return richer info
+        const ids = rows.map((r: any) => r.video_id);
+        if (ids.length === 0) return [] as any[];
+        const vids = await db
+          .select()
+          .from(youtubeVideos)
+          .where(inArray(youtubeVideos.videoId, ids));
+        const map = new Map(vids.map((v: any) => [v.videoId, v]));
+        return ids
+          .map((id) => map.get(id))
+          .filter(Boolean)
+          .slice(0, limit);
+      } catch (e) {
+        logger.error("[fts] search failed", e as Error);
+        return [] as any[];
+      }
     }),
 
   // Refresh channel information from YouTube (fetches fresh data including logo)
@@ -1880,6 +2092,97 @@ export const ytdlpRouter = t.router({
       } catch (e) {
         logger.error("[ytdlp] updatePlaylistPlayback failed", e as Error);
         return { success: false, message: "Failed to update playback position" };
+      }
+    }),
+
+  // Create a new annotation/comment on a video at a specific timestamp
+  createAnnotation: publicProcedure
+    .input(
+      z.object({
+        videoId: z.string(),
+        timestampSeconds: z.number().min(0),
+        selectedText: z.string().optional(),
+        note: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const now = Date.now();
+      try {
+        const id = crypto.randomUUID();
+        await db.insert(videoAnnotations).values({
+          id,
+          videoId: input.videoId,
+          timestampSeconds: Math.floor(input.timestampSeconds),
+          selectedText: input.selectedText ?? null,
+          note: input.note,
+          createdAt: now,
+          updatedAt: now,
+        });
+        return { success: true as const, id, createdAt: now } as const;
+      } catch (e) {
+        logger.error("[ytdlp] createAnnotation failed", e as Error);
+        return { success: false as const, message: String(e) } as const;
+      }
+    }),
+
+  // Get all annotations for a video, sorted by timestamp
+  getAnnotations: publicProcedure
+    .input(z.object({ videoId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      try {
+        const rows = await db
+          .select()
+          .from(videoAnnotations)
+          .where(eq(videoAnnotations.videoId, input.videoId))
+          .orderBy(videoAnnotations.timestampSeconds);
+        return rows;
+      } catch (e) {
+        logger.error("[ytdlp] getAnnotations failed", e as Error);
+        return [] as any[];
+      }
+    }),
+
+  // Update an annotation
+  updateAnnotation: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        note: z.string().min(1),
+        selectedText: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const now = Date.now();
+      try {
+        await db
+          .update(videoAnnotations)
+          .set({
+            note: input.note,
+            selectedText: input.selectedText ?? null,
+            updatedAt: now,
+          })
+          .where(eq(videoAnnotations.id, input.id));
+        return { success: true as const } as const;
+      } catch (e) {
+        logger.error("[ytdlp] updateAnnotation failed", e as Error);
+        return { success: false as const, message: String(e) } as const;
+      }
+    }),
+
+  // Delete an annotation
+  deleteAnnotation: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      try {
+        await db.delete(videoAnnotations).where(eq(videoAnnotations.id, input.id));
+        return { success: true as const } as const;
+      } catch (e) {
+        logger.error("[ytdlp] deleteAnnotation failed", e as Error);
+        return { success: false as const, message: String(e) } as const;
       }
     }),
 });

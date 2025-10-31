@@ -6,6 +6,9 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
+import { mapYtDlpMetadata, extractChannelData, extractSubtitleLanguages } from "./utils/metadata";
+import { upsertVideoFromMeta, upsertChannelData } from "./utils/database";
+import { spawnYtDlpWithLogging, extractVideoId, runYtDlpJson } from "./utils/ytdlp";
 import { spawn } from "child_process";
 import { eq, desc, inArray, sql } from "drizzle-orm";
 import { youtubeVideos, channels, channelPlaylists, videoWatchStats, videoTranscripts, videoAnnotations } from "@/api/db/schema";
@@ -50,111 +53,17 @@ function ensureDirSync(p: string) {
 }
 
 /**
- * Wrapper around spawn() that logs all yt-dlp invocations for cost tracking.
- * Logs: command, arguments, operation type, and timing information.
+ * Normalize language code to base 2-letter code
+ * Examples: "en-orig" -> "en", "en-us" -> "en", "vi" -> "vi"
  */
-function spawnYtDlpWithLogging(
-  binPath: string,
-  args: string[],
-  options: { stdio?: any[] },
-  context: {
-    operation: string;
-    url?: string;
-    videoId?: string;
-    channelId?: string;
-    playlistId?: string;
-    other?: Record<string, any>;
-  }
-): ReturnType<typeof spawn> {
-  const startTime = Date.now();
-  const fullCommand = `${binPath} ${args.join(" ")}`;
-  
-  logger.info("[yt-dlp] CALL_START", {
-    operation: context.operation,
-    command: fullCommand,
-    args: args,
-    url: context.url,
-    videoId: context.videoId,
-    channelId: context.channelId,
-    playlistId: context.playlistId,
-    ...context.other,
-    timestamp: new Date().toISOString(),
-  });
-
-  const proc = spawn(binPath, args, options);
-  
-  // Track process lifecycle
-  proc.on("spawn", () => {
-    logger.debug("[yt-dlp] PROCESS_SPAWNED", {
-      operation: context.operation,
-      pid: proc.pid,
-    });
-  });
-
-  let stdoutData = "";
-  let stderrData = "";
-  
-  if (proc.stdout) {
-    proc.stdout.on("data", (d) => {
-      stdoutData += d.toString();
-    });
-  }
-  
-  if (proc.stderr) {
-    proc.stderr.on("data", (d) => {
-      stderrData += d.toString();
-    });
-  }
-
-  proc.on("close", (code, signal) => {
-    const durationMs = Date.now() - startTime;
-    const success = code === 0;
-    
-    if (success) {
-      logger.info("[yt-dlp] CALL_SUCCESS", {
-        operation: context.operation,
-        exitCode: code,
-        signal,
-        durationMs,
-        stdoutLength: stdoutData.length,
-        stderrLength: stderrData.length,
-        url: context.url,
-        videoId: context.videoId,
-        channelId: context.channelId,
-        playlistId: context.playlistId,
-      });
-    } else {
-      logger.error("[yt-dlp] CALL_FAILED", {
-        operation: context.operation,
-        exitCode: code,
-        signal,
-        durationMs,
-        error: stderrData || `Process exited with code ${code}`,
-        stdoutLength: stdoutData.length,
-        stderrLength: stderrData.length,
-        url: context.url,
-        videoId: context.videoId,
-        channelId: context.channelId,
-        playlistId: context.playlistId,
-      });
-    }
-  });
-
-  proc.on("error", (err) => {
-    const durationMs = Date.now() - startTime;
-    logger.error("[yt-dlp] CALL_ERROR", {
-      operation: context.operation,
-      error: String(err),
-      durationMs,
-      url: context.url,
-      videoId: context.videoId,
-      channelId: context.channelId,
-      playlistId: context.playlistId,
-    });
-  });
-
-  return proc;
+function normalizeLangCode(lang: string | null | undefined): string {
+  if (!lang) return "en";
+  // Extract first 2 letters (base language code)
+  const normalized = lang.toLowerCase().split(/[-_]/)[0].substring(0, 2);
+  return normalized || "en";
 }
+
+// spawnYtDlpWithLogging and extractVideoId are imported from utils/ytdlp.ts
 
 // VTT -> plain text converter: strips timing/headers, tags, and concatenates text lines
 export function parseVttToText(content: string): string {
@@ -357,209 +266,11 @@ const writeInstalledVersion = (version: string) => {
   }
 };
 
-// Helper to map yt-dlp JSON to our schema with better fidelity
-const mapYtDlpMetadata = (meta: any) => {
-  return {
-    videoId: meta?.id || meta?.video_id || "",
-    title: meta?.fulltitle || meta?.title || "Untitled",
-    description: meta?.description ?? null,
-    channelId: meta?.channel_id || meta?.channelId || null,
-    channelTitle: meta?.channel || meta?.uploader || meta?.channel_title || null,
-    durationSeconds: meta?.duration ? Math.round(meta.duration) : null,
-    viewCount: meta?.view_count ?? null,
-    likeCount: meta?.like_count ?? null,
-    thumbnailUrl: Array.isArray(meta?.thumbnails)
-      ? meta.thumbnails[meta.thumbnails.length - 1]?.url ?? null
-      : meta?.thumbnail ?? null,
-    publishedAt: meta?.upload_date
-      ? Date.parse(
-          `${meta.upload_date.slice(0, 4)}-${meta.upload_date.slice(4, 6)}-${meta.upload_date.slice(6, 8)}`
-        )
-      : null,
-    tags: Array.isArray(meta?.tags) ? JSON.stringify(meta.tags) : null,
-    raw: JSON.stringify(meta),
-  } as const;
-};
+// mapYtDlpMetadata and extractChannelData are imported from utils/metadata.ts
 
-async function runYtDlpJson(binPath: string, url: string): Promise<any> {
-  const metaJson = await new Promise<string>((resolve, reject) => {
-    const proc = spawn(binPath, ["-J", url], { stdio: ["ignore", "pipe", "pipe"] });
-    let out = "";
-    let err = "";
-    proc.stdout.on("data", (d) => (out += d.toString()));
-    proc.stderr.on("data", (d) => (err += d.toString()));
-    proc.on("error", reject);
-    proc.on("close", (code) => {
-      if (code === 0) resolve(out);
-      else reject(new Error(err || `yt-dlp -J exited with code ${code}`));
-    });
-  });
-  return JSON.parse(metaJson);
-}
+// runYtDlpJson, extractVideoId, and spawnYtDlpWithLogging are imported from utils/ytdlp.ts
 
-async function upsertVideoFromMeta(db: any, mapped: ReturnType<typeof mapYtDlpMetadata>) {
-  if (!mapped.videoId) return;
-  const now = Date.now();
-  const existing = await db
-    .select()
-    .from(youtubeVideos)
-    .where(eq(youtubeVideos.videoId, mapped.videoId))
-    .limit(1);
-  if (existing.length === 0) {
-    await db.insert(youtubeVideos).values({
-      id: crypto.randomUUID(),
-      videoId: mapped.videoId,
-      title: mapped.title,
-      description: mapped.description,
-      channelId: mapped.channelId,
-      channelTitle: mapped.channelTitle,
-      durationSeconds: mapped.durationSeconds,
-      viewCount: mapped.viewCount,
-      likeCount: mapped.likeCount,
-      thumbnailUrl: mapped.thumbnailUrl,
-      thumbnailPath: null,
-      publishedAt: mapped.publishedAt,
-      tags: mapped.tags,
-      raw: mapped.raw,
-      createdAt: now,
-      updatedAt: now,
-    });
-  } else {
-    await db
-      .update(youtubeVideos)
-      .set({
-        title: mapped.title,
-        description: mapped.description,
-        channelId: mapped.channelId,
-        channelTitle: mapped.channelTitle,
-        durationSeconds: mapped.durationSeconds,
-        viewCount: mapped.viewCount,
-        likeCount: mapped.likeCount,
-        thumbnailUrl: mapped.thumbnailUrl,
-        publishedAt: mapped.publishedAt,
-        tags: mapped.tags,
-        raw: mapped.raw,
-        updatedAt: now,
-      })
-      .where(eq(youtubeVideos.videoId, mapped.videoId));
-  }
-}
-
-// Helper to extract channel data from yt-dlp metadata (with detailed logging)
-const extractChannelData = (meta: any) => {
-  const channelId = meta?.channel_id || meta?.channelId || null;
-
-  logger.debug("[extractChannelData] Processing metadata", {
-    hasChannelId: !!channelId,
-    channelId,
-    channel_id: meta?.channel_id,
-    channelIdAlt: meta?.channelId,
-    uploader_id: meta?.uploader_id,
-    channel: meta?.channel,
-    uploader: meta?.uploader,
-    hasChannelThumbnails: Array.isArray(meta?.channel_thumbnails) ? meta.channel_thumbnails.length : 0,
-    hasThumbnails: Array.isArray(meta?.thumbnails) ? meta.thumbnails.length : 0,
-    uploader_avatar: meta?.uploader_avatar,
-    channel_avatar: meta?.channel_avatar,
-  });
-
-  if (!channelId) {
-    logger.warn("[extractChannelData] No channel_id found in metadata");
-    return null;
-  }
-
-  // Extract channel thumbnail (profile photo)
-  let channelThumbnail = null;
-  if (meta?.channel_thumbnails && Array.isArray(meta.channel_thumbnails) && meta.channel_thumbnails.length > 0) {
-    // Get the highest quality thumbnail
-    channelThumbnail = meta.channel_thumbnails[meta.channel_thumbnails.length - 1]?.url ?? null;
-  } else if (meta?.uploader_avatar || meta?.channel_avatar) {
-    channelThumbnail = meta.uploader_avatar || meta.channel_avatar;
-  }
-
-  logger.debug("[extractChannelData] thumbnail selection", {
-    selected: channelThumbnail,
-    channel_thumbnails_last: Array.isArray(meta?.channel_thumbnails)
-      ? meta.channel_thumbnails[meta.channel_thumbnails.length - 1]?.url
-      : undefined,
-  });
-
-  return {
-    channelId,
-    channelTitle: meta?.channel || meta?.uploader || meta?.channel_title || "Unknown Channel",
-    channelDescription: meta?.channel_description ?? null,
-    channelUrl: meta?.channel_url || (channelId ? `https://www.youtube.com/channel/${channelId}` : null),
-    thumbnailUrl: channelThumbnail,
-    subscriberCount: meta?.channel_follower_count ?? null,
-    videoCount: null, // Not typically in video metadata
-    viewCount: null, // Not typically in video metadata
-    customUrl: meta?.uploader_url?.includes('@') ? meta.uploader_url.split('@')[1] : null,
-    raw: JSON.stringify(meta),
-  } as const;
-};
-
-// Helper to upsert channel data into database
-const upsertChannelData = async (db: any, channelData: ReturnType<typeof extractChannelData>) => {
-  if (!channelData || !channelData.channelId) return;
-
-  const now = Date.now();
-  try {
-    // Cache channel avatar locally for offline use
-    let channelThumbPath: string | null = null;
-    if (channelData.thumbnailUrl) {
-      channelThumbPath = await downloadImageToCache(
-        channelData.thumbnailUrl,
-        `channel_${channelData.channelId}`
-      );
-    }
-
-    const existing = await db
-      .select()
-      .from(channels)
-      .where(eq(channels.channelId, channelData.channelId))
-      .limit(1);
-
-    if (existing.length === 0) {
-      await db.insert(channels).values({
-        id: crypto.randomUUID(),
-        channelId: channelData.channelId,
-        channelTitle: channelData.channelTitle,
-        channelDescription: channelData.channelDescription,
-        channelUrl: channelData.channelUrl,
-        thumbnailUrl: channelData.thumbnailUrl,
-        thumbnailPath: channelThumbPath,
-        bannerUrl: null,
-        subscriberCount: channelData.subscriberCount,
-        videoCount: channelData.videoCount,
-        viewCount: channelData.viewCount,
-        customUrl: channelData.customUrl,
-        raw: channelData.raw,
-        createdAt: now,
-        updatedAt: now,
-      });
-      logger.info("[ytdlp] Created new channel", { channelId: channelData.channelId, channelTitle: channelData.channelTitle });
-    } else {
-      // Update existing channel data
-      await db
-        .update(channels)
-        .set({
-          channelTitle: channelData.channelTitle,
-          channelDescription: channelData.channelDescription,
-          channelUrl: channelData.channelUrl,
-          thumbnailUrl: channelData.thumbnailUrl,
-          thumbnailPath: channelThumbPath ?? existing[0]?.thumbnailPath ?? null,
-          subscriberCount: channelData.subscriberCount,
-          customUrl: channelData.customUrl,
-          raw: channelData.raw,
-          updatedAt: now,
-        })
-        .where(eq(channels.channelId, channelData.channelId));
-      logger.debug("[ytdlp] Updated channel", { channelId: channelData.channelId });
-    }
-  } catch (e) {
-    logger.error("[ytdlp] Failed to upsert channel", e as Error);
-  }
-};
+// upsertVideoFromMeta and upsertChannelData are imported from utils/database.ts
 
 export const ytdlpRouter = t.router({
   getInstallInfo: publicProcedure.query(async () => {
@@ -710,6 +421,8 @@ export const ytdlpRouter = t.router({
       const videoIdMatch = input.url.match(/[?&]v=([^&]+)/);
       const urlVideoId = videoIdMatch ? videoIdMatch[1] : null;
 
+      // extractSubtitleLanguages is imported from utils/metadata.ts
+
       // Try to get existing metadata from DB first
       if (urlVideoId) {
         const existingVideo = await db
@@ -736,7 +449,23 @@ export const ytdlpRouter = t.router({
             tags: existing.tags,
             raw: existing.raw ?? "{}",
           };
-          return { success: true as const, info: mapped } as const;
+
+          // Extract subtitle languages from cached raw JSON
+          let availableLanguages: Array<{ lang: string; hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }> = [];
+          try {
+            if (existing.raw) {
+              const rawMeta = JSON.parse(existing.raw);
+              availableLanguages = extractSubtitleLanguages(rawMeta);
+            }
+          } catch (e) {
+            logger.warn("[ytdlp] Failed to parse cached raw JSON for subtitles", { videoId: urlVideoId, error: String(e) });
+          }
+
+          return {
+            success: true as const,
+            info: mapped,
+            availableLanguages,
+          } as const;
         }
       }
 
@@ -745,11 +474,20 @@ export const ytdlpRouter = t.router({
       let meta: any | null = null;
       try {
         const metaJson = await new Promise<string>((resolve, reject) => {
-          const proc = spawn(binPath, ["-J", input.url], { stdio: ["ignore", "pipe", "pipe"] });
+          const proc = spawnYtDlpWithLogging(
+            binPath,
+            ["-J", input.url],
+            { stdio: ["ignore", "pipe", "pipe"] },
+            {
+              operation: "fetch_video_info",
+              url: input.url,
+              videoId: extractVideoId(input.url),
+            }
+          );
           let out = "";
           let err = "";
-          proc.stdout.on("data", (d) => (out += d.toString()));
-          proc.stderr.on("data", (d) => (err += d.toString()));
+          proc.stdout?.on("data", (d) => (out += d.toString()));
+          proc.stderr?.on("data", (d) => (err += d.toString()));
           proc.on("error", reject);
           proc.on("close", (code) => {
             if (code === 0) resolve(out);
@@ -767,6 +505,9 @@ export const ytdlpRouter = t.router({
       const mappedThumbPath = mapped.thumbnailUrl
         ? await downloadImageToCache(mapped.thumbnailUrl, `video_${mapped.videoId}`)
         : null;
+
+      // Extract subtitle languages from metadata
+      const availableLanguages = extractSubtitleLanguages(meta);
 
       // Extract and upsert channel data
       const channelData = extractChannelData(meta);
@@ -839,7 +580,11 @@ export const ytdlpRouter = t.router({
         }
       }
 
-      return { success: true as const, info: mapped } as const;
+      return {
+        success: true as const,
+        info: mapped,
+        availableLanguages,
+      } as const;
     }),
   // List completed downloads with basic video info
   listCompletedDownloads: publicProcedure
@@ -1100,12 +845,25 @@ export const ytdlpRouter = t.router({
         .limit(1);
       const v = rows[0];
       if (!v) return null;
+
+      // Extract subtitle languages from cached raw JSON
+      let availableLanguages: Array<{ lang: string; hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }> = [];
+      if (v.raw) {
+        try {
+          const meta = JSON.parse(v.raw);
+          availableLanguages = extractSubtitleLanguages(meta);
+        } catch (e) {
+          // Silently fail - raw JSON might not exist or be malformed
+        }
+      }
+
       return {
         videoId: v.videoId,
         title: v.title,
         filePath: v.downloadFilePath,
         status: v.downloadStatus,
         progress: v.downloadProgress,
+        availableLanguages,
       } as const;
     }),
 
@@ -1116,11 +874,14 @@ export const ytdlpRouter = t.router({
       const db = ctx.db ?? defaultDb;
       let rows;
       if (input.lang) {
-        rows = await db
+        // Normalize language code for matching (e.g., "en" matches "en-orig", "en-us", etc.)
+        const normalizedLang = normalizeLangCode(input.lang);
+        // Get all transcripts for this video and filter by normalized language
+        const allTranscripts = await db
           .select()
           .from(videoTranscripts)
-          .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${input.lang}`)
-          .limit(1);
+          .where(eq(videoTranscripts.videoId, input.videoId));
+        rows = allTranscripts.filter(t => normalizeLangCode(t.language) === normalizedLang);
       } else {
         rows = await db
           .select()
@@ -1187,29 +948,77 @@ export const ytdlpRouter = t.router({
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
 
+      logger.info("[transcript] downloadTranscript called", { videoId: input.videoId, requestedLang: input.lang ?? "undefined (default)" });
+
       // Check DB first to avoid unnecessary yt-dlp calls
-      const lang = input.lang ?? "en";
       try {
-        const existing = await db
-          .select()
-          .from(videoTranscripts)
-          .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${lang}`)
-          .limit(1);
+        let existing;
+        if (input.lang) {
+          // Normalize requested language code for matching
+          const normalizedLang = normalizeLangCode(input.lang);
+          logger.debug("[transcript] Checking DB for specific language", { videoId: input.videoId, requestedLang: input.lang, normalizedLang });
+
+          // Query by matching normalized base language code (e.g., "en" matches "en-orig", "en-us", etc.)
+          // Get all transcripts for this video and filter by normalized language
+          const allTranscripts = await db
+            .select()
+            .from(videoTranscripts)
+            .where(eq(videoTranscripts.videoId, input.videoId));
+
+          existing = allTranscripts.filter(t => normalizeLangCode(t.language) === normalizedLang);
+          logger.debug("[transcript] DB query result for specific language", {
+            videoId: input.videoId,
+            requestedLang: input.lang,
+            normalizedLang,
+            found: existing.length > 0,
+            allStoredLangs: allTranscripts.map(t => ({ stored: t.language, normalized: normalizeLangCode(t.language) }))
+          });
+        } else {
+          // If no language specified, check for ANY transcript (matches getTranscript behavior)
+          logger.debug("[transcript] Checking DB for ANY transcript (no lang specified)", { videoId: input.videoId });
+          existing = await db
+            .select()
+            .from(videoTranscripts)
+            .where(eq(videoTranscripts.videoId, input.videoId))
+            .limit(1);
+          logger.debug("[transcript] DB query result for ANY transcript", { videoId: input.videoId, found: existing.length > 0 });
+        }
 
         if (existing.length > 0) {
           const row = existing[0];
+          const detectedLang = row.language ?? input.lang ?? "en";
+          logger.debug("[transcript] Found transcript row in DB", {
+            videoId: input.videoId,
+            rowLanguage: row.language,
+            detectedLang,
+            hasText: !!row.text,
+            textLength: row.text?.length ?? 0,
+            hasRawVtt: !!row.rawVtt,
+            rawVttLength: row.rawVtt?.length ?? 0
+          });
+
           // If we have both text and rawVtt, we're good - return early
           if (row.text && row.rawVtt && row.text.trim().length > 0 && row.rawVtt.trim().length > 0) {
+            logger.info("[transcript] downloadTranscript found existing transcript in DB - RETURNING EARLY", {
+              videoId: input.videoId,
+              language: detectedLang,
+              textLength: row.text.length,
+              rawVttLength: row.rawVtt.length
+            });
             return {
               success: true as const,
               videoId: input.videoId,
-              language: row.language ?? lang,
+              language: detectedLang,
               length: row.text.length,
               fromCache: true as const
             } as const;
           }
           // If we have rawVtt but missing text, derive it instead of re-downloading
           if (row.rawVtt && row.rawVtt.trim().length > 0) {
+            logger.debug("[transcript] Has rawVtt but missing/incomplete text - will derive from rawVtt", {
+              videoId: input.videoId,
+              language: detectedLang
+            });
             try {
               const derived = parseVttToText(row.rawVtt);
               const segs = parseVttToSegments(row.rawVtt);
@@ -1218,7 +1027,7 @@ export const ytdlpRouter = t.router({
               await db
                 .update(videoTranscripts)
                 .set({ text: derived, segmentsJson, updatedAt: now })
-                .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${lang}`);
+                .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${detectedLang}`);
 
               // Update FTS index
               try {
@@ -1233,21 +1042,57 @@ export const ytdlpRouter = t.router({
                 logger.warn("[fts] update after transcript derive failed", { videoId: input.videoId, error: String(e) });
               }
 
+              logger.info("[transcript] downloadTranscript derived text from existing rawVtt - RETURNING EARLY", {
+                videoId: input.videoId,
+                language: detectedLang,
+                derivedLength: derived.length
+              });
               return {
                 success: true as const,
                 videoId: input.videoId,
-                language: row.language ?? lang,
+                language: detectedLang,
                 length: derived.length,
                 fromCache: true as const
               } as const;
             } catch (e) {
               logger.warn("[transcript] derive from rawVtt failed, will re-download", { videoId: input.videoId, error: String(e) });
             }
+          } else {
+            logger.warn("[transcript] Found row but missing/incomplete rawVtt - will proceed to yt-dlp", {
+              videoId: input.videoId,
+              language: detectedLang,
+              hasRawVtt: !!row.rawVtt,
+              rawVttLength: row.rawVtt?.length ?? 0
+            });
+          }
+        } else {
+          // Log all transcripts for this video to debug language code mismatch
+          try {
+            const allTranscripts = await db
+              .select({ language: videoTranscripts.language })
+              .from(videoTranscripts)
+              .where(eq(videoTranscripts.videoId, input.videoId));
+            logger.info("[transcript] No transcript found in DB - will proceed to yt-dlp", {
+              videoId: input.videoId,
+              requestedLang: input.lang ?? "undefined (default)",
+              existingLanguagesInDB: allTranscripts.map(t => t.language).filter(Boolean),
+              existingCount: allTranscripts.length
+            });
+          } catch (e) {
+            logger.warn("[transcript] Failed to query all transcripts for debugging", { videoId: input.videoId, error: String(e) });
+            logger.info("[transcript] No transcript found in DB - will proceed to yt-dlp", {
+              videoId: input.videoId,
+              requestedLang: input.lang ?? "undefined (default)"
+            });
           }
         }
       } catch (e) {
-        logger.warn("[transcript] DB check failed, proceeding with yt-dlp", { videoId: input.videoId, error: String(e) });
+        logger.error("[transcript] DB check failed, proceeding with yt-dlp", { videoId: input.videoId, error: String(e), stack: (e as Error).stack });
       }
+
+      logger.info("[transcript] Proceeding to yt-dlp call", { videoId: input.videoId, requestedLang: input.lang ?? "undefined (default)" });
+      // If we get here, transcript doesn't exist in DB for the requested language
+      const lang = input.lang ?? "en";
 
       // Only call yt-dlp if transcript not found in DB or incomplete
       const binPath = getBinaryFilePath();
@@ -1281,9 +1126,19 @@ export const ytdlpRouter = t.router({
 
       try {
         await new Promise<void>((resolve, reject) => {
-          const proc = spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+          const proc = spawnYtDlpWithLogging(
+            binPath,
+            args,
+            { stdio: ["ignore", "pipe", "pipe"] },
+            {
+              operation: "download_transcript",
+              url,
+              videoId: input.videoId,
+              other: { language: lang },
+            }
+          );
           let err = "";
-          proc.stderr.on("data", (d) => (err += d.toString()));
+          proc.stderr?.on("data", (d) => (err += d.toString()));
           proc.on("error", reject);
           proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error(err || `yt-dlp exited ${code}`))));
         });
@@ -1326,7 +1181,15 @@ export const ytdlpRouter = t.router({
 
   // Guess language from filename suffix like videoId.en.vtt
   const langMatch = path.basename(vttPath).match(/\.(\w[\w-]*)\.vtt$/i);
-  const detectedLang = (langMatch?.[1] ?? lang).toLowerCase();
+  const rawDetectedLang = (langMatch?.[1] ?? lang).toLowerCase();
+  // Normalize to base language code (e.g., "en-orig" -> "en") to match query behavior
+  const detectedLang = normalizeLangCode(rawDetectedLang);
+  logger.debug("[transcript] Language detected and normalized when storing", {
+    videoId: input.videoId,
+    rawDetected: rawDetectedLang,
+    normalized: detectedLang,
+    filename: path.basename(vttPath)
+  });
 
       // Upsert transcript row
       try {
@@ -1393,11 +1256,14 @@ export const ytdlpRouter = t.router({
       try {
         let rows;
         if (input.lang) {
-          rows = await db
+          // Normalize language code for matching (e.g., "en" matches "en-orig", "en-us", etc.)
+          const normalizedLang = normalizeLangCode(input.lang);
+          // Get all transcripts for this video and filter by normalized language
+          const allTranscripts = await db
             .select()
             .from(videoTranscripts)
-            .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${input.lang}`)
-            .limit(1);
+            .where(eq(videoTranscripts.videoId, input.videoId));
+          rows = allTranscripts.filter(t => normalizeLangCode(t.language) === normalizedLang);
         } else {
           rows = await db
             .select()
@@ -1451,52 +1317,6 @@ export const ytdlpRouter = t.router({
         return { segments, language: input.lang } as const;
       } catch {
         return { segments: [] as Array<{ start: number; end: number; text: string }>, language: input.lang } as const;
-      }
-    }),
-
-  // List available subtitles (manual and auto) for a video
-  listAvailableSubtitles: publicProcedure
-    .input(z.object({ videoId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const binPath = getBinaryFilePath();
-      if (!fs.existsSync(binPath)) {
-        return { languages: [] as Array<{ lang: string; hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }> } as const;
-      }
-      try {
-        const url = `https://www.youtube.com/watch?v=${input.videoId}`;
-        const meta = await runYtDlpJson(binPath, url);
-        const subs = meta?.subtitles || {};
-        const autos = meta?.automatic_captions || {};
-
-        const map = new Map<string, { hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }>();
-        for (const key of Object.keys(subs)) {
-          const k = String(key).toLowerCase();
-          const fmts = Array.isArray(subs[key]) ? subs[key].map((f: any) => f?.ext).filter(Boolean) : [];
-          map.set(k, { hasManual: true, hasAuto: false, manualFormats: Array.from(new Set(fmts)), autoFormats: [] });
-        }
-        for (const key of Object.keys(autos)) {
-          const k = String(key).toLowerCase();
-          const fmts = Array.isArray(autos[key]) ? autos[key].map((f: any) => f?.ext).filter(Boolean) : [];
-          const prev = map.get(k) || { hasManual: false, hasAuto: false, manualFormats: [], autoFormats: [] };
-          prev.hasAuto = true;
-          prev.autoFormats = Array.from(new Set([...(prev.autoFormats || []), ...fmts]));
-          map.set(k, prev);
-        }
-
-        const languages = Array.from(map.entries())
-          .map(([lang, info]) => ({ lang, ...info }))
-          .sort((a, b) => {
-            if (a.lang === "en") return -1;
-            if (b.lang === "en") return 1;
-            if (a.hasManual && !b.hasManual) return -1;
-            if (!a.hasManual && b.hasManual) return 1;
-            return a.lang.localeCompare(b.lang);
-          });
-
-        return { languages } as const;
-      } catch (e) {
-        logger.warn("[subs] listAvailableSubtitles failed", { videoId: input.videoId, error: String(e) });
-        return { languages: [] as Array<{ lang: string; hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }> } as const;
       }
     }),
 
@@ -1642,10 +1462,20 @@ export const ytdlpRouter = t.router({
 
       const url = `https://www.youtube.com/channel/${input.channelId}/videos?view=0&sort=dd&flow=grid`;
       const listing = await new Promise<string>((resolve, reject) => {
-        const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
+        const proc = spawnYtDlpWithLogging(
+          binPath,
+          ["-J", "--flat-playlist", url],
+          { stdio: ["ignore", "pipe", "pipe"] },
+          {
+            operation: "list_playlist_videos",
+            url,
+            channelId: input.channelId,
+            other: { flatPlaylist: true, sort: "dd" },
+          }
+        );
         let out = ""; let err = "";
-        proc.stdout.on("data", (d) => (out += d.toString()));
-        proc.stderr.on("data", (d) => (err += d.toString()));
+        proc.stdout?.on("data", (d) => (out += d.toString()));
+        proc.stderr?.on("data", (d) => (err += d.toString()));
         proc.on("error", reject);
         proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
       });
@@ -1804,10 +1634,20 @@ export const ytdlpRouter = t.router({
 
       const url = `https://www.youtube.com/channel/${input.channelId}/videos?view=0&sort=p&flow=grid`;
       const listing = await new Promise<string>((resolve, reject) => {
-        const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
+        const proc = spawnYtDlpWithLogging(
+          binPath,
+          ["-J", "--flat-playlist", url],
+          { stdio: ["ignore", "pipe", "pipe"] },
+          {
+            operation: "fetch_channel_videos",
+            url,
+            channelId: input.channelId,
+            other: { flatPlaylist: true },
+          }
+        );
         let out = ""; let err = "";
-        proc.stdout.on("data", (d) => (out += d.toString()));
-        proc.stderr.on("data", (d) => (err += d.toString()));
+        proc.stdout?.on("data", (d) => (out += d.toString()));
+        proc.stderr?.on("data", (d) => (err += d.toString()));
         proc.on("error", reject);
         proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
       });
@@ -1957,10 +1797,20 @@ export const ytdlpRouter = t.router({
       // 2) Refresh from yt-dlp
       const url = `https://www.youtube.com/channel/${input.channelId}/playlists`;
       const json = await new Promise<string>((resolve, reject) => {
-        const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
+        const proc = spawnYtDlpWithLogging(
+          binPath,
+          ["-J", "--flat-playlist", url],
+          { stdio: ["ignore", "pipe", "pipe"] },
+          {
+            operation: "fetch_channel_playlists",
+            url,
+            channelId: input.channelId,
+            other: { flatPlaylist: true },
+          }
+        );
         let out = ""; let err = "";
-        proc.stdout.on("data", (d) => (out += d.toString()));
-        proc.stderr.on("data", (d) => (err += d.toString()));
+        proc.stdout?.on("data", (d) => (out += d.toString()));
+        proc.stderr?.on("data", (d) => (err += d.toString()));
         proc.on("error", reject);
         proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
       });
@@ -1977,7 +1827,8 @@ export const ytdlpRouter = t.router({
         });
       }
 
-      for (const e of entries) {
+      for (let idx = 0; idx < entries.length; idx++) {
+        const e = entries[idx];
         const pid = e?.id || e?.playlist_id;
         if (!pid) continue;
         const title = e?.title || "Untitled";
@@ -1989,10 +1840,21 @@ export const ytdlpRouter = t.router({
           logger.debug("[ytdlp] playlist thumbnail missing, enriching", { playlistId: pid, url });
           try {
             const detailJson = await new Promise<string>((resolve, reject) => {
-              const proc = spawn(binPath, ["-J", url], { stdio: ["ignore", "pipe", "pipe"] });
+              const proc = spawnYtDlpWithLogging(
+                binPath,
+                ["-J", url],
+                { stdio: ["ignore", "pipe", "pipe"] },
+                {
+                  operation: "fetch_playlist_metadata",
+                  url,
+                  playlistId: pid,
+                  channelId: input.channelId,
+                  other: { itemIndex: idx },
+                }
+              );
               let out = ""; let err = "";
-              proc.stdout.on("data", (d) => (out += d.toString()));
-              proc.stderr.on("data", (d) => (err += d.toString()));
+              proc.stdout?.on("data", (d) => (out += d.toString()));
+              proc.stderr?.on("data", (d) => (err += d.toString()));
               proc.on("error", reject);
               proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
             });
@@ -2138,10 +2000,20 @@ export const ytdlpRouter = t.router({
 
       // Fetch playlist JSON
       const json = await new Promise<string>((resolve, reject) => {
-        const proc = spawn(binPath, ["-J", "--flat-playlist", url], { stdio: ["ignore", "pipe", "pipe"] });
+        const proc = spawnYtDlpWithLogging(
+          binPath,
+          ["-J", "--flat-playlist", url],
+          { stdio: ["ignore", "pipe", "pipe"] },
+          {
+            operation: "get_playlist_details",
+            url,
+            playlistId: input.playlistId,
+            other: { flatPlaylist: true },
+          }
+        );
         let out = ""; let err = "";
-        proc.stdout.on("data", (d) => (out += d.toString()));
-        proc.stderr.on("data", (d) => (err += d.toString()));
+        proc.stdout?.on("data", (d) => (out += d.toString()));
+        proc.stderr?.on("data", (d) => (err += d.toString()));
         proc.on("error", reject);
         proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
       });

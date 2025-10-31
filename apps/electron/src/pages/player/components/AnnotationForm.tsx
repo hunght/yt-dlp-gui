@@ -1,9 +1,18 @@
 import React from "react";
-import { X, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface AnnotationFormProps {
+  open: boolean;
   currentTime: number;
   selectedText: string;
   note: string;
@@ -14,6 +23,7 @@ interface AnnotationFormProps {
 }
 
 export function AnnotationForm({
+  open,
   currentTime,
   selectedText,
   note,
@@ -23,46 +33,49 @@ export function AnnotationForm({
   isSaving,
 }: AnnotationFormProps) {
   return (
-    <div className="p-4 rounded-lg border bg-gradient-to-br from-muted/40 to-muted/20 shadow-md space-y-3 transition-all duration-200 animate-in fade-in-0 slide-in-from-bottom-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-muted-foreground" />
-          <p className="text-sm font-semibold">
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-muted-foreground" />
             Add note at {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, "0")}
-          </p>
+          </DialogTitle>
+          {selectedText && (
+            <DialogDescription asChild>
+              <div className="mt-2 p-3 rounded bg-muted/50 border border-primary/20">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Selected text:</p>
+                <p className="text-sm italic text-foreground/90 leading-relaxed">"{selectedText}"</p>
+              </div>
+            </DialogDescription>
+          )}
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <Textarea
+            placeholder="Write your note..."
+            value={note}
+            onChange={(e) => onNoteChange(e.target.value)}
+            className="text-sm min-h-24 resize-none"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && note.trim() && !isSaving) {
+                e.preventDefault();
+                onSave();
+              }
+            }}
+          />
         </div>
-        <button
-          onClick={onCancel}
-          className="p-1.5 hover:bg-muted rounded transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-      {selectedText && (
-        <div className="p-2.5 rounded bg-muted/50 border border-primary/20">
-          <p className="text-xs font-medium text-muted-foreground mb-1">Selected text:</p>
-          <p className="text-xs italic text-foreground/90 leading-relaxed">"{selectedText}"</p>
-        </div>
-      )}
-      <Textarea
-        placeholder="Write your note..."
-        value={note}
-        onChange={(e) => onNoteChange(e.target.value)}
-        className="text-sm min-h-24 resize-none"
-        autoFocus
-      />
-      <div className="flex gap-2 justify-end">
-        <Button size="sm" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button
-          size="sm"
-          onClick={onSave}
-          disabled={!note.trim() || isSaving}
-        >
-          {isSaving ? "Saving..." : "Save note"}
-        </Button>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button
+            onClick={onSave}
+            disabled={!note.trim() || isSaving}
+          >
+            {isSaving ? "Saving..." : "Save note"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

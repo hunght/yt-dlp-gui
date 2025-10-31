@@ -23,6 +23,45 @@ export const mapYtDlpMetadata = (meta: any) => {
   } as const;
 };
 
+/**
+ * Extract available subtitle languages from yt-dlp metadata
+ */
+export const extractSubtitleLanguages = (meta: any): Array<{
+  lang: string;
+  hasManual: boolean;
+  hasAuto: boolean;
+  manualFormats: string[];
+  autoFormats: string[];
+}> => {
+  const subs = meta?.subtitles || {};
+  const autos = meta?.automatic_captions || {};
+
+  const map = new Map<string, { hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }>();
+  for (const key of Object.keys(subs)) {
+    const k = String(key).toLowerCase();
+    const fmts = Array.isArray(subs[key]) ? subs[key].map((f: any) => f?.ext).filter(Boolean) : [];
+    map.set(k, { hasManual: true, hasAuto: false, manualFormats: Array.from(new Set(fmts)), autoFormats: [] });
+  }
+  for (const key of Object.keys(autos)) {
+    const k = String(key).toLowerCase();
+    const fmts = Array.isArray(autos[key]) ? autos[key].map((f: any) => f?.ext).filter(Boolean) : [];
+    const prev = map.get(k) || { hasManual: false, hasAuto: false, manualFormats: [], autoFormats: [] };
+    prev.hasAuto = true;
+    prev.autoFormats = Array.from(new Set([...(prev.autoFormats || []), ...fmts]));
+    map.set(k, prev);
+  }
+
+  return Array.from(map.entries())
+    .map(([lang, info]) => ({ lang, ...info }))
+    .sort((a, b) => {
+      if (a.lang === "en") return -1;
+      if (b.lang === "en") return 1;
+      if (a.hasManual && !b.hasManual) return -1;
+      if (!a.hasManual && b.hasManual) return 1;
+      return a.lang.localeCompare(b.lang);
+    });
+};
+
 export const extractChannelData = (meta: any) => {
   const channelId = meta?.channel_id || meta?.channelId || null;
 

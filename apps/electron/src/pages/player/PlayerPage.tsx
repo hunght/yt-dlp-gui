@@ -23,7 +23,7 @@ export default function PlayerPage() {
   // Hooks
   const playback = useVideoPlayback(videoId);
   const { currentTime, handleTimeUpdate } = useWatchProgress(videoId, videoRef);
-  const transcript = useTranscript(videoId);
+  const transcript = useTranscript(videoId, playback.data);
   const annotations = useAnnotations(videoId, videoRef);
 
   // Transcript settings state
@@ -57,6 +57,28 @@ export default function PlayerPage() {
       transcript.attemptAutoDownload(playback.data.filePath);
     }
   }, [playback.data?.filePath, transcript.attemptAutoDownload]);
+
+  // Auto-pause video when annotation dialog opens, resume when it closes
+  const wasPlayingRef = React.useRef<boolean>(false);
+  React.useEffect(() => {
+    if (!videoRef.current) return;
+
+    if (annotations.showAnnotationForm) {
+      // Dialog is opening - pause video if it's playing
+      wasPlayingRef.current = !videoRef.current.paused;
+      if (wasPlayingRef.current) {
+        videoRef.current.pause();
+      }
+    } else {
+      // Dialog is closing - resume if it was playing before
+      if (wasPlayingRef.current && videoRef.current.paused) {
+        videoRef.current.play().catch(() => {
+          // Ignore play() errors (e.g., if video was removed)
+        });
+      }
+      wasPlayingRef.current = false;
+    }
+  }, [annotations.showAnnotationForm]);
 
   // Handle annotation form Enter key (for keyboard navigation)
   React.useEffect(() => {
@@ -132,22 +154,21 @@ export default function PlayerPage() {
                 />
               </div>
 
-              {/* Annotation Form */}
-              {annotations.showAnnotationForm && (
-                <AnnotationForm
-                  currentTime={currentTime}
-                  selectedText={annotations.selectedText}
-                  note={annotations.annotationNote}
-                  onNoteChange={annotations.setAnnotationNote}
-                  onSave={() => annotations.createAnnotationMutation.mutate(currentTime)}
-                  onCancel={() => {
-                    annotations.setShowAnnotationForm(false);
-                    annotations.setAnnotationNote("");
-                    annotations.setSelectedText("");
-                  }}
-                  isSaving={annotations.createAnnotationMutation.isPending}
-                />
-              )}
+              {/* Annotation Form Dialog */}
+              <AnnotationForm
+                open={annotations.showAnnotationForm}
+                currentTime={currentTime}
+                selectedText={annotations.selectedText}
+                note={annotations.annotationNote}
+                onNoteChange={annotations.setAnnotationNote}
+                onSave={() => annotations.createAnnotationMutation.mutate(currentTime)}
+                onCancel={() => {
+                  annotations.setShowAnnotationForm(false);
+                  annotations.setAnnotationNote("");
+                  annotations.setSelectedText("");
+                }}
+                isSaving={annotations.createAnnotationMutation.isPending}
+              />
             </div>
           )}
         </CardContent>

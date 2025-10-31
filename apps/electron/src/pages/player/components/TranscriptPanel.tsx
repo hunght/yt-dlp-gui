@@ -188,12 +188,13 @@ export function TranscriptPanel({
       <div
         className="relative p-3 rounded-lg border bg-gradient-to-br from-background to-muted/20 h-[150px] overflow-y-auto overflow-x-hidden shadow-sm"
         ref={transcriptContainerRef}
-        onMouseUp={onSelect}
-        onKeyDown={handleTranscriptKeyDown}
-        tabIndex={0}
+        onMouseUp={segments.length > 0 ? onSelect : undefined}
+        onKeyDown={segments.length > 0 ? handleTranscriptKeyDown : undefined}
+        tabIndex={segments.length > 0 ? 0 : undefined}
         style={{
           scrollbarWidth: "thin",
           scrollbarColor: "hsl(var(--muted)) transparent",
+          userSelect: segments.length > 0 ? "text" : "none",
         }}
       >
         {segments.length > 0 ? (
@@ -203,7 +204,7 @@ export function TranscriptPanel({
                 key={`${seg.start}-${idx}`}
                 ref={(el) => (segRefs.current[idx] = el)}
                 className={
-                  "text-sm leading-6 cursor-text select-text transition-colors rounded-md py-0.5 px-2 " +
+                  "text-sm leading-6 cursor-text transition-colors rounded-md py-0.5 px-2 " +
                   (activeSegIndex === idx
                     ? "bg-primary/10 border-l-2 border-primary text-foreground"
                     : "text-foreground/90 hover:text-foreground")
@@ -243,9 +244,11 @@ export function TranscriptPanel({
         <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background to-transparent pointer-events-none rounded-t-lg" />
         <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-lg" />
       </div>
-      <p className="text-xs text-muted-foreground">
-        Select text to create annotations and notes
-      </p>
+      {segments.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Select text to create annotations and notes
+        </p>
+      )}
     </div>
   );
 }

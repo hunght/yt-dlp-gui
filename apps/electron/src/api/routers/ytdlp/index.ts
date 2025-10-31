@@ -49,6 +49,113 @@ function ensureDirSync(p: string) {
   } catch {}
 }
 
+/**
+ * Wrapper around spawn() that logs all yt-dlp invocations for cost tracking.
+ * Logs: command, arguments, operation type, and timing information.
+ */
+function spawnYtDlpWithLogging(
+  binPath: string,
+  args: string[],
+  options: { stdio?: any[] },
+  context: {
+    operation: string;
+    url?: string;
+    videoId?: string;
+    channelId?: string;
+    playlistId?: string;
+    other?: Record<string, any>;
+  }
+): ReturnType<typeof spawn> {
+  const startTime = Date.now();
+  const fullCommand = `${binPath} ${args.join(" ")}`;
+  
+  logger.info("[yt-dlp] CALL_START", {
+    operation: context.operation,
+    command: fullCommand,
+    args: args,
+    url: context.url,
+    videoId: context.videoId,
+    channelId: context.channelId,
+    playlistId: context.playlistId,
+    ...context.other,
+    timestamp: new Date().toISOString(),
+  });
+
+  const proc = spawn(binPath, args, options);
+  
+  // Track process lifecycle
+  proc.on("spawn", () => {
+    logger.debug("[yt-dlp] PROCESS_SPAWNED", {
+      operation: context.operation,
+      pid: proc.pid,
+    });
+  });
+
+  let stdoutData = "";
+  let stderrData = "";
+  
+  if (proc.stdout) {
+    proc.stdout.on("data", (d) => {
+      stdoutData += d.toString();
+    });
+  }
+  
+  if (proc.stderr) {
+    proc.stderr.on("data", (d) => {
+      stderrData += d.toString();
+    });
+  }
+
+  proc.on("close", (code, signal) => {
+    const durationMs = Date.now() - startTime;
+    const success = code === 0;
+    
+    if (success) {
+      logger.info("[yt-dlp] CALL_SUCCESS", {
+        operation: context.operation,
+        exitCode: code,
+        signal,
+        durationMs,
+        stdoutLength: stdoutData.length,
+        stderrLength: stderrData.length,
+        url: context.url,
+        videoId: context.videoId,
+        channelId: context.channelId,
+        playlistId: context.playlistId,
+      });
+    } else {
+      logger.error("[yt-dlp] CALL_FAILED", {
+        operation: context.operation,
+        exitCode: code,
+        signal,
+        durationMs,
+        error: stderrData || `Process exited with code ${code}`,
+        stdoutLength: stdoutData.length,
+        stderrLength: stderrData.length,
+        url: context.url,
+        videoId: context.videoId,
+        channelId: context.channelId,
+        playlistId: context.playlistId,
+      });
+    }
+  });
+
+  proc.on("error", (err) => {
+    const durationMs = Date.now() - startTime;
+    logger.error("[yt-dlp] CALL_ERROR", {
+      operation: context.operation,
+      error: String(err),
+      durationMs,
+      url: context.url,
+      videoId: context.videoId,
+      channelId: context.channelId,
+      playlistId: context.playlistId,
+    });
+  });
+
+  return proc;
+}
+
 // VTT -> plain text converter: strips timing/headers, tags, and concatenates text lines
 export function parseVttToText(content: string): string {
   // 1) Split and drop headers/timing/cue numbers
@@ -1023,7 +1130,7 @@ export const ytdlpRouter = t.router({
       }
       if (rows.length === 0) return null;
 
-      const row = rows[0] as { id: string; videoId: string; text: string | null; language?: string | null; updatedAt?: number | null };
+  const row = rows[0] as { id: string; videoId: string; text: string | null; language?: string | null; updatedAt?: number | null; rawVtt?: string | null };
 
       // If the stored transcript still contains inline VTT tags (historic data), sanitize on read and persist fix
       const t = row.text ?? "";
@@ -1058,6 +1165,19 @@ export const ytdlpRouter = t.router({
         }
       }
 
+      // If text missing but rawVtt present, derive and persist
+      if ((!row.text || row.text.trim().length === 0) && row.rawVtt) {
+        try {
+          const derived = parseVttToText(row.rawVtt);
+          const now = Date.now();
+          await db
+            .update(videoTranscripts)
+            .set({ text: derived, updatedAt: now })
+            .where(eq(videoTranscripts.id, row.id));
+          return { ...row, text: derived, updatedAt: now } as typeof row;
+        } catch {}
+      }
+
       return row;
     }),
 
@@ -1066,6 +1186,70 @@ export const ytdlpRouter = t.router({
     .input(z.object({ videoId: z.string(), lang: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
+
+      // Check DB first to avoid unnecessary yt-dlp calls
+      const lang = input.lang ?? "en";
+      try {
+        const existing = await db
+          .select()
+          .from(videoTranscripts)
+          .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${lang}`)
+          .limit(1);
+
+        if (existing.length > 0) {
+          const row = existing[0];
+          // If we have both text and rawVtt, we're good - return early
+          if (row.text && row.rawVtt && row.text.trim().length > 0 && row.rawVtt.trim().length > 0) {
+            return {
+              success: true as const,
+              videoId: input.videoId,
+              language: row.language ?? lang,
+              length: row.text.length,
+              fromCache: true as const
+            } as const;
+          }
+          // If we have rawVtt but missing text, derive it instead of re-downloading
+          if (row.rawVtt && row.rawVtt.trim().length > 0) {
+            try {
+              const derived = parseVttToText(row.rawVtt);
+              const segs = parseVttToSegments(row.rawVtt);
+              const segmentsJson = JSON.stringify(segs);
+              const now = Date.now();
+              await db
+                .update(videoTranscripts)
+                .set({ text: derived, segmentsJson, updatedAt: now })
+                .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${lang}`);
+
+              // Update FTS index
+              try {
+                const vid = await db
+                  .select({ title: youtubeVideos.title })
+                  .from(youtubeVideos)
+                  .where(eq(youtubeVideos.videoId, input.videoId))
+                  .limit(1);
+                const title = vid[0]?.title ?? null;
+                await upsertVideoSearchFts(db, input.videoId, title, derived);
+              } catch (e) {
+                logger.warn("[fts] update after transcript derive failed", { videoId: input.videoId, error: String(e) });
+              }
+
+              return {
+                success: true as const,
+                videoId: input.videoId,
+                language: row.language ?? lang,
+                length: derived.length,
+                fromCache: true as const
+              } as const;
+            } catch (e) {
+              logger.warn("[transcript] derive from rawVtt failed, will re-download", { videoId: input.videoId, error: String(e) });
+            }
+          }
+        }
+      } catch (e) {
+        logger.warn("[transcript] DB check failed, proceeding with yt-dlp", { videoId: input.videoId, error: String(e) });
+      }
+
+      // Only call yt-dlp if transcript not found in DB or incomplete
       const binPath = getBinaryFilePath();
       if (!fs.existsSync(binPath)) {
         return { success: false as const, message: "yt-dlp binary not installed" } as const;
@@ -1076,12 +1260,16 @@ export const ytdlpRouter = t.router({
       const url = `https://www.youtube.com/watch?v=${input.videoId}`;
 
       // Prepare args to fetch subs only (prefer manual, fallback auto), VTT for easy parsing
-      const lang = input.lang ?? "en";
       const args = [
         "--skip-download",
         "--write-subs",
         "--write-auto-subs",
         "--no-warnings",
+        // Be gentle to reduce 429s
+        "--retries",
+        "2",
+        "--sleep-requests",
+        "2.5",
         "--sub-format",
         "vtt",
         "--sub-langs",
@@ -1100,8 +1288,18 @@ export const ytdlpRouter = t.router({
           proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error(err || `yt-dlp exited ${code}`))));
         });
       } catch (e) {
+        const msg = String(e);
         logger.error("[transcript] yt-dlp failed", e as Error);
-        return { success: false as const, message: String(e) } as const;
+        const rateLimited = /429|Too Many Requests/i.test(msg);
+        if (rateLimited) {
+          return {
+            success: false as const,
+            code: "RATE_LIMITED" as const,
+            retryAfterMs: 15 * 60 * 1000,
+            message: msg,
+          } as const;
+        }
+        return { success: false as const, message: msg } as const;
       }
 
       // Find resulting VTT file(s) for this videoId
@@ -1120,8 +1318,10 @@ export const ytdlpRouter = t.router({
       }
 
       // Read + parse VTT
-      const raw = fs.readFileSync(vttPath, "utf8");
-      const text = parseVttToText(raw);
+  const raw = fs.readFileSync(vttPath, "utf8");
+  const text = parseVttToText(raw);
+  const segs = parseVttToSegments(raw);
+  const segmentsJson = JSON.stringify(segs);
       const now = Date.now();
 
   // Guess language from filename suffix like videoId.en.vtt
@@ -1144,6 +1344,8 @@ export const ytdlpRouter = t.router({
             isAutoGenerated: true,
             source: "yt-dlp",
             text,
+            rawVtt: raw,
+            segmentsJson,
             createdAt: now,
             updatedAt: now,
           });
@@ -1154,6 +1356,8 @@ export const ytdlpRouter = t.router({
               isAutoGenerated: true,
               source: "yt-dlp",
               text,
+              rawVtt: raw,
+              segmentsJson,
               updatedAt: now,
             })
             .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${detectedLang}`);
@@ -1176,13 +1380,54 @@ export const ytdlpRouter = t.router({
         logger.warn("[fts] update after transcript save failed", { videoId: input.videoId, error: String(e) });
       }
 
+      // Return success after downloading via yt-dlp and storing in DB
       return { success: true as const, videoId: input.videoId, language: detectedLang, length: text.length } as const;
     }),
 
   // Return transcript segments with timestamps for highlighting
   getTranscriptSegments: publicProcedure
     .input(z.object({ videoId: z.string(), lang: z.string().optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      // 1) Try DB cache first by videoId + language (if provided), else any language
+      try {
+        let rows;
+        if (input.lang) {
+          rows = await db
+            .select()
+            .from(videoTranscripts)
+            .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${input.lang}`)
+            .limit(1);
+        } else {
+          rows = await db
+            .select()
+            .from(videoTranscripts)
+            .where(eq(videoTranscripts.videoId, input.videoId))
+            .limit(1);
+        }
+        if (rows.length > 0) {
+          const row = rows[0] as { id: string; rawVtt?: string | null; segmentsJson?: string | null; language?: string | null };
+          if (row.segmentsJson) {
+            try {
+              const segs = JSON.parse(row.segmentsJson) as Array<{ start: number; end: number; text: string }>;
+              return { segments: segs, language: (row as any).language ?? input.lang } as const;
+            } catch {}
+          }
+          if (row.rawVtt) {
+            // Derive segments from rawVtt, persist back to DB
+            const segs = parseVttToSegments(row.rawVtt);
+            try {
+              await db
+                .update(videoTranscripts)
+                .set({ segmentsJson: JSON.stringify(segs), updatedAt: Date.now() })
+                .where(eq(videoTranscripts.id, (row as any).id));
+            } catch {}
+            return { segments: segs, language: (row as any).language ?? input.lang } as const;
+          }
+        }
+      } catch {}
+
+      // 2) Fallback to reading cached VTT files on disk
       const transcriptsDir = getTranscriptsDir();
       try {
         const files = fs

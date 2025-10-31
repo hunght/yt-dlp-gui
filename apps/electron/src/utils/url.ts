@@ -1,18 +1,61 @@
 /**
- * Extracts the domain from a URL
- * @param url The URL to extract the domain from
- * @returns The domain portion of the URL
+ * Extract the base registrable domain from a URL or hostname.
+ * - Strips protocol and www
+ * - Collapses subdomains (sub.example.com -> example.com)
+ * - Handles common country TLD patterns (example.co.uk -> example.co.uk)
+ * - Returns null for empty/invalid input
  */
-export function extractDomain(url: string | null | undefined): string {
+export function extractDomain(url: string | null | undefined): string | null {
+  if (url == null) return null;
+  const raw = String(url).trim().toLowerCase();
+  if (!raw) return null;
+
+  // If it's a plain IPv4 address, return as-is
+  const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+  if (ipRegex.test(raw)) return raw;
+
   try {
-    if (!url) return "";
-    // Handle URLs with or without protocol
-    const urlObj = new URL(url.startsWith("http") ? url : `http://${url}`);
-    return urlObj.hostname;
-  } catch (error) {
-    // If URL parsing fails, try a basic regex approach
-    const match = url?.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:/\n?]+)/i);
-    return match ? match[1] : "";
+    // Ensure parseable URL
+    const href = raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`;
+    const u = new URL(href);
+    let host = u.hostname;
+
+    // Strip leading www.
+    if (host.startsWith("www.")) host = host.slice(4);
+
+    // localhost or single-label host
+    if (!host.includes(".")) return host;
+
+    const parts = host.split(".");
+    if (parts.length < 2) return host;
+
+    // Heuristics for country-code second level domains (co.uk, com.au, etc.)
+    const tld = parts[parts.length - 1];
+    const sld = parts[parts.length - 2];
+    const ccSecondLevel = new Set(["co", "com", "net", "org", "gov", "edu"]); // minimal set
+
+    if (tld.length === 2 && ccSecondLevel.has(sld) && parts.length >= 3) {
+      // Keep last three labels: example.co.uk, example.com.au
+      return `${parts[parts.length - 3]}.${sld}.${tld}`;
+    }
+
+    // Default: last two labels (example.com)
+    return `${sld}.${tld}`;
+  } catch {
+    // Fallback regex: capture host and strip www.
+    const m = raw.match(/(?:https?:\/\/)?(?:www\.)?([^\/:?#]+)(?:[\/:?#]|$)/i);
+    const host = m?.[1]?.toLowerCase();
+    if (!host) return null;
+    if (!host.includes(".")) return host;
+    const parts = host.replace(/^www\./, "").split(".");
+    const tld = parts[parts.length - 1];
+    const sld = parts[parts.length - 2];
+    if (!tld || !sld) return host;
+    const ccSecondLevel = new Set(["co", "com", "net", "org", "gov", "edu"]);
+    if (tld.length === 2 && ccSecondLevel.has(sld) && parts.length >= 3) {
+      return `${parts[parts.length - 3]}.${sld}.${tld}`;
+    }
+    return `${sld}.${tld}`;
   }
 }
 

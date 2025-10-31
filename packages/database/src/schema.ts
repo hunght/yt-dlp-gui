@@ -91,6 +91,10 @@ export const videoTranscripts = sqliteTable(
     source: text("source"),
     // Full plain-text transcript content
     text: text("text"),
+    // Raw VTT content saved for caching and re-processing
+    rawVtt: text("raw_vtt"),
+    // Cached segments derived from VTT (JSON string of Array<{start,end,text}>)
+    segmentsJson: text("segments_json"),
 
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at"),

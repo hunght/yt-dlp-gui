@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 
 import { Switch } from "@/components/ui/switch";
 import { AboutSection } from "@/pages/settings-page/components/AboutSection";
+import { LanguagePreferencesSection } from "@/pages/settings-page/components/LanguagePreferencesSection";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -135,6 +136,8 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <LanguagePreferencesSection />
 
       <AboutSection />
     </div>

@@ -476,10 +476,14 @@ export function VersionChecker({
             ? updateCheckResult.currentVersion
             : currentVersion || "",
         latestVersion:
-          updateCheckResult.status === "success" ? updateCheckResult.latestVersion : undefined,
-        hasUpdate: updateCheckResult.hasUpdate,
+          updateCheckResult.status === "success" && "latestVersion" in updateCheckResult
+            ? updateCheckResult.latestVersion
+            : undefined,
+        hasUpdate: "hasUpdate" in updateCheckResult ? updateCheckResult.hasUpdate : false,
         downloadUrl:
-          updateCheckResult.status === "success" ? updateCheckResult.downloadUrl : undefined,
+          updateCheckResult.status === "success" && "downloadUrl" in updateCheckResult
+            ? updateCheckResult.downloadUrl
+            : undefined,
       }
     : undefined;
 
@@ -536,7 +540,7 @@ export function VersionChecker({
     try {
       const result = await refetch();
 
-      if (!result.data?.hasUpdate) {
+      if (!result.data || !("hasUpdate" in result.data) || !result.data.hasUpdate) {
         // Only show "no updates" toast when manually checking
         toast({
           title: "No Updates Available",

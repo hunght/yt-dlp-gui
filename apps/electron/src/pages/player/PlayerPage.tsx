@@ -7,7 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Clock, FileText } from "lucide-react";
+import { X, Clock, FileText, Settings as SettingsIcon, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Annotation {
   id: string;
@@ -25,6 +35,7 @@ export default function PlayerPage() {
   const search = useSearch({ from: "/player" });
   const videoId = search.videoId as string | undefined;
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Video reference for playback control and current time tracking
   const videoRef = React.useRef<HTMLVideoElement>(null);
@@ -44,15 +55,85 @@ export default function PlayerPage() {
     },
   });
 
-  // Transcript
+  // User's preferred languages
+  const userPrefsQuery = useQuery({
+    queryKey: ["user-preferences"],
+    queryFn: async () => {
+      return await trpcClient.preferences.getUserPreferences.query();
+    },
+  });
+
+  // Available subtitles
+  const availableSubsQuery = useQuery({
+    queryKey: ["available-subs", videoId],
+    queryFn: async () => {
+      if (!videoId) return { languages: [] } as { languages: Array<{ lang: string; hasManual: boolean; hasAuto: boolean }> };
+      return await trpcClient.ytdlp.listAvailableSubtitles.query({ videoId });
+    },
+    enabled: !!videoId,
+  });
+
+  // Filter available subtitles to only show user's preferred languages
+  const filteredLanguages = React.useMemo(() => {
+    const available = availableSubsQuery.data?.languages || [];
+    const preferred = userPrefsQuery.data?.preferredLanguages || [];
+    if (preferred.length === 0) return available; // Show all if no preferences
+    return available.filter((l: any) => preferred.includes(l.lang));
+  }, [availableSubsQuery.data, userPrefsQuery.data]);
+
+  // Selected language for transcript (null => use default stored transcript)
+  const [selectedLang, setSelectedLang] = React.useState<string | null>(null);
+
+  // If selected language isn't available for this video, reset and notify
+  React.useEffect(() => {
+    const available = (availableSubsQuery.data?.languages || []).map((l: any) => l.lang);
+    if (selectedLang && !available.includes(selectedLang)) {
+      toast({
+        title: "Subtitle not available",
+        description: `No transcript available in ${selectedLang.toUpperCase()} for this video. Showing default transcript instead.`,
+        variant: "destructive",
+      });
+      setSelectedLang(null);
+    }
+  }, [availableSubsQuery.data, selectedLang, toast]);
+
+  // Transcript for selected language (or default if none selected)
   const transcriptQuery = useQuery({
-    queryKey: ["transcript", videoId],
+    queryKey: ["transcript", videoId, selectedLang ?? "__default__"],
     queryFn: async () => {
       if (!videoId) return null;
+      if (selectedLang) {
+        return await trpcClient.ytdlp.getTranscript.query({ videoId, lang: selectedLang });
+      }
       return await trpcClient.ytdlp.getTranscript.query({ videoId });
     },
     enabled: !!videoId,
   });
+
+  // Transcript settings dialog state
+  const [showTranscriptSettings, setShowTranscriptSettings] = React.useState(false);
+  const [fontFamily, setFontFamily] = React.useState<"system" | "serif" | "mono">("system");
+  const [fontSize, setFontSize] = React.useState<number>(14);
+
+  // Load/save transcript settings from localStorage
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem("transcript-settings");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.fontFamily) setFontFamily(parsed.fontFamily);
+        if (parsed.fontSize) setFontSize(parsed.fontSize);
+      }
+    } catch {}
+  }, []);
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(
+        "transcript-settings",
+        JSON.stringify({ fontFamily, fontSize })
+      );
+    } catch {}
+  }, [fontFamily, fontSize]);
 
   // Annotations for this video
   const annotationsQuery = useQuery({
@@ -68,22 +149,29 @@ export default function PlayerPage() {
   const downloadTranscriptMutation = useMutation({
     mutationFn: async () => {
       if (!videoId) throw new Error("Missing videoId");
-      return await trpcClient.ytdlp.downloadTranscript.mutate({ videoId });
+      return await trpcClient.ytdlp.downloadTranscript.mutate({ videoId, lang: selectedLang ?? undefined });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transcript", videoId] });
+      queryClient.invalidateQueries({ queryKey: ["transcript", videoId, selectedLang ?? "__default__"] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Transcript download failed",
+        description: String(err?.message || err),
+        variant: "destructive",
+      });
     },
   });
 
   React.useEffect(() => {
     if (!videoId) return;
-    if (transcriptQuery.data) return; // Already have transcript
+    if (transcriptQuery.data) return; // Already have transcript for selected language
     if (!data?.filePath) return; // File not downloaded yet
     if (downloadTranscriptMutation.isPending) return;
 
     // Auto-download transcript
     downloadTranscriptMutation.mutate();
-  }, [videoId, data?.filePath, transcriptQuery.data, downloadTranscriptMutation]);
+  }, [videoId, data?.filePath, transcriptQuery.data, selectedLang, downloadTranscriptMutation]);
 
   // Handle text selection in transcript for annotations
   const [selectedText, setSelectedText] = React.useState("");
@@ -358,16 +446,54 @@ export default function PlayerPage() {
               </div>
 
               {/* Transcript with Annotation UI */}
-              {transcriptQuery.data && (
+              {(
+                // Show the transcript/notes layout as long as the file exists
+                true
+              ) && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Transcript Panel */}
                   <div className="lg:col-span-2 space-y-3">
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-muted-foreground" />
                       <h3 className="font-semibold text-base">Transcript</h3>
-                      <span className="text-xs text-muted-foreground ml-auto">
-                        {transcriptParagraphs.length} {transcriptParagraphs.length === 1 ? "paragraph" : "paragraphs"}
-                      </span>
+                      <div className="ml-auto flex items-center gap-2">
+                        {/* Language selector - filtered to user's preferred languages */}
+                        {filteredLanguages.length > 0 && (
+                          <>
+                            <label className="text-xs text-muted-foreground">Lang</label>
+                            <select
+                              className="text-xs border rounded px-2 py-1 bg-background hover:bg-muted/30"
+                              value={selectedLang ?? (transcriptQuery.data?.language as string | undefined) ?? ""}
+                              onChange={(e) => setSelectedLang(e.target.value)}
+                              disabled={availableSubsQuery.isLoading || downloadTranscriptMutation.isPending}
+                            >
+                              {filteredLanguages.map((l: any) => (
+                                <option key={l.lang} value={l.lang}>
+                                  {l.lang}{l.hasManual ? "" : " (auto)"}
+                                </option>
+                              ))}
+                              {filteredLanguages.length === 0 && (
+                                <option value={(transcriptQuery.data?.language as string | undefined) ?? "en"}>{(transcriptQuery.data?.language as string | undefined) ?? "en"}</option>
+                              )}
+                            </select>
+                          </>
+                        )}
+                        {/* Transcript Settings Button */}
+                        <Button size="sm" variant="outline" onClick={() => setShowTranscriptSettings(true)}>
+                          <SettingsIcon className="w-3.5 h-3.5 mr-1" />
+                          Settings
+                        </Button>
+                        {/* Paragraph count */}
+                        <span className="text-xs text-muted-foreground">
+                          {transcriptParagraphs.length} {transcriptParagraphs.length === 1 ? "paragraph" : "paragraphs"}
+                        </span>
+                        {/* Manual download fallback */}
+                        {!transcriptQuery.data && data?.filePath && (
+                          <Button size="sm" variant="outline" onClick={() => downloadTranscriptMutation.mutate()} disabled={downloadTranscriptMutation.isPending}>
+                            {downloadTranscriptMutation.isPending ? "Downloading…" : "Download"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div
                       className="relative p-6 rounded-lg border bg-gradient-to-br from-background to-muted/20 max-h-[500px] overflow-y-auto overflow-x-hidden shadow-sm"
@@ -377,14 +503,25 @@ export default function PlayerPage() {
                         scrollbarColor: "hsl(var(--muted)) transparent",
                       }}
                     >
-                      {transcriptParagraphs.length > 0 ? (
+                      {transcriptQuery.isFetching || downloadTranscriptMutation.isPending ? (
+                        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Fetching transcript…
+                        </div>
+                      ) : transcriptParagraphs.length > 0 ? (
                         <div className="space-y-4">
                           {transcriptParagraphs.map((paragraph, idx) => (
                             <p
                               key={idx}
                               className="text-sm leading-7 text-foreground/90 cursor-text select-text font-normal tracking-wide transition-colors hover:text-foreground"
                               style={{
-                                fontFamily: "system-ui, -apple-system, sans-serif",
+                                fontFamily:
+                                  fontFamily === "serif"
+                                    ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
+                                    : fontFamily === "mono"
+                                    ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+                                    : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+                                fontSize: `${fontSize}px`,
                               }}
                             >
                               {paragraph}
@@ -392,7 +529,15 @@ export default function PlayerPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground italic text-center py-8">No transcript content available</p>
+                        <div className="py-10 text-center space-y-2">
+                          <p className="text-sm text-muted-foreground italic">No transcript available for the selected language.</p>
+                          <div className="flex items-center justify-center gap-2">
+                            <Button size="sm" variant="outline" onClick={() => downloadTranscriptMutation.mutate()} disabled={downloadTranscriptMutation.isPending}>
+                              {downloadTranscriptMutation.isPending ? "Downloading…" : "Try Download"}
+                            </Button>
+                            <Button size="sm" onClick={() => setShowTranscriptSettings(true)}>Change Language</Button>
+                          </div>
+                        </div>
                       )}
                       <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background to-transparent pointer-events-none rounded-t-lg" />
                       <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-lg" />
@@ -519,6 +664,77 @@ export default function PlayerPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Transcript Settings Dialog */}
+      <Dialog open={showTranscriptSettings} onOpenChange={setShowTranscriptSettings}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transcript settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Language Selector */}
+            {filteredLanguages.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs">Language</Label>
+                <Select
+                  value={selectedLang ?? (transcriptQuery.data?.language as string | undefined) ?? ""}
+                  onValueChange={(v) => setSelectedLang(v)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredLanguages.map((l: any) => (
+                      <SelectItem key={l.lang} value={l.lang}>
+                        {l.lang}
+                        {l.hasManual ? "" : " (auto)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Font family */}
+            <div className="space-y-2">
+              <Label className="text-xs">Font family</Label>
+              <Select value={fontFamily} onValueChange={(v) => setFontFamily(v as any)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="system">System (Default)</SelectItem>
+                  <SelectItem value="serif">Serif</SelectItem>
+                  <SelectItem value="mono">Monospace</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Font size */}
+            <div className="space-y-2">
+              <Label className="text-xs">Font size</Label>
+              <Select value={String(fontSize)} onValueChange={(v) => setFontSize(Number(v))}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[12, 14, 16, 18, 20, 22, 24].map((s) => (
+                    <SelectItem key={s} value={String(s)}>
+                      {s}px
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setShowTranscriptSettings(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

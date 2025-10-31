@@ -205,3 +205,15 @@ export type NewYoutubeVideo = typeof youtubeVideos.$inferInsert;
 
 export type ChannelPlaylist = typeof channelPlaylists.$inferSelect;
 export type NewChannelPlaylist = typeof channelPlaylists.$inferInsert;
+
+// User preferences (singleton table, single row with id='default')
+export const userPreferences = sqliteTable("user_preferences", {
+  id: text("id").primaryKey().notNull().default("default"),
+  preferredLanguages: text("preferred_languages").notNull().default("[]"), // JSON array of language codes like ["en", "es", "fr"]
+  systemLanguage: text("system_language"), // Detected system language (read-only after first detect)
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at"),
+});
+
+export type UserPreferences = typeof userPreferences.$inferSelect;
+export type NewUserPreferences = typeof userPreferences.$inferInsert;

@@ -51,7 +51,8 @@ function ensureDirSync(p: string) {
 
 // VTT -> plain text converter: strips timing/headers, tags, and concatenates text lines
 export function parseVttToText(content: string): string {
-  return content
+  // 1) Split and drop headers/timing/cue numbers
+  const cleanedLines = content
     .split(/\r?\n/)
     .filter((line) => {
       const trimmed = line.trim();
@@ -59,22 +60,45 @@ export function parseVttToText(content: string): string {
       // Skip webvtt header or timing lines
       if (/^WEBVTT/i.test(trimmed)) return false;
       if (/^NOTE/i.test(trimmed)) return false;
-      if (/^\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(trimmed)) return false;
+      if (/^Kind:/i.test(trimmed)) return false;
+      if (/^Language:/i.test(trimmed)) return false;
+      if (/^\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(trimmed)) return false; // cue timing
       if (/^\d+$/.test(trimmed)) return false; // cue number
       return true;
     })
     .map((line) => {
-      // Remove all VTT/HTML tags including timing tags <00:02:53.680> and cue tags <c>, </c>
-      // This regex removes: <00:02:53.680>, <c>, </c>, and any other tags
-      let cleaned = line.replace(/<[^>]+>/g, "");
-      // Clean up extra whitespace
-      cleaned = cleaned.replace(/\s+/g, " ").trim();
-      return cleaned;
+      // Remove all VTT/HTML-like tags including timing tags <00:02:53.680> and cue tags <c>, </c>
+      const withoutTags = line.replace(/<[^>]+>/g, "");
+      return withoutTags.replace(/\s+/g, " ").trim();
     })
-    .filter((line) => line.length > 0) // Remove empty lines after cleaning
-    .join(" ") // Join all text content with spaces
-    .replace(/\s+/g, " ") // Normalize all whitespace to single spaces
-    .trim();
+    .filter((line) => line.length > 0);
+
+  // 2) Deduplicate aggressively: skip consecutive duplicates and lines that already
+  //    appear in the recent output tail (common with YouTube auto-captions where
+  //    a full line is repeated across adjacent cues).
+  const out: string[] = [];
+  const recent: string[] = [];
+
+  for (const line of cleanedLines) {
+    const lc = line.toLowerCase();
+    // Skip if same as any of the last few lines (exact duplicate)
+    const isRecentDup = recent.some((r) => r === lc);
+
+    // Skip if this full line is already present in the tail of output
+    const tail = out.join(" ");
+    const tailSlice = tail.slice(Math.max(0, tail.length - 600)).toLowerCase();
+    const isTailDup = lc.length > 10 && tailSlice.includes(lc);
+
+    if (isRecentDup || isTailDup) {
+      continue;
+    }
+
+    out.push(line);
+    recent.push(lc);
+    if (recent.length > 8) recent.shift();
+  }
+
+  return out.join(" ").replace(/\s+/g, " ").trim();
 }
 
 async function upsertVideoSearchFts(db: any, videoId: string, title: string | null | undefined, transcript: string | null | undefined) {
@@ -904,21 +928,66 @@ export const ytdlpRouter = t.router({
       } as const;
     }),
 
-  // Get transcript (if available) for a video
+  // Get transcript (if available) for a video (optionally by language)
   getTranscript: publicProcedure
-    .input(z.object({ videoId: z.string() }))
+    .input(z.object({ videoId: z.string(), lang: z.string().optional() }))
     .query(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
-      const rows = await db
-        .select()
-        .from(videoTranscripts)
-        .where(eq(videoTranscripts.videoId, input.videoId))
-        .limit(1);
+      let rows;
+      if (input.lang) {
+        rows = await db
+          .select()
+          .from(videoTranscripts)
+          .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${input.lang}`)
+          .limit(1);
+      } else {
+        rows = await db
+          .select()
+          .from(videoTranscripts)
+          .where(eq(videoTranscripts.videoId, input.videoId))
+          .limit(1);
+      }
       if (rows.length === 0) return null;
-      return rows[0];
+
+      const row = rows[0] as { id: string; videoId: string; text: string | null; language?: string | null; updatedAt?: number | null };
+
+      // If the stored transcript still contains inline VTT tags (historic data), sanitize on read and persist fix
+      const t = row.text ?? "";
+      const looksLikeVttInline = /<\d{2}:\d{2}:\d{2}\.\d{3}>|<c>|<\/c>|WEBVTT|Kind:|Language:|--\>/i.test(t);
+      if (looksLikeVttInline) {
+        try {
+          const cleaned = parseVttToText(t);
+          if (cleaned && cleaned !== t) {
+            const now = Date.now();
+            await db
+              .update(videoTranscripts)
+              .set({ text: cleaned, updatedAt: now })
+              .where(eq(videoTranscripts.id, row.id));
+
+            // Also refresh FTS index so search uses the cleaned transcript
+            try {
+              const vid = await db
+                .select({ title: youtubeVideos.title })
+                .from(youtubeVideos)
+                .where(eq(youtubeVideos.videoId, input.videoId))
+                .limit(1);
+              const title = vid[0]?.title ?? null;
+              await upsertVideoSearchFts(db, input.videoId, title, cleaned);
+            } catch (e) {
+              logger.warn("[fts] update after transcript sanitize failed", { videoId: input.videoId, error: String(e) });
+            }
+
+            return { ...row, text: cleaned, updatedAt: now } as typeof row;
+          }
+        } catch (e) {
+          logger.warn("[transcript] sanitize on read failed", { videoId: input.videoId, error: String(e) });
+        }
+      }
+
+      return row;
     }),
 
-  // Download transcript via yt-dlp and store it
+  // Download transcript via yt-dlp and store it (for specific language)
   downloadTranscript: publicProcedure
     .input(z.object({ videoId: z.string(), lang: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
@@ -981,16 +1050,16 @@ export const ytdlpRouter = t.router({
       const text = parseVttToText(raw);
       const now = Date.now();
 
-      // Guess language from filename suffix like videoId.en.vtt
-      const langMatch = path.basename(vttPath).match(/\.(\w[\w-]*)\.vtt$/i);
-      const detectedLang = langMatch?.[1] ?? lang;
+  // Guess language from filename suffix like videoId.en.vtt
+  const langMatch = path.basename(vttPath).match(/\.(\w[\w-]*)\.vtt$/i);
+  const detectedLang = (langMatch?.[1] ?? lang).toLowerCase();
 
       // Upsert transcript row
       try {
         const existing = await db
           .select()
           .from(videoTranscripts)
-          .where(eq(videoTranscripts.videoId, input.videoId))
+          .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${detectedLang}`)
           .limit(1);
 
         if (existing.length === 0) {
@@ -1008,13 +1077,12 @@ export const ytdlpRouter = t.router({
           await db
             .update(videoTranscripts)
             .set({
-              language: detectedLang,
               isAutoGenerated: true,
               source: "yt-dlp",
               text,
               updatedAt: now,
             })
-            .where(eq(videoTranscripts.videoId, input.videoId));
+            .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${detectedLang}`);
         }
       } catch (e) {
         logger.error("[transcript] upsert failed", e as Error);
@@ -1035,6 +1103,52 @@ export const ytdlpRouter = t.router({
       }
 
       return { success: true as const, videoId: input.videoId, language: detectedLang, length: text.length } as const;
+    }),
+
+  // List available subtitles (manual and auto) for a video
+  listAvailableSubtitles: publicProcedure
+    .input(z.object({ videoId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const binPath = getBinaryFilePath();
+      if (!fs.existsSync(binPath)) {
+        return { languages: [] as Array<{ lang: string; hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }> } as const;
+      }
+      try {
+        const url = `https://www.youtube.com/watch?v=${input.videoId}`;
+        const meta = await runYtDlpJson(binPath, url);
+        const subs = meta?.subtitles || {};
+        const autos = meta?.automatic_captions || {};
+
+        const map = new Map<string, { hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }>();
+        for (const key of Object.keys(subs)) {
+          const k = String(key).toLowerCase();
+          const fmts = Array.isArray(subs[key]) ? subs[key].map((f: any) => f?.ext).filter(Boolean) : [];
+          map.set(k, { hasManual: true, hasAuto: false, manualFormats: Array.from(new Set(fmts)), autoFormats: [] });
+        }
+        for (const key of Object.keys(autos)) {
+          const k = String(key).toLowerCase();
+          const fmts = Array.isArray(autos[key]) ? autos[key].map((f: any) => f?.ext).filter(Boolean) : [];
+          const prev = map.get(k) || { hasManual: false, hasAuto: false, manualFormats: [], autoFormats: [] };
+          prev.hasAuto = true;
+          prev.autoFormats = Array.from(new Set([...(prev.autoFormats || []), ...fmts]));
+          map.set(k, prev);
+        }
+
+        const languages = Array.from(map.entries())
+          .map(([lang, info]) => ({ lang, ...info }))
+          .sort((a, b) => {
+            if (a.lang === "en") return -1;
+            if (b.lang === "en") return 1;
+            if (a.hasManual && !b.hasManual) return -1;
+            if (!a.hasManual && b.hasManual) return 1;
+            return a.lang.localeCompare(b.lang);
+          });
+
+        return { languages } as const;
+      } catch (e) {
+        logger.warn("[subs] listAvailableSubtitles failed", { videoId: input.videoId, error: String(e) });
+        return { languages: [] as Array<{ lang: string; hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }> } as const;
+      }
     }),
 
   // Full-text search across video titles + transcripts

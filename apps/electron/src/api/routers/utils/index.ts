@@ -149,7 +149,7 @@ export const utilsRouter = t.router({
 
   // Version checking procedure
   checkForUpdates: publicProcedure.query(async () => {
-    return;
+    return {status: "success", currentVersion: "1.0.001"};
     try {
       logger.info("Checking for updates...");
       const currentVersion = app.getVersion();

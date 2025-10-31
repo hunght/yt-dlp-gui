@@ -31,8 +31,12 @@ export function useAnnotations(videoId: string | undefined, videoRef: React.RefO
   const handleTranscriptSelect = () => {
     const selection = window.getSelection()?.toString() || "";
     if (selection.length > 0) {
-      setSelectedText(selection);
-      setShowAnnotationForm(true);
+      // Clean the selection (remove punctuation, trim)
+      const cleaned = selection.trim();
+      if (cleaned.length > 0) {
+        setSelectedText(cleaned);
+        setShowAnnotationForm(true);
+      }
     }
   };
 

@@ -246,7 +246,7 @@ export function TranscriptPanel({
       </div>
       {segments.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          Select text to create annotations and notes
+          Select text to look up in dictionary or create annotations and notes
         </p>
       )}
     </div>

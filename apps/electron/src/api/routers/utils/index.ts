@@ -46,6 +46,79 @@ export const utilsRouter = t.router({
       return { success };
     }),
 
+  // Get AI explanation for a word (fun and easy to remember)
+  explainWord: publicProcedure
+    .input(
+      z.object({
+        word: z.string().min(1),
+        language: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        // Extract the first word and clean it
+        const cleanWord = input.word.split(/\s+/)[0].replace(/[.,!?;:()\[\]'"\-–—]/g, "").toLowerCase();
+        const langCode = input.language ? input.language.split("-")[0] : "en";
+
+        // For now, use a simple approach: call a free dictionary API and enhance with a fun explanation
+        // You can replace this with OpenAI/Anthropic API later
+        const dictionaryApiUrl = `https://api.dictionaryapi.dev/api/v2/entries/${langCode}/${encodeURIComponent(cleanWord)}`;
+
+        try {
+          const response = await fetch(dictionaryApiUrl);
+          if (response.ok) {
+            const data = await response.json();
+            const firstEntry = Array.isArray(data) ? data[0] : data;
+
+            // Extract definition and example
+            const meanings = firstEntry.meanings || [];
+            const firstMeaning = meanings[0];
+            const definition = firstMeaning?.definitions?.[0]?.definition || "";
+            const example = firstMeaning?.definitions?.[0]?.example || "";
+            const partOfSpeech = firstMeaning?.partOfSpeech || "";
+
+            // Create a fun, memorable explanation with engaging formatting
+            let funExplanation = `📚 **${cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1)}**`;
+
+            if (partOfSpeech) {
+              funExplanation += ` (${partOfSpeech})`;
+            }
+
+            funExplanation += `\n\n${definition || `A word you're learning in ${langCode.toUpperCase()}!`}`;
+
+            if (example) {
+              funExplanation += `\n\n✨ *Example: "${example}"*`;
+            }
+
+            funExplanation += `\n\n💡 *Memory tip: Try using this word in a sentence right now - practice makes perfect! 💪*`;
+
+            return {
+              success: true as const,
+              word: cleanWord,
+              explanation: funExplanation,
+              pronunciation: firstEntry.phonetic || firstEntry.phonetics?.[0]?.text || "",
+            };
+          }
+        } catch (e) {
+          logger.debug("[word-explanation] Dictionary API failed, will open ChatGPT", { word: cleanWord, error: String(e) });
+        }
+
+        // Fallback: Return flag to open ChatGPT with word query
+        return {
+          success: false as const,
+          shouldOpenChatGPT: true as const,
+          word: cleanWord,
+          language: langCode,
+        };
+      } catch (e) {
+        logger.error("[word-explanation] Failed to explain word", { word: input.word, error: String(e) });
+        return {
+          success: false as const,
+          message: "Failed to get word explanation",
+        };
+      }
+    }),
+
   openLocalFile: publicProcedure
     .input(
       z.object({

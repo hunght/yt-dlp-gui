@@ -31,6 +31,7 @@ export default function PlayerPage() {
   const [fontFamily, setFontFamily] = React.useState<"system" | "serif" | "mono">("system");
   const [fontSize, setFontSize] = React.useState<number>(14);
 
+
   // Load/save transcript settings from localStorage
   React.useEffect(() => {
     try {
@@ -60,25 +61,34 @@ export default function PlayerPage() {
 
   // Auto-pause video when annotation dialog opens, resume when it closes
   const wasPlayingRef = React.useRef<boolean>(false);
-  React.useEffect(() => {
+  const pauseForDialog = React.useCallback((isOpen: boolean) => {
     if (!videoRef.current) return;
 
-    if (annotations.showAnnotationForm) {
+    if (isOpen) {
       // Dialog is opening - pause video if it's playing
-      wasPlayingRef.current = !videoRef.current.paused;
-      if (wasPlayingRef.current) {
+      if (!wasPlayingRef.current) {
+        wasPlayingRef.current = !videoRef.current.paused;
+      }
+      if (wasPlayingRef.current && !videoRef.current.paused) {
         videoRef.current.pause();
       }
     } else {
       // Dialog is closing - resume if it was playing before
-      if (wasPlayingRef.current && videoRef.current.paused) {
-        videoRef.current.play().catch(() => {
-          // Ignore play() errors (e.g., if video was removed)
-        });
+      if (!annotations.showAnnotationForm) {
+        if (wasPlayingRef.current && videoRef.current.paused) {
+          videoRef.current.play().catch(() => {
+            // Ignore play() errors (e.g., if video was removed)
+          });
+        }
+        wasPlayingRef.current = false;
       }
-      wasPlayingRef.current = false;
     }
   }, [annotations.showAnnotationForm]);
+
+  React.useEffect(() => {
+    pauseForDialog(annotations.showAnnotationForm);
+  }, [annotations.showAnnotationForm, pauseForDialog]);
+
 
   // Handle annotation form Enter key (for keyboard navigation)
   React.useEffect(() => {
@@ -159,6 +169,7 @@ export default function PlayerPage() {
                 open={annotations.showAnnotationForm}
                 currentTime={currentTime}
                 selectedText={annotations.selectedText}
+                language={effectiveLang}
                 note={annotations.annotationNote}
                 onNoteChange={annotations.setAnnotationNote}
                 onSave={() => annotations.createAnnotationMutation.mutate(currentTime)}
@@ -187,6 +198,7 @@ export default function PlayerPage() {
         effectiveLang={effectiveLang}
         onLanguageChange={(lang) => transcript.setSelectedLang(lang)}
       />
+
     </div>
   );
 }

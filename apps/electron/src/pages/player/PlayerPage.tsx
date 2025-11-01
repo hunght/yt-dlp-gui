@@ -50,6 +50,8 @@ export default function PlayerPage() {
       annotationsQuery: annotations.annotationsQuery,
       onSeek: annotations.handleSeekToAnnotation,
       onDelete: annotations.deleteAnnotationMutation.mutate,
+      videoTitle: playback.data?.title,
+      videoDescription: playback.data?.description,
     });
 
     // Reset to queue when leaving PlayerPage
@@ -63,6 +65,8 @@ export default function PlayerPage() {
     annotations.annotationsQuery,
     annotations.handleSeekToAnnotation,
     annotations.deleteAnnotationMutation.mutate,
+    playback.data?.title,
+    playback.data?.description,
   ]);
 
   // Auto-pause video when annotation dialog opens, resume when it closes

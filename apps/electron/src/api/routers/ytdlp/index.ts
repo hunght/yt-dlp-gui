@@ -875,6 +875,7 @@ export const ytdlpRouter = t.router({
       return {
         videoId: v.videoId,
         title: v.title,
+        description: v.description,
         filePath: v.downloadFilePath,
         status: v.downloadStatus,
         progress: v.downloadProgress,

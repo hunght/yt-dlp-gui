@@ -28,6 +28,8 @@ export function AppRightSidebar({ className, ...props }: React.ComponentProps<"d
             annotationsQuery={annotationsData.annotationsQuery}
             onSeek={annotationsData.onSeek}
             onDelete={annotationsData.onDelete}
+            videoTitle={annotationsData.videoTitle}
+            videoDescription={annotationsData.videoDescription}
           />
         ) : (
           <DownloadQueueSidebar />

@@ -18,6 +18,8 @@ interface AnnotationsSidebarProps {
   annotationsQuery: UseQueryResult<Annotation[], Error>;
   onSeek: (timestampSeconds: number) => void;
   onDelete: (id: string) => void;
+  videoTitle?: string;
+  videoDescription?: string;
 }
 
 function formatTimestamp(seconds: number): string {
@@ -31,10 +33,71 @@ function formatTimestamp(seconds: number): string {
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
+function parseTimestampToSeconds(timestamp: string): number {
+  const parts = timestamp.split(':').map(Number);
+  if (parts.length === 3) {
+    // HH:MM:SS
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  } else if (parts.length === 2) {
+    // MM:SS
+    return parts[0] * 60 + parts[1];
+  }
+  return 0;
+}
+
+function renderDescriptionWithTimestamps(
+  description: string,
+  onSeek: (seconds: number) => void
+): React.ReactNode {
+  // Regex to match timestamps like 00:00, 03:44, 01:14:43
+  const timestampRegex = /\b(\d{1,2}:\d{2}(?::\d{2})?)\b/g;
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = timestampRegex.exec(description)) !== null) {
+    const timestamp = match[1];
+    const matchIndex = match.index;
+
+    // Add text before timestamp
+    if (matchIndex > lastIndex) {
+      parts.push(description.substring(lastIndex, matchIndex));
+    }
+
+    // Add clickable timestamp
+    const seconds = parseTimestampToSeconds(timestamp);
+    parts.push(
+      <button
+        key={`timestamp-${matchIndex}`}
+        onClick={(e) => {
+          e.preventDefault();
+          onSeek(seconds);
+        }}
+        className="text-primary hover:text-primary/80 hover:underline font-medium cursor-pointer inline-flex items-center gap-0.5"
+      >
+        <Clock className="w-3 h-3 inline" />
+        {timestamp}
+      </button>
+    );
+
+    lastIndex = matchIndex + timestamp.length;
+  }
+
+  // Add remaining text
+  if (lastIndex < description.length) {
+    parts.push(description.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : description;
+}
+
 export function AnnotationsSidebar({
   annotationsQuery,
   onSeek,
   onDelete,
+  videoTitle,
+  videoDescription,
 }: AnnotationsSidebarProps) {
   const annotations = annotationsQuery.data || [];
 
@@ -46,6 +109,20 @@ export function AnnotationsSidebar({
           {annotations.length} {annotations.length === 1 ? "note" : "notes"}
         </p>
       </div>
+
+      {/* Video Description */}
+      {videoDescription && (
+        <Card className="mb-4 shadow-sm">
+          <CardContent className="p-3">
+            <h3 className="text-sm font-semibold mb-2">Description</h3>
+            <div className="text-xs text-muted-foreground max-h-[200px] overflow-y-auto">
+              <div className="whitespace-pre-wrap break-words">
+                {renderDescriptionWithTimestamps(videoDescription, onSeek)}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <ScrollArea className="flex-1">
         {annotationsQuery.isLoading ? (

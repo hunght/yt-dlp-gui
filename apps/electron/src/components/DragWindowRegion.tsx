@@ -1,5 +1,6 @@
 import { closeWindow, maximizeWindow, minimizeWindow } from "@/helpers/window_helpers";
 import React, { type ReactNode } from "react";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 interface DragWindowRegionProps {
   title?: ReactNode;
@@ -23,6 +24,7 @@ export default function DragWindowRegion({ title }: DragWindowRegionProps) {
 function WindowButtons() {
   return (
     <div className="flex">
+      <SidebarTrigger className="h-auto w-auto rounded-none p-2 hover:bg-slate-300" />
       <button
         title="Minimize"
         type="button"

@@ -1,29 +1,28 @@
 import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import DragWindowRegion from "@/components/DragWindowRegion";
 import { HeaderNav } from "@/components/HeaderNav";
 
 export default function BaseLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen flex-col">
-      {/* Drag region for frameless window */}
-      <DragWindowRegion title="YT-DLP GUI" />
+    <SidebarProvider>
+      <div className="flex h-screen flex-col">
+        {/* Drag region for frameless window */}
+        <DragWindowRegion title="YT-DLP GUI" />
 
-      <div className="flex flex-1 overflow-hidden">
-        <SidebarProvider>
+        <div className="flex flex-1 overflow-hidden">
           <AppSidebar />
 
           <main className="flex-1 overflow-auto bg-gradient-to-br from-tracksy-blue/5 to-tracksy-gold/5 dark:from-tracksy-blue/10 dark:to-tracksy-gold/10">
-            <SidebarTrigger className="absolute top-4 z-10" />
             <HeaderNav />
             {children}
           </main>
           <Toaster />
-        </SidebarProvider>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }

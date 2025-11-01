@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { logger } from "@/helpers/logger";
-import { DownloadQueueCard } from "@/components/DownloadQueueCard";
 import Thumbnail from "@/components/Thumbnail";
 
 const isValidUrl = (value: string) => {
@@ -158,9 +157,6 @@ export default function DashboardPage() {
           </form>
         </CardContent>
       </Card>
-
-        {/* Download Queue */}
-        <DownloadQueueCard />
 
       {isLoadingPreview && (
         <Card>

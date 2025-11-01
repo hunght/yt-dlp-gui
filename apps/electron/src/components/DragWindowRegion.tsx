@@ -2,6 +2,8 @@ import { closeWindow, maximizeWindow, minimizeWindow } from "@/helpers/window_he
 import React, { type ReactNode } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
+import { Settings } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 interface DragWindowRegionProps {
   title?: ReactNode;
@@ -27,6 +29,13 @@ function WindowButtons() {
     <div className="flex">
       <SidebarTrigger className="h-auto w-auto rounded-none p-2 hover:bg-slate-300" />
       <RightSidebarTrigger className="h-auto w-auto rounded-none p-2 hover:bg-slate-300" />
+      <Link
+        to="/settings"
+        className="flex h-auto w-auto items-center justify-center rounded-none p-2 hover:bg-slate-300"
+        title="Settings"
+      >
+        <Settings className="h-4 w-4" />
+      </Link>
 
     </div>
   );

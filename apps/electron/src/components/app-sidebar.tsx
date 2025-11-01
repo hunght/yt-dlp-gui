@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Settings, Timer, ScrollText, Clapperboard, History, Users, List } from "lucide-react";
+import { Timer, ScrollText, Clapperboard, History, Users, List } from "lucide-react";
 import { Link, useMatches } from "@tanstack/react-router";
 import { logger } from "@/helpers/logger";
 import { cn } from "@/lib/utils";
@@ -41,11 +41,6 @@ const items = [
     title: "History",
     icon: History,
     url: "/history",
-  },
-  {
-    title: "Settings",
-    icon: Settings,
-    url: "/settings",
   },
   {
     title: "Logs",

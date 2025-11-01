@@ -177,6 +177,91 @@
   }
 }
 
+/* Custom Scrollbar Styles - Light and Dark Mode */
+@layer utilities {
+  /* Scrollbar for Webkit browsers (Chrome, Safari, Edge) */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 5px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background: hsl(var(--muted-foreground) / 0.6);
+    background-clip: padding-box;
+  }
+
+  /* Dark mode scrollbar adjustments */
+  .dark *::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.4);
+    background-clip: padding-box;
+  }
+
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.6);
+    background-clip: padding-box;
+  }
+
+  .dark *::-webkit-scrollbar-thumb:active {
+    background: hsl(var(--muted-foreground) / 0.7);
+    background-clip: padding-box;
+  }
+
+  .dark * {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+
+  /* Optional: Accent scrollbar for specific containers with tracksy theme */
+  .scrollbar-tracksy {
+    scrollbar-color: hsl(43 74% 66% / 0.4) transparent;
+  }
+
+  .scrollbar-tracksy::-webkit-scrollbar-thumb {
+    background: hsl(43 74% 66% / 0.4);
+    background-clip: padding-box;
+  }
+
+  .scrollbar-tracksy::-webkit-scrollbar-thumb:hover {
+    background: hsl(43 74% 66% / 0.6);
+    background-clip: padding-box;
+  }
+
+  .dark .scrollbar-tracksy {
+    scrollbar-color: hsl(43 74% 66% / 0.3) transparent;
+  }
+
+  .dark .scrollbar-tracksy::-webkit-scrollbar-thumb {
+    background: hsl(43 74% 66% / 0.3);
+    background-clip: padding-box;
+  }
+
+  .dark .scrollbar-tracksy::-webkit-scrollbar-thumb:hover {
+    background: hsl(43 74% 66% / 0.5);
+    background-clip: padding-box;
+  }
+}
+
 /* Task list styles */
 .ProseMirror ul[data-type="taskList"] {
   list-style: none;

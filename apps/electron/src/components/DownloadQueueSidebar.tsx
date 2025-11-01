@@ -180,7 +180,7 @@ export const DownloadQueueSidebar: React.FC = () => {
       </div>
 
       {/* Download List */}
-      <div className="mt-4 flex-1 space-y-2 overflow-auto">
+      <div className="scrollbar-tracksy mt-4 flex-1 space-y-2 overflow-auto">
         {allDownloads.length === 0 ? (
           <div className="flex h-32 items-center justify-center">
             <p className="text-center text-xs text-muted-foreground">

@@ -39,6 +39,90 @@ export function TranscriptPanel({
   const [followPlayback, setFollowPlayback] = React.useState<boolean>(true);
   const transcriptContainerRef = React.useRef<HTMLDivElement>(null);
   const segRefs = React.useRef<Array<HTMLParagraphElement | null>>([]);
+  const isSnappingRef = React.useRef<boolean>(false);
+
+  // Snap selection to word boundaries
+  const snapToWordBoundaries = React.useCallback(() => {
+    if (isSnappingRef.current) return; // Prevent infinite loop
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    if (range.collapsed) return; // No selection
+
+    try {
+      isSnappingRef.current = true;
+
+      const startContainer = range.startContainer;
+      const endContainer = range.endContainer;
+
+      // Function to expand to word boundary
+      const expandToWordBoundary = (container: Node, offset: number, isStart: boolean): { container: Node; offset: number } => {
+        if (container.nodeType === Node.TEXT_NODE && container.textContent) {
+          const text = container.textContent;
+          let newOffset = offset;
+
+          if (isStart) {
+            // Move backwards to find word start
+            while (newOffset > 0 && /\S/.test(text[newOffset - 1])) {
+              newOffset--;
+            }
+          } else {
+            // Move forwards to find word end
+            while (newOffset < text.length && /\S/.test(text[newOffset])) {
+              newOffset++;
+            }
+          }
+
+          return { container, offset: newOffset };
+        }
+
+        return { container, offset };
+      };
+
+      // Expand start to word boundary
+      const newStart = expandToWordBoundary(startContainer, range.startOffset, true);
+
+      // Expand end to word boundary
+      const newEnd = expandToWordBoundary(endContainer, range.endOffset, false);
+
+      // Create new range with expanded boundaries
+      const newRange = document.createRange();
+      newRange.setStart(newStart.container, newStart.offset);
+      newRange.setEnd(newEnd.container, newEnd.offset);
+
+      // Apply new range
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+    } catch (e) {
+      // Ignore errors
+    } finally {
+      isSnappingRef.current = false;
+    }
+  }, []);
+
+  // Listen for selection changes to snap to word boundaries
+  React.useEffect(() => {
+    const handleSelectionChange = () => {
+      if (!transcriptContainerRef.current) return;
+
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+
+      // Check if selection is within transcript container
+      const range = selection.getRangeAt(0);
+      const container = transcriptContainerRef.current;
+
+      if (container.contains(range.commonAncestorContainer)) {
+        // Snap to word boundaries after a brief delay
+        setTimeout(() => snapToWordBoundaries(), 10);
+      }
+    };
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, [snapToWordBoundaries]);
 
   // Active segment index based on current time
   React.useEffect(() => {
@@ -185,30 +269,67 @@ export function TranscriptPanel({
           )}
         </div>
       </div>
+      <style>
+        {`
+          .transcript-text::selection {
+            background-color: rgba(59, 130, 246, 0.3);
+            color: inherit;
+          }
+        `}
+      </style>
       <div
-        className="relative p-3 rounded-lg border bg-gradient-to-br from-background to-muted/20 h-[150px] overflow-y-auto overflow-x-hidden shadow-sm"
+        className="relative p-6 rounded-lg border bg-gradient-to-br from-background to-muted/20 h-[150px] flex items-end justify-center overflow-hidden shadow-sm"
         ref={transcriptContainerRef}
         onMouseUp={segments.length > 0 ? onSelect : undefined}
         onKeyDown={segments.length > 0 ? handleTranscriptKeyDown : undefined}
         tabIndex={segments.length > 0 ? 0 : undefined}
         style={{
-          scrollbarWidth: "thin",
-          scrollbarColor: "hsl(var(--muted)) transparent",
           userSelect: segments.length > 0 ? "text" : "none",
         }}
       >
         {segments.length > 0 ? (
-          <div className="space-y-1">
-            {segments.map((seg, idx) => (
+          <div className="w-full text-center space-y-1 pb-4">
+            {/* Show previous 2 lines in faded color for context */}
+            {activeSegIndex !== null && activeSegIndex > 1 && segments[activeSegIndex - 2] && (
               <p
-                key={`${seg.start}-${idx}`}
-                ref={(el) => (segRefs.current[idx] = el)}
-                className={
-                  "text-sm leading-6 cursor-text transition-colors rounded-md py-0.5 px-2 " +
-                  (activeSegIndex === idx
-                    ? "bg-primary/10 border-l-2 border-primary text-foreground"
-                    : "text-foreground/90 hover:text-foreground")
-                }
+                className="text-foreground/30 cursor-text px-4 transcript-text"
+                style={{
+                  fontFamily:
+                    fontFamily === "serif"
+                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
+                      : fontFamily === "mono"
+                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+                  fontSize: `${fontSize - 2}px`,
+                  lineHeight: '1.5',
+                }}
+              >
+                {segments[activeSegIndex - 2].text}
+              </p>
+            )}
+            {/* Show previous line in lighter color */}
+            {activeSegIndex !== null && activeSegIndex > 0 && segments[activeSegIndex - 1] && (
+              <p
+                className="text-foreground/50 cursor-text px-4 transcript-text"
+                style={{
+                  fontFamily:
+                    fontFamily === "serif"
+                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
+                      : fontFamily === "mono"
+                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+                  fontSize: `${fontSize - 1}px`,
+                  lineHeight: '1.5',
+                }}
+              >
+                {segments[activeSegIndex - 1].text}
+              </p>
+            )}
+            {/* Show current line (active) */}
+            {activeSegIndex !== null && segments[activeSegIndex] && (
+              <p
+                ref={(el) => (segRefs.current[activeSegIndex] = el)}
+                className="text-foreground font-semibold cursor-text px-4 leading-relaxed transcript-text"
                 style={{
                   fontFamily:
                     fontFamily === "serif"
@@ -217,13 +338,14 @@ export function TranscriptPanel({
                       ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
                       : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
                   fontSize: `${fontSize}px`,
+                  lineHeight: '1.6',
                 }}
-                data-start={seg.start}
-                data-end={seg.end}
+                data-start={segments[activeSegIndex].start}
+                data-end={segments[activeSegIndex].end}
               >
-                {seg.text}
+                {segments[activeSegIndex].text}
               </p>
-            ))}
+            )}
           </div>
         ) : (
           <div className="py-10 text-center space-y-2">

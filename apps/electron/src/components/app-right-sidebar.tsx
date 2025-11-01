@@ -3,9 +3,10 @@ import { cn } from "@/lib/utils";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
 import { useRightSidebar } from "@/context/rightSidebar";
 import { DownloadQueueSidebar } from "@/components/DownloadQueueSidebar";
+import { AnnotationsSidebar } from "@/components/AnnotationsSidebar";
 
 export function AppRightSidebar({ className, ...props }: React.ComponentProps<"div">) {
-  const { open } = useRightSidebar();
+  const { open, content, annotationsData } = useRightSidebar();
 
   if (!open) return null;
 
@@ -22,7 +23,15 @@ export function AppRightSidebar({ className, ...props }: React.ComponentProps<"d
       {...props}
     >
       <div className="flex h-full flex-col p-4">
-        <DownloadQueueSidebar />
+        {content === "annotations" && annotationsData ? (
+          <AnnotationsSidebar
+            annotationsQuery={annotationsData.annotationsQuery}
+            onSeek={annotationsData.onSeek}
+            onDelete={annotationsData.onDelete}
+          />
+        ) : (
+          <DownloadQueueSidebar />
+        )}
       </div>
     </ResizablePanel>
   );

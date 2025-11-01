@@ -223,85 +223,6 @@ export function TranscriptPanel({
 
   return (
     <div className="lg:col-span-2 space-y-3">
-      <div className="flex items-center gap-2">
-        <FileText className="w-4 h-4 text-muted-foreground" />
-        <h3 className="font-semibold text-base">Transcript</h3>
-        <div className="ml-auto flex items-center gap-2">
-          {/* Language selector - filtered to user's preferred languages */}
-          {transcript.filteredLanguages.length > 0 && (
-            <>
-              <label className="text-xs text-muted-foreground">Lang</label>
-              <select
-                className="text-xs border rounded px-2 py-1 bg-background hover:bg-muted/30"
-                value={transcript.selectedLang ?? effectiveLang ?? ""}
-                onChange={(e) => transcript.setSelectedLang(e.target.value)}
-                disabled={transcript.availableSubsQuery.isLoading || transcript.downloadTranscriptMutation.isPending}
-              >
-                {transcript.filteredLanguages.map((l: any) => (
-                  <option key={l.lang} value={l.lang}>
-                    {l.lang}{l.hasManual ? "" : " (auto)"}
-                  </option>
-                ))}
-                {transcript.filteredLanguages.length === 0 && (
-                  <option value={effectiveLang ?? "en"}>{effectiveLang ?? "en"}</option>
-                )}
-              </select>
-            </>
-          )}
-          {/* Follow playback toggle */}
-          <div className="flex items-center gap-1 pl-2">
-            <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
-            <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Follow</label>
-            {isSelecting && (
-              <span className="ml-1 text-[10px] text-blue-500 font-medium">Frozen</span>
-            )}
-          </div>
-          {/* Transcript Settings Button */}
-          <Button size="sm" variant="outline" onClick={onSettingsClick}>
-            <SettingsIcon className="w-3.5 h-3.5 mr-1" />
-            Settings
-          </Button>
-          {/* Lines count */}
-          <span className="text-xs text-muted-foreground">
-            {segments.length} {segments.length === 1 ? "line" : "lines"}
-          </span>
-
-          {/* Tiny loader (non-blocking) when fetching or downloading */}
-          {(transcript.transcriptQuery.isFetching || transcript.transcriptSegmentsQuery.isFetching || transcript.downloadTranscriptMutation.isPending) && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground px-1">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Updating…
-            </span>
-          )}
-
-          {/* Cooldown badge when rate-limited for this video/language */}
-          {(() => {
-            try {
-              const key = `${videoId}|${transcript.selectedLang ?? "__default__"}`;
-              const raw = localStorage.getItem("transcript-download-cooldowns");
-              const map = raw ? (JSON.parse(raw) as Record<string, number>) : {};
-              const until = map[key];
-              if (until && Date.now() < until) {
-                const mins = Math.max(1, Math.ceil((until - Date.now()) / 60000));
-                return <span className="ml-1 text-[10px] text-amber-500">retry in ~{mins}m</span>;
-              }
-            } catch {}
-            return null;
-          })()}
-
-          {/* Manual download fallback */}
-          {!transcriptData && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => transcript.downloadTranscriptMutation.mutate()}
-              disabled={transcript.downloadTranscriptMutation.isPending}
-            >
-              {transcript.downloadTranscriptMutation.isPending ? "Downloading…" : "Download"}
-            </Button>
-          )}
-        </div>
-      </div>
       <style>
         {`
           .transcript-text::selection {
@@ -402,10 +323,94 @@ export function TranscriptPanel({
         <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-lg" />
       </div>
       {segments.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Select text to look up in dictionary or create annotations and notes
+        <p className="text-xs text-muted-foreground italic">
+          💡 Select text to look up in dictionary or create notes
         </p>
       )}
+      {/* Controls at bottom for better focus */}
+      <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t">
+        {/* Language selector - filtered to user's preferred languages */}
+        {transcript.filteredLanguages.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-muted-foreground">Language:</label>
+            <select
+              className="text-xs border rounded px-2 py-1 bg-background hover:bg-muted/30"
+              value={transcript.selectedLang ?? effectiveLang ?? ""}
+              onChange={(e) => transcript.setSelectedLang(e.target.value)}
+              disabled={transcript.availableSubsQuery.isLoading || transcript.downloadTranscriptMutation.isPending}
+            >
+              {transcript.filteredLanguages.map((l: any) => (
+                <option key={l.lang} value={l.lang}>
+                  {l.lang}{l.hasManual ? "" : " (auto)"}
+                </option>
+              ))}
+              {transcript.filteredLanguages.length === 0 && (
+                <option value={effectiveLang ?? "en"}>{effectiveLang ?? "en"}</option>
+              )}
+            </select>
+          </div>
+        )}
+
+        {/* Follow playback toggle */}
+        <div className="flex items-center gap-1.5">
+          <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
+          <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Auto-scroll</label>
+          {isSelecting && (
+            <span className="text-[10px] text-blue-500 font-medium">(paused)</span>
+          )}
+        </div>
+
+        {/* Transcript Settings Button */}
+        <Button size="sm" variant="outline" onClick={onSettingsClick} className="h-7">
+          <SettingsIcon className="w-3.5 h-3.5 mr-1.5" />
+          <span className="text-xs">Settings</span>
+        </Button>
+
+        {/* Manual download fallback */}
+        {!transcriptData && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => transcript.downloadTranscriptMutation.mutate()}
+            disabled={transcript.downloadTranscriptMutation.isPending}
+            className="h-7"
+          >
+            <span className="text-xs">
+              {transcript.downloadTranscriptMutation.isPending ? "Downloading…" : "Download"}
+            </span>
+          </Button>
+        )}
+
+        {/* Status indicators */}
+        <div className="flex items-center gap-3">
+          {/* Tiny loader (non-blocking) when fetching or downloading */}
+          {(transcript.transcriptQuery.isFetching || transcript.transcriptSegmentsQuery.isFetching || transcript.downloadTranscriptMutation.isPending) && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Updating…
+            </span>
+          )}
+
+          {/* Cooldown badge when rate-limited for this video/language */}
+          {(() => {
+            try {
+              const key = `${videoId}|${transcript.selectedLang ?? "__default__"}`;
+              const raw = localStorage.getItem("transcript-download-cooldowns");
+              const map = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+              const until = map[key];
+              if (until && Date.now() < until) {
+                const mins = Math.max(1, Math.ceil((until - Date.now()) / 60000));
+                return <span className="text-[10px] text-amber-500">retry in ~{mins}m</span>;
+              }
+            } catch {}
+            return null;
+          })()}
+
+
+        </div>
+      </div>
+
+
     </div>
   );
 }

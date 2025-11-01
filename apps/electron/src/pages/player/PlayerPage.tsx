@@ -10,10 +10,10 @@ import { useAnnotations } from "./hooks/useAnnotations";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { DownloadStatus } from "./components/DownloadStatus";
 import { TranscriptPanel } from "./components/TranscriptPanel";
-import { AnnotationsPanel } from "./components/AnnotationsPanel";
 import { AnnotationForm } from "./components/AnnotationForm";
 import { TranscriptSettingsDialog } from "./components/TranscriptSettingsDialog";
 import { fontFamilyAtom, fontSizeAtom } from "@/context/transcriptSettings";
+import { useRightSidebar } from "@/context/rightSidebar";
 
 export default function PlayerPage() {
   const search = useSearch({ from: "/player" });
@@ -28,6 +28,9 @@ export default function PlayerPage() {
   const transcript = useTranscript(videoId, playback.data);
   const annotations = useAnnotations(videoId, videoRef);
 
+  // Right sidebar for annotations
+  const { setContent, setAnnotationsData } = useRightSidebar();
+
   // Transcript settings - using Jotai atoms with localStorage persistence
   const [showTranscriptSettings, setShowTranscriptSettings] = React.useState(false);
   const [fontFamily] = useAtom(fontFamilyAtom);
@@ -39,6 +42,28 @@ export default function PlayerPage() {
       transcript.attemptAutoDownload(playback.data.filePath);
     }
   }, [playback.data?.filePath, transcript.attemptAutoDownload]);
+
+  // Set sidebar to show annotations when on PlayerPage
+  React.useEffect(() => {
+    setContent("annotations");
+    setAnnotationsData({
+      annotationsQuery: annotations.annotationsQuery,
+      onSeek: annotations.handleSeekToAnnotation,
+      onDelete: annotations.deleteAnnotationMutation.mutate,
+    });
+
+    // Reset to queue when leaving PlayerPage
+    return () => {
+      setContent("queue");
+      setAnnotationsData(null);
+    };
+  }, [
+    setContent,
+    setAnnotationsData,
+    annotations.annotationsQuery,
+    annotations.handleSeekToAnnotation,
+    annotations.deleteAnnotationMutation.mutate,
+  ]);
 
   // Auto-pause video when annotation dialog opens, resume when it closes
   const wasPlayingRef = React.useRef<boolean>(false);
@@ -122,26 +147,18 @@ export default function PlayerPage() {
                 onTimeUpdate={handleTimeUpdate}
               />
 
-              {/* Transcript with Annotation UI */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <TranscriptPanel
-                  videoId={videoId}
-                  currentTime={currentTime}
-                  videoRef={videoRef}
-                  transcript={transcript}
-                  fontFamily={fontFamily}
-                  fontSize={fontSize}
-                  onSettingsClick={() => setShowTranscriptSettings(true)}
-                  onSelect={annotations.handleTranscriptSelect}
-                  onEnterKey={() => annotations.setShowAnnotationForm(true)}
-                />
-
-                <AnnotationsPanel
-                  annotationsQuery={annotations.annotationsQuery}
-                  onSeek={annotations.handleSeekToAnnotation}
-                  onDelete={annotations.deleteAnnotationMutation.mutate}
-                />
-              </div>
+              {/* Transcript - Full Width (Annotations moved to right sidebar) */}
+              <TranscriptPanel
+                videoId={videoId}
+                currentTime={currentTime}
+                videoRef={videoRef}
+                transcript={transcript}
+                fontFamily={fontFamily}
+                fontSize={fontSize}
+                onSettingsClick={() => setShowTranscriptSettings(true)}
+                onSelect={annotations.handleTranscriptSelect}
+                onEnterKey={() => annotations.setShowAnnotationForm(true)}
+              />
 
               {/* Annotation Form Dialog */}
               <AnnotationForm

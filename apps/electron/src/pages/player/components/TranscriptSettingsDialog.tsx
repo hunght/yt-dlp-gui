@@ -1,6 +1,8 @@
 import React from "react";
+import { useAtom } from "jotai";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -9,14 +11,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import {
+  fontFamilyAtom,
+  fontSizeAtom,
+  translationTargetLangAtom,
+  includeTranslationInNoteAtom,
+} from "@/context/transcriptSettings";
 
 interface TranscriptSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  fontFamily: "system" | "serif" | "mono";
-  fontSize: number;
-  onFontFamilyChange: (family: "system" | "serif" | "mono") => void;
-  onFontSizeChange: (size: number) => void;
   filteredLanguages: Array<{ lang: string; hasManual: boolean; hasAuto: boolean }>;
   selectedLang: string | null;
   effectiveLang?: string;
@@ -26,15 +30,38 @@ interface TranscriptSettingsDialogProps {
 export function TranscriptSettingsDialog({
   open,
   onOpenChange,
-  fontFamily,
-  fontSize,
-  onFontFamilyChange,
-  onFontSizeChange,
   filteredLanguages,
   selectedLang,
   effectiveLang,
   onLanguageChange,
 }: TranscriptSettingsDialogProps) {
+  // Use atoms directly for settings
+  const [fontFamily, setFontFamily] = useAtom(fontFamilyAtom);
+  const [fontSize, setFontSize] = useAtom(fontSizeAtom);
+  const [translationTargetLang, setTranslationTargetLang] = useAtom(translationTargetLangAtom);
+  const [includeTranslationInNote, setIncludeTranslationInNote] = useAtom(includeTranslationInNoteAtom);
+
+  // Common translation target languages
+  const translationLanguages = [
+    { code: "vi", name: "Vietnamese (Tiếng Việt)" },
+    { code: "en", name: "English" },
+    { code: "es", name: "Spanish (Español)" },
+    { code: "fr", name: "French (Français)" },
+    { code: "de", name: "German (Deutsch)" },
+    { code: "it", name: "Italian (Italiano)" },
+    { code: "pt", name: "Portuguese (Português)" },
+    { code: "ru", name: "Russian (Русский)" },
+    { code: "ja", name: "Japanese (日本語)" },
+    { code: "ko", name: "Korean (한국어)" },
+    { code: "zh", name: "Chinese (中文)" },
+    { code: "ar", name: "Arabic (العربية)" },
+    { code: "hi", name: "Hindi (हिन्दी)" },
+    { code: "th", name: "Thai (ไทย)" },
+    { code: "id", name: "Indonesian (Bahasa Indonesia)" },
+    { code: "nl", name: "Dutch (Nederlands)" },
+    { code: "pl", name: "Polish (Polski)" },
+    { code: "tr", name: "Turkish (Türkçe)" },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,7 +96,7 @@ export function TranscriptSettingsDialog({
           {/* Font family */}
           <div className="space-y-2">
             <Label className="text-xs">Font family</Label>
-            <Select value={fontFamily} onValueChange={(v) => onFontFamilyChange(v as any)}>
+            <Select value={fontFamily} onValueChange={(v) => setFontFamily(v as any)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -84,7 +111,7 @@ export function TranscriptSettingsDialog({
           {/* Font size */}
           <div className="space-y-2">
             <Label className="text-xs">Font size</Label>
-            <Select value={String(fontSize)} onValueChange={(v) => onFontSizeChange(Number(v))}>
+            <Select value={String(fontSize)} onValueChange={(v) => setFontSize(Number(v))}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -96,6 +123,38 @@ export function TranscriptSettingsDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Translation Target Language */}
+          <div className="space-y-2">
+            <Label className="text-xs">Translation target language</Label>
+            <Select value={translationTargetLang} onValueChange={setTranslationTargetLang}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {translationLanguages.map((lang) => (
+                  <SelectItem key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Selected text will be translated to this language
+            </p>
+          </div>
+
+          {/* Include Translation in Note */}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="include-translation-setting"
+              checked={includeTranslationInNote}
+              onCheckedChange={(checked) => setIncludeTranslationInNote(checked === true)}
+            />
+            <Label htmlFor="include-translation-setting" className="text-xs cursor-pointer">
+              Auto-include translation in note (default)
+            </Label>
           </div>
 
           <div className="flex justify-end">

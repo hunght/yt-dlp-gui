@@ -1,5 +1,6 @@
 import React from "react";
 import { useSearch } from "@tanstack/react-router";
+import { useAtom } from "jotai";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useVideoPlayback } from "./hooks/useVideoPlayback";
@@ -12,6 +13,7 @@ import { TranscriptPanel } from "./components/TranscriptPanel";
 import { AnnotationsPanel } from "./components/AnnotationsPanel";
 import { AnnotationForm } from "./components/AnnotationForm";
 import { TranscriptSettingsDialog } from "./components/TranscriptSettingsDialog";
+import { fontFamilyAtom, fontSizeAtom } from "@/context/transcriptSettings";
 
 export default function PlayerPage() {
   const search = useSearch({ from: "/player" });
@@ -26,31 +28,10 @@ export default function PlayerPage() {
   const transcript = useTranscript(videoId, playback.data);
   const annotations = useAnnotations(videoId, videoRef);
 
-  // Transcript settings state
+  // Transcript settings - using Jotai atoms with localStorage persistence
   const [showTranscriptSettings, setShowTranscriptSettings] = React.useState(false);
-  const [fontFamily, setFontFamily] = React.useState<"system" | "serif" | "mono">("system");
-  const [fontSize, setFontSize] = React.useState<number>(14);
-
-
-  // Load/save transcript settings from localStorage
-  React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem("transcript-settings");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.fontFamily) setFontFamily(parsed.fontFamily);
-        if (parsed.fontSize) setFontSize(parsed.fontSize);
-      }
-    } catch {}
-  }, []);
-  React.useEffect(() => {
-    try {
-      localStorage.setItem(
-        "transcript-settings",
-        JSON.stringify({ fontFamily, fontSize })
-      );
-    } catch {}
-  }, [fontFamily, fontSize]);
+  const [fontFamily] = useAtom(fontFamilyAtom);
+  const [fontSize] = useAtom(fontSizeAtom);
 
   // Auto-download transcript when file becomes available
   React.useEffect(() => {
@@ -94,9 +75,7 @@ export default function PlayerPage() {
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (annotations.showAnnotationForm && e.key === "Enter" && e.ctrlKey) {
-        if (annotations.annotationNote.trim()) {
-          annotations.createAnnotationMutation.mutate(currentTime);
-        }
+        annotations.createAnnotationMutation.mutate(currentTime);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -189,10 +168,6 @@ export default function PlayerPage() {
       <TranscriptSettingsDialog
         open={showTranscriptSettings}
         onOpenChange={setShowTranscriptSettings}
-        fontFamily={fontFamily}
-        fontSize={fontSize}
-        onFontFamilyChange={setFontFamily}
-        onFontSizeChange={setFontSize}
         filteredLanguages={transcript.filteredLanguages}
         selectedLang={transcript.selectedLang}
         effectiveLang={effectiveLang}

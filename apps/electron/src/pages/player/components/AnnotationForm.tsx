@@ -1,7 +1,10 @@
 import React from "react";
-import { Clock, Sparkles, ExternalLink } from "lucide-react";
+import { useAtom } from "jotai";
+import { Clock, Languages, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { trpcClient } from "@/utils/trpc";
+import { useQuery } from "@tanstack/react-query";
+import { translationTargetLangAtom, includeTranslationInNoteAtom } from "@/context/transcriptSettings";
 
 interface AnnotationFormProps {
   open: boolean;
@@ -35,29 +40,52 @@ export function AnnotationForm({
   onCancel,
   isSaving,
 }: AnnotationFormProps) {
-  // Extract first word for ChatGPT explanation
-  const word = React.useMemo(() => {
-    if (!selectedText) return "";
-    return selectedText.split(/\s+/)[0].replace(/[.,!?;:()\[\]'"\-–—]/g, "").toLowerCase();
-  }, [selectedText]);
+  // Use atoms directly for translation settings
+  const [translationTargetLang] = useAtom(translationTargetLangAtom);
+  const [includeTranslationInNote, setIncludeTranslationInNote] = useAtom(includeTranslationInNoteAtom);
 
-  // Prepare ChatGPT prompt
-  const chatGPTPrompt = React.useMemo(() => {
-    if (!word) return "";
-    return `Explain the word "${word}" in a fun and easy to remember way. Include definition, examples, and memory tips.`;
-  }, [word]);
+  // Determine source and target languages
+  const sourceLang = React.useMemo(() => {
+    if (!language) return undefined;
+    // Extract language code (e.g., "en" from "en-US")
+    return language.split("-")[0];
+  }, [language]);
 
-  const handleOpenChatGPT = async () => {
-    if (!chatGPTPrompt) return;
+  const targetLang = translationTargetLang || "en"; // Use user preference or default to English
 
-    // Open ChatGPT with pre-filled prompt in URL
-    const chatGPTUrl = `https://chat.openai.com/?q=${encodeURIComponent(chatGPTPrompt)}`;
-    try {
-      await trpcClient.utils.openExternalUrl.mutate({ url: chatGPTUrl });
-    } catch (e) {
-      console.error("Failed to open ChatGPT:", e);
+  // Auto-translate when text is selected and dialog opens
+  const translationQuery = useQuery({
+    queryKey: ["translate", selectedText, sourceLang, targetLang],
+    queryFn: async () => {
+      if (!selectedText) return null;
+      return await trpcClient.utils.translateText.query({
+        text: selectedText,
+        sourceLang: sourceLang,
+        targetLang: targetLang,
+      });
+    },
+    enabled: !!selectedText && open, // Auto-translate when dialog opens with selected text
+    staleTime: Infinity, // Cache translation results
+  });
+
+  // Track previous checkbox state
+  const prevIncludeTranslationRef = React.useRef(includeTranslationInNote);
+
+  // Auto-fill or clear translation in note based on checkbox state
+  React.useEffect(() => {
+    const checkboxChanged = prevIncludeTranslationRef.current !== includeTranslationInNote;
+    prevIncludeTranslationRef.current = includeTranslationInNote;
+
+    if (open && translationQuery.data?.success) {
+      if (includeTranslationInNote && (checkboxChanged || !note)) {
+        // Fill translation when checkbox is checked
+        onNoteChange(translationQuery.data.translation);
+      } else if (!includeTranslationInNote && checkboxChanged && note === translationQuery.data.translation) {
+        // Clear note when checkbox is unchecked and note matches translation
+        onNoteChange("");
+      }
     }
-  };
+  }, [translationQuery.data, includeTranslationInNote, open, note, onNoteChange]);
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
       <DialogContent className="sm:max-w-[500px]">
@@ -76,22 +104,59 @@ export function AnnotationForm({
           )}
         </DialogHeader>
         <div className="space-y-4 py-4">
-          {/* ChatGPT Explanation Option - only show if there's selected text with a word */}
-          {selectedText && word && (
-            <div className="p-3 rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+          {/* Auto Translation - only show if there's selected text */}
+          {selectedText && (
+            <div className="p-3 rounded-lg bg-gradient-to-br from-blue-500/5 to-blue-500/10 border border-blue-500/20">
               <div className="flex items-start gap-3">
-                <Sparkles className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                <Languages className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <p className="text-xs font-semibold">Need help understanding "{word}"?</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenChatGPT}
-                    className="w-full"
-                  >
-                    <ExternalLink className="w-3 h-3 mr-2" />
-                    Explain with ChatGPT
-                  </Button>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold">
+                      Translation ({targetLang.toUpperCase()})
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="include-translation"
+                        checked={includeTranslationInNote}
+                        onCheckedChange={(checked) => setIncludeTranslationInNote(checked === true)}
+                      />
+                      <Label htmlFor="include-translation" className="text-xs cursor-pointer">
+                        Include in note
+                      </Label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {translationQuery.isLoading && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Translating...
+                      </div>
+                    )}
+
+                    {translationQuery.data?.success && (
+                      <div className="p-2 rounded bg-background border text-sm">
+                        <p className="font-medium text-foreground">
+                          {translationQuery.data.translation}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {translationQuery.data.sourceLang} → {translationQuery.data.targetLang}
+                        </p>
+                      </div>
+                    )}
+
+                    {translationQuery.data && !translationQuery.data.success && (
+                      <p className="text-xs text-destructive">
+                        Translation failed. Please try again.
+                      </p>
+                    )}
+
+                    {translationQuery.isError && (
+                      <p className="text-xs text-destructive">
+                        Unable to connect to translation service.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -104,7 +169,7 @@ export function AnnotationForm({
             className="text-sm min-h-24 resize-none"
             autoFocus
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && note.trim() && !isSaving) {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !isSaving) {
                 e.preventDefault();
                 onSave();
               }
@@ -117,7 +182,7 @@ export function AnnotationForm({
           </Button>
           <Button
             onClick={onSave}
-            disabled={!note.trim() || isSaving}
+            disabled={isSaving}
           >
             {isSaving ? "Saving..." : "Save note"}
           </Button>

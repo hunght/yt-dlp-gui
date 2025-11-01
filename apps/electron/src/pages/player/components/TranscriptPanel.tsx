@@ -37,6 +37,7 @@ export function TranscriptPanel({
 
   const [activeSegIndex, setActiveSegIndex] = React.useState<number | null>(null);
   const [followPlayback, setFollowPlayback] = React.useState<boolean>(true);
+  const [isSelecting, setIsSelecting] = React.useState<boolean>(false);
   const transcriptContainerRef = React.useRef<HTMLDivElement>(null);
   const segRefs = React.useRef<Array<HTMLParagraphElement | null>>([]);
   const isSnappingRef = React.useRef<boolean>(false);
@@ -102,21 +103,32 @@ export function TranscriptPanel({
     }
   }, []);
 
-  // Listen for selection changes to snap to word boundaries
+  // Track selection state and snap to word boundaries
   React.useEffect(() => {
     const handleSelectionChange = () => {
       if (!transcriptContainerRef.current) return;
 
       const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return;
+      if (!selection || selection.rangeCount === 0) {
+        setIsSelecting(false);
+        return;
+      }
 
       // Check if selection is within transcript container
       const range = selection.getRangeAt(0);
       const container = transcriptContainerRef.current;
 
       if (container.contains(range.commonAncestorContainer)) {
+        // Set selecting state if there's an active selection
+        const hasSelection = !range.collapsed && selection.toString().trim().length > 0;
+        setIsSelecting(hasSelection);
+
         // Snap to word boundaries after a brief delay
-        setTimeout(() => snapToWordBoundaries(), 10);
+        if (hasSelection) {
+          setTimeout(() => snapToWordBoundaries(), 10);
+        }
+      } else {
+        setIsSelecting(false);
       }
     };
 
@@ -124,26 +136,44 @@ export function TranscriptPanel({
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [snapToWordBoundaries]);
 
-  // Active segment index based on current time
+  // Active segment index based on current time (freeze when selecting)
   React.useEffect(() => {
     if (!segments.length) {
       setActiveSegIndex(null);
       return;
     }
+    // Don't update active segment while user is selecting text
+    if (isSelecting) return;
+
     const idx = segments.findIndex((s) => currentTime >= s.start && currentTime < s.end);
     setActiveSegIndex(idx >= 0 ? idx : null);
-  }, [currentTime, segments]);
+  }, [currentTime, segments, isSelecting]);
 
-  // Scroll active segment into view
+  // Scroll active segment into view (freeze when selecting)
   React.useEffect(() => {
     if (activeSegIndex == null || !followPlayback) return;
+    // Don't auto-scroll while user is selecting text
+    if (isSelecting) return;
+
     const el = segRefs.current[activeSegIndex];
     const cont = transcriptContainerRef.current;
     if (!el || !cont) return;
     const elTop = el.offsetTop;
     const targetScroll = Math.max(0, elTop - cont.clientHeight * 0.3);
     cont.scrollTo({ top: targetScroll, behavior: "smooth" });
-  }, [activeSegIndex, followPlayback]);
+  }, [activeSegIndex, followPlayback, isSelecting]);
+
+  // Handle mousedown to detect selection start
+  const handleMouseDown = () => {
+    // Set a flag that selection might be starting
+    // The actual selection state will be updated by selectionchange listener
+  };
+
+  // Handle mouseup to finalize selection
+  const handleMouseUp = () => {
+    // Let the selectionchange event handle the state update
+    // This is just to ensure we capture the end of selection
+  };
 
   // Keyboard navigation within transcript container
   const handleTranscriptKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -222,6 +252,9 @@ export function TranscriptPanel({
           <div className="flex items-center gap-1 pl-2">
             <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
             <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Follow</label>
+            {isSelecting && (
+              <span className="ml-1 text-[10px] text-blue-500 font-medium">Frozen</span>
+            )}
           </div>
           {/* Transcript Settings Button */}
           <Button size="sm" variant="outline" onClick={onSettingsClick}>
@@ -280,11 +313,13 @@ export function TranscriptPanel({
       <div
         className="relative p-6 rounded-lg border bg-gradient-to-br from-background to-muted/20 h-[150px] flex items-end justify-center overflow-hidden shadow-sm"
         ref={transcriptContainerRef}
-        onMouseUp={segments.length > 0 ? onSelect : undefined}
+        onMouseDown={segments.length > 0 ? handleMouseDown : undefined}
+        onMouseUp={segments.length > 0 ? (e) => { handleMouseUp(); onSelect(); } : undefined}
         onKeyDown={segments.length > 0 ? handleTranscriptKeyDown : undefined}
         tabIndex={segments.length > 0 ? 0 : undefined}
         style={{
           userSelect: segments.length > 0 ? "text" : "none",
+          cursor: isSelecting ? "text" : "default",
         }}
       >
         {segments.length > 0 ? (

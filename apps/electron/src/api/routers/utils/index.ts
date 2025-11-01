@@ -119,6 +119,72 @@ export const utilsRouter = t.router({
       }
     }),
 
+  // Translate text using Google Translate
+  translateText: publicProcedure
+    .input(
+      z.object({
+        text: z.string().min(1),
+        targetLang: z.string().default("en"), // Default to English
+        sourceLang: z.string().optional(), // Auto-detect if not provided
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        const { text, targetLang, sourceLang } = input;
+
+        // Clean the text
+        const cleanText = text.trim();
+
+        // Use Google Translate's free endpoint
+        // Format: https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=hello
+        const sl = sourceLang || "auto"; // auto-detect source language
+        const tl = targetLang;
+        const encodedText = encodeURIComponent(cleanText);
+
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodedText}`;
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error(`Translation API returned ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Parse the response
+        // Google Translate API returns: [[[translatedText, originalText, null, null, translatedWordCount]]]
+        if (Array.isArray(data) && Array.isArray(data[0])) {
+          const translations = data[0];
+          const translatedText = translations
+            .filter((item: any) => Array.isArray(item) && item[0])
+            .map((item: any) => item[0])
+            .join("");
+
+          // Detect source language (data[2] contains detected language)
+          const detectedLang = data[2] || sl;
+
+          return {
+            success: true as const,
+            translation: translatedText,
+            originalText: cleanText,
+            sourceLang: detectedLang,
+            targetLang: tl,
+          };
+        }
+
+        throw new Error("Unexpected response format from translation API");
+      } catch (e) {
+        logger.error("[translation] Failed to translate text", {
+          text: input.text,
+          error: String(e)
+        });
+        return {
+          success: false as const,
+          message: `Translation failed: ${String(e)}`,
+        };
+      }
+    }),
+
   openLocalFile: publicProcedure
     .input(
       z.object({

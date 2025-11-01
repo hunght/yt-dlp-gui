@@ -3,9 +3,11 @@ import { trpcClient } from "@/utils/trpc";
 
 export function useWatchProgress(
   videoId: string | undefined,
-  videoRef: React.RefObject<HTMLVideoElement>
+  videoRef: React.RefObject<HTMLVideoElement>,
+  lastPositionSeconds?: number | undefined
 ) {
   const [currentTime, setCurrentTime] = React.useState(0);
+  const positionRestoredRef = React.useRef<boolean>(false);
 
   const lastTimeRef = React.useRef<number>(0);
   const accumulatedRef = React.useRef<number>(0);
@@ -37,6 +39,46 @@ export function useWatchProgress(
         positionSeconds: Math.floor(lastTimeRef.current || 0),
       });
     } catch {}
+  }, [videoId]);
+
+  // Restore last position when video is ready
+  React.useEffect(() => {
+    if (!videoRef.current || !videoId || positionRestoredRef.current) return;
+    if (lastPositionSeconds === undefined || lastPositionSeconds <= 0) return;
+
+    const video = videoRef.current;
+
+    const restorePosition = () => {
+      if (positionRestoredRef.current) return;
+      try {
+        video.currentTime = lastPositionSeconds;
+        setCurrentTime(lastPositionSeconds);
+        lastTimeRef.current = lastPositionSeconds;
+        positionRestoredRef.current = true;
+      } catch (e) {
+        // Video might not be ready yet
+      }
+    };
+
+    // Try to restore position when video is ready
+    if (video.readyState >= 2) {
+      // HAVE_CURRENT_DATA or higher - enough data to seek
+      restorePosition();
+    } else {
+      // Wait for video to load
+      video.addEventListener("loadedmetadata", restorePosition, { once: true });
+      video.addEventListener("canplay", restorePosition, { once: true });
+    }
+
+    return () => {
+      video.removeEventListener("loadedmetadata", restorePosition);
+      video.removeEventListener("canplay", restorePosition);
+    };
+  }, [videoId, videoRef, lastPositionSeconds]);
+
+  // Reset position restored flag when video changes
+  React.useEffect(() => {
+    positionRestoredRef.current = false;
   }, [videoId]);
 
   React.useEffect(() => {

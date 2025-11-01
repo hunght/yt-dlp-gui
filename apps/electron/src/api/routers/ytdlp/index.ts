@@ -857,6 +857,21 @@ export const ytdlpRouter = t.router({
         }
       }
 
+      // Get watch progress (last position) if available
+      let lastPositionSeconds: number | undefined = undefined;
+      try {
+        const watchStats = await db
+          .select({ lastPositionSeconds: videoWatchStats.lastPositionSeconds })
+          .from(videoWatchStats)
+          .where(eq(videoWatchStats.videoId, input.videoId))
+          .limit(1);
+        if (watchStats.length > 0 && watchStats[0].lastPositionSeconds !== null) {
+          lastPositionSeconds = watchStats[0].lastPositionSeconds;
+        }
+      } catch (e) {
+        // Silently fail - watch stats might not exist
+      }
+
       return {
         videoId: v.videoId,
         title: v.title,
@@ -864,6 +879,7 @@ export const ytdlpRouter = t.router({
         status: v.downloadStatus,
         progress: v.downloadProgress,
         availableLanguages,
+        lastPositionSeconds,
       } as const;
     }),
 

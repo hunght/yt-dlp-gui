@@ -22,7 +22,7 @@ export default function PlayerPage() {
 
   // Hooks
   const playback = useVideoPlayback(videoId);
-  const { currentTime, handleTimeUpdate } = useWatchProgress(videoId, videoRef);
+  const { currentTime, handleTimeUpdate } = useWatchProgress(videoId, videoRef, playback.data?.lastPositionSeconds);
   const transcript = useTranscript(videoId, playback.data);
   const annotations = useAnnotations(videoId, videoRef);
 

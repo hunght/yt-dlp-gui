@@ -221,3 +221,46 @@ export const userPreferences = sqliteTable("user_preferences", {
 
 export type UserPreferences = typeof userPreferences.$inferSelect;
 export type NewUserPreferences = typeof userPreferences.$inferInsert;
+
+// Translation cache table to avoid redundant Google API calls
+// Also tracks user query patterns for learning/memory features
+export const translationCache = sqliteTable(
+  "translation_cache",
+  {
+    id: text("id").primaryKey(),
+    // Original text to translate
+    sourceText: text("source_text").notNull(),
+    // Source language code (e.g., "en", "es", "auto")
+    sourceLang: text("source_lang").notNull(),
+    // Target language code (e.g., "en", "es")
+    targetLang: text("target_lang").notNull(),
+    // The translated text result
+    translatedText: text("translated_text").notNull(),
+    // Detected source language (in case sourceLang was "auto")
+    detectedLang: text("detected_lang"),
+
+    // Query tracking for learning/memory features
+    // Number of times user requested this translation
+    queryCount: integer("query_count").notNull().default(1),
+    // First time this translation was requested
+    firstQueriedAt: integer("first_queried_at").notNull(),
+    // Most recent time this translation was requested
+    lastQueriedAt: integer("last_queried_at").notNull(),
+
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at"),
+  },
+  (table) => [
+    // Unique constraint on sourceText + sourceLang + targetLang to prevent duplicates
+    unique().on(table.sourceText, table.sourceLang, table.targetLang),
+    // Index for faster lookups
+    index("translation_cache_lookup_idx").on(table.sourceText, table.sourceLang, table.targetLang),
+    // Index for finding frequently queried translations
+    index("translation_cache_query_count_idx").on(table.queryCount),
+    // Index for recent queries
+    index("translation_cache_last_queried_idx").on(table.lastQueriedAt),
+  ]
+);
+
+export type TranslationCache = typeof translationCache.$inferSelect;
+export type NewTranslationCache = typeof translationCache.$inferInsert;

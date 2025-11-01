@@ -119,7 +119,7 @@ export const utilsRouter = t.router({
       }
     }),
 
-  // Translate text using Google Translate
+  // Translate text using Google Translate with database caching
   translateText: publicProcedure
     .input(
       z.object({
@@ -128,19 +128,88 @@ export const utilsRouter = t.router({
         sourceLang: z.string().optional(), // Auto-detect if not provided
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
         const { text, targetLang, sourceLang } = input;
+        const db = ctx.db;
 
         // Clean the text
         const cleanText = text.trim();
+        const sl = sourceLang || "auto"; // auto-detect source language
+        const tl = targetLang;
+
+        // Check cache first
+        if (db) {
+          try {
+            const { translationCache } = await import("@yt-dlp-gui/database");
+            const { eq, and } = await import("drizzle-orm");
+
+            const cached = await db
+              .select()
+              .from(translationCache)
+              .where(
+                and(
+                  eq(translationCache.sourceText, cleanText),
+                  eq(translationCache.sourceLang, sl),
+                  eq(translationCache.targetLang, tl)
+                )
+              )
+              .limit(1);
+
+            if (cached.length > 0) {
+              const cachedEntry = cached[0];
+
+              logger.debug("[translation] Cache hit", {
+                sourceText: cleanText,
+                sourceLang: sl,
+                targetLang: tl,
+                queryCount: cachedEntry.queryCount,
+              });
+
+              // Update query tracking: increment count and update timestamp
+              try {
+                const now = Date.now();
+                await db
+                  .update(translationCache)
+                  .set({
+                    queryCount: (cachedEntry.queryCount || 0) + 1,
+                    lastQueriedAt: now,
+                    updatedAt: now,
+                  })
+                  .where(eq(translationCache.id, cachedEntry.id));
+
+                logger.debug("[translation] Updated query count", {
+                  id: cachedEntry.id,
+                  newCount: (cachedEntry.queryCount || 0) + 1,
+                });
+              } catch (updateError) {
+                logger.warn("[translation] Failed to update query count", {
+                  error: String(updateError),
+                });
+                // Don't fail the translation if update fails
+              }
+
+              return {
+                success: true as const,
+                translation: cachedEntry.translatedText,
+                originalText: cleanText,
+                sourceLang: cachedEntry.detectedLang || sl,
+                targetLang: tl,
+                fromCache: true,
+                queryCount: (cachedEntry.queryCount || 0) + 1,
+              };
+            }
+          } catch (cacheError) {
+            logger.warn("[translation] Cache lookup failed", {
+              error: String(cacheError),
+            });
+            // Continue to API call if cache fails
+          }
+        }
 
         // Use Google Translate's free endpoint
         // Format: https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=hello
-        const sl = sourceLang || "auto"; // auto-detect source language
-        const tl = targetLang;
         const encodedText = encodeURIComponent(cleanText);
-
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodedText}`;
 
         const response = await fetch(url);
@@ -163,12 +232,50 @@ export const utilsRouter = t.router({
           // Detect source language (data[2] contains detected language)
           const detectedLang = data[2] || sl;
 
+          // Store in cache for future use
+          if (db) {
+            try {
+              const { translationCache } = await import("@yt-dlp-gui/database");
+              const crypto = await import("crypto");
+
+              const cacheId = crypto.randomUUID();
+              const now = Date.now();
+
+              await db.insert(translationCache).values({
+                id: cacheId,
+                sourceText: cleanText,
+                sourceLang: sl,
+                targetLang: tl,
+                translatedText: translatedText,
+                detectedLang: detectedLang,
+                queryCount: 1, // First query for this translation
+                firstQueriedAt: now, // Record when user first encountered this
+                lastQueriedAt: now, // Same as first for initial entry
+                createdAt: now,
+                updatedAt: now,
+              }).onConflictDoNothing();
+
+              logger.debug("[translation] Cached translation", {
+                sourceText: cleanText,
+                sourceLang: sl,
+                targetLang: tl,
+                queryCount: 1,
+              });
+            } catch (cacheError) {
+              logger.warn("[translation] Failed to cache translation", {
+                error: String(cacheError),
+              });
+              // Don't fail the translation if caching fails
+            }
+          }
+
           return {
             success: true as const,
             translation: translatedText,
             originalText: cleanText,
             sourceLang: detectedLang,
             targetLang: tl,
+            fromCache: false,
           };
         }
 

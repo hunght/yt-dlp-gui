@@ -38,6 +38,7 @@ export function TranscriptPanel({
   const [activeSegIndex, setActiveSegIndex] = useState<number | null>(null);
   const [followPlayback, setFollowPlayback] = useState<boolean>(true);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
+  const [isHovering, setIsHovering] = useState<boolean>(false);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const segRefs = useRef<Array<HTMLParagraphElement | null>>([]);
   const isSnappingRef = useRef<boolean>(false);
@@ -136,24 +137,24 @@ export function TranscriptPanel({
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [snapToWordBoundaries]);
 
-  // Active segment index based on current time (freeze when selecting)
+  // Active segment index based on current time (freeze when selecting or hovering)
   useEffect(() => {
     if (!segments.length) {
       setActiveSegIndex(null);
       return;
     }
-    // Don't update active segment while user is selecting text
-    if (isSelecting) return;
+    // Don't update active segment while user is selecting text or hovering
+    if (isSelecting || isHovering) return;
 
     const idx = segments.findIndex((s) => currentTime >= s.start && currentTime < s.end);
     setActiveSegIndex(idx >= 0 ? idx : null);
-  }, [currentTime, segments, isSelecting]);
+  }, [currentTime, segments, isSelecting, isHovering]);
 
-  // Scroll active segment into view (freeze when selecting)
+  // Scroll active segment into view (freeze when selecting or hovering)
   useEffect(() => {
     if (activeSegIndex == null || !followPlayback) return;
-    // Don't auto-scroll while user is selecting text
-    if (isSelecting) return;
+    // Don't auto-scroll while user is selecting text or hovering
+    if (isSelecting || isHovering) return;
 
     const el = segRefs.current[activeSegIndex];
     const cont = transcriptContainerRef.current;
@@ -237,6 +238,8 @@ export function TranscriptPanel({
         onMouseDown={segments.length > 0 ? handleMouseDown : undefined}
         onMouseUp={segments.length > 0 ? (e) => { handleMouseUp(); onSelect(); } : undefined}
         onKeyDown={segments.length > 0 ? handleTranscriptKeyDown : undefined}
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
         tabIndex={segments.length > 0 ? 0 : undefined}
         style={{
           userSelect: segments.length > 0 ? "text" : "none",

@@ -39,9 +39,72 @@ export function TranscriptPanel({
   const [followPlayback, setFollowPlayback] = useState<boolean>(true);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
   const [isHovering, setIsHovering] = useState<boolean>(false);
+  const [hoveredWord, setHoveredWord] = useState<string | null>(null);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const segRefs = useRef<Array<HTMLParagraphElement | null>>([]);
   const isSnappingRef = useRef<boolean>(false);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Handle word hover with debouncing
+  const handleWordMouseEnter = (word: string) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    setHoveredWord(word);
+    setIsHovering(true);
+  };
+
+  const handleWordMouseLeave = () => {
+    // Add small delay before clearing hover to prevent flickering when moving between words
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredWord(null);
+      setIsHovering(false);
+    }, 100);
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Render text with individual word highlighting
+  const renderTextWithWords = (text: string, opacity: string = "100") => {
+    // Split text into words while preserving punctuation
+    const words = text.split(/(\s+)/); // Preserve spaces
+
+    return (
+      <span>
+        {words.map((word, idx) => {
+          // Don't wrap whitespace
+          if (/^\s+$/.test(word)) {
+            return <span key={idx}>{word}</span>;
+          }
+
+          const isHovered = hoveredWord === word && word.trim().length > 0;
+
+          return (
+            <span
+              key={idx}
+              className={`inline-block transition-all duration-100 ${
+                isHovered
+                  ? 'bg-yellow-200 dark:bg-yellow-500/30 px-0.5 -mx-0.5 rounded underline decoration-2 decoration-yellow-500 scale-105 font-semibold'
+                  : 'hover:bg-muted/50 px-0.5 -mx-0.5 rounded'
+              }`}
+              onMouseEnter={() => word.trim() && handleWordMouseEnter(word)}
+              onMouseLeave={handleWordMouseLeave}
+              style={{ cursor: word.trim() ? 'pointer' : 'default' }}
+            >
+              {word}
+            </span>
+          );
+        })}
+      </span>
+    );
+  };
 
   // Snap selection to word boundaries
   const snapToWordBoundaries = useCallback(() => {
@@ -238,8 +301,6 @@ export function TranscriptPanel({
         onMouseDown={segments.length > 0 ? handleMouseDown : undefined}
         onMouseUp={segments.length > 0 ? (e) => { handleMouseUp(); onSelect(); } : undefined}
         onKeyDown={segments.length > 0 ? handleTranscriptKeyDown : undefined}
-        onMouseEnter={() => setIsHovering(true)}
-        onMouseLeave={() => setIsHovering(false)}
         tabIndex={segments.length > 0 ? 0 : undefined}
         style={{
           userSelect: segments.length > 0 ? "text" : "none",
@@ -263,7 +324,7 @@ export function TranscriptPanel({
                   lineHeight: '1.5',
                 }}
               >
-                {segments[activeSegIndex - 2].text}
+                {renderTextWithWords(segments[activeSegIndex - 2].text)}
               </p>
             )}
             {/* Show previous line in lighter color */}
@@ -281,7 +342,7 @@ export function TranscriptPanel({
                   lineHeight: '1.5',
                 }}
               >
-                {segments[activeSegIndex - 1].text}
+                {renderTextWithWords(segments[activeSegIndex - 1].text)}
               </p>
             )}
             {/* Show current line (active) */}
@@ -302,7 +363,7 @@ export function TranscriptPanel({
                 data-start={segments[activeSegIndex].start}
                 data-end={segments[activeSegIndex].end}
               >
-                {segments[activeSegIndex].text}
+                {renderTextWithWords(segments[activeSegIndex].text)}
               </p>
             )}
           </div>
@@ -360,7 +421,7 @@ export function TranscriptPanel({
           <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Auto-scroll</label>
           {(isSelecting || isHovering) && (
             <span className="text-[10px] text-blue-500 font-medium">
-              {isSelecting ? "(selecting)" : "(hovering)"}
+              {isSelecting ? "(selecting)" : hoveredWord ? `(hovering: ${hoveredWord.trim().substring(0, 15)}...)` : "(hovering)"}
             </span>
           )}
         </div>

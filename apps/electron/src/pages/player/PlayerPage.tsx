@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,7 @@ export default function PlayerPage() {
   const videoId = search.videoId as string | undefined;
 
   // Video reference for playback control
-  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Hooks
   const playback = useVideoPlayback(videoId);
@@ -32,19 +32,19 @@ export default function PlayerPage() {
   const { setContent, setAnnotationsData } = useRightSidebar();
 
   // Transcript settings - using Jotai atoms with localStorage persistence
-  const [showTranscriptSettings, setShowTranscriptSettings] = React.useState(false);
+  const [showTranscriptSettings, setShowTranscriptSettings] = useState(false);
   const [fontFamily] = useAtom(fontFamilyAtom);
   const [fontSize] = useAtom(fontSizeAtom);
 
   // Auto-download transcript when file becomes available
-  React.useEffect(() => {
+  useEffect(() => {
     if (playback.data?.filePath) {
       transcript.attemptAutoDownload(playback.data.filePath);
     }
   }, [playback.data?.filePath, transcript.attemptAutoDownload]);
 
   // Set sidebar to show annotations when on PlayerPage
-  React.useEffect(() => {
+  useEffect(() => {
     setContent("annotations");
     setAnnotationsData({
       annotationsQuery: annotations.annotationsQuery,
@@ -72,8 +72,8 @@ export default function PlayerPage() {
   ]);
 
   // Auto-pause video when annotation dialog opens, resume when it closes
-  const wasPlayingRef = React.useRef<boolean>(false);
-  const pauseForDialog = React.useCallback((isOpen: boolean) => {
+  const wasPlayingRef = useRef<boolean>(false);
+  const pauseForDialog = useCallback((isOpen: boolean) => {
     if (!videoRef.current) return;
 
     if (isOpen) {
@@ -97,13 +97,13 @@ export default function PlayerPage() {
     }
   }, [annotations.showAnnotationForm]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     pauseForDialog(annotations.showAnnotationForm);
   }, [annotations.showAnnotationForm, pauseForDialog]);
 
 
   // Handle annotation form Enter key (for keyboard navigation)
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (annotations.showAnnotationForm && e.key === "Enter" && e.ctrlKey) {
         annotations.createAnnotationMutation.mutate(currentTime);

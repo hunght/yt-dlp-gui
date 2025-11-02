@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
@@ -16,7 +16,7 @@ export default function PlaylistPage() {
   const playlistId = search.playlistId as string | undefined;
   const queryClient = useQueryClient();
 
-  const [currentVideoIndex, setCurrentVideoIndex] = React.useState(0);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
 
   const query = useQuery({
     queryKey: ["playlist-details", playlistId],
@@ -44,7 +44,7 @@ export default function PlaylistPage() {
     },
   });
 
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     if (!playlistId || isRefreshing) return;

@@ -1,4 +1,4 @@
-import React from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 
@@ -25,10 +25,10 @@ export function useAnnotations(videoId: string | undefined, videoRef: React.RefO
     enabled: !!videoId,
   });
 
-  const [selectedText, setSelectedText] = React.useState("");
-  const [annotationNote, setAnnotationNote] = React.useState("");
-  const [selectedEmoji, setSelectedEmoji] = React.useState<string | null>(null);
-  const [showAnnotationForm, setShowAnnotationForm] = React.useState(false);
+  const [selectedText, setSelectedText] = useState("");
+  const [annotationNote, setAnnotationNote] = useState("");
+  const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
+  const [showAnnotationForm, setShowAnnotationForm] = useState(false);
 
   const handleTranscriptSelect = () => {
     const selection = window.getSelection()?.toString() || "";

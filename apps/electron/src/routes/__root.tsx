@@ -1,4 +1,4 @@
-import * as React from "react";
+import React, { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import BaseLayout from "@/layouts/BaseLayout";
 import { Outlet, createRootRoute, useMatches } from "@tanstack/react-router";
@@ -55,7 +55,7 @@ function Root() {
   const isFullScreenRoute = matches.some((match) => match.pathname === "/raining-letters");
 
   // Log resolved route with extracted params and search when route changes
-  React.useEffect(() => {
+  useEffect(() => {
     const leaf = matches[matches.length - 1];
     const pathname = leaf?.pathname ?? window.location.pathname;
     const search = Object.fromEntries(new URLSearchParams(window.location.search));

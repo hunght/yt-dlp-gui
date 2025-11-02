@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Play } from "lucide-react";
@@ -48,8 +48,8 @@ export default function Thumbnail({
   });
 
   // Track one-time webp->jpg fallback try for remote URLs
-  const [remoteSrc, setRemoteSrc] = React.useState<string | null | undefined>(thumbnailUrl ?? null);
-  React.useEffect(() => setRemoteSrc(thumbnailUrl ?? null), [thumbnailUrl]);
+  const [remoteSrc, setRemoteSrc] = useState<string | null | undefined>(thumbnailUrl ?? null);
+  useEffect(() => setRemoteSrc(thumbnailUrl ?? null), [thumbnailUrl]);
 
   // Prefer local cached image when available
   const hasLocalThumbnail = !!thumbnailDataUrl && !thumbnailError;

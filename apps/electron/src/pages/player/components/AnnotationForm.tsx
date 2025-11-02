@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useAtom } from "jotai";
 import { Clock, Languages, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -85,7 +85,7 @@ export function AnnotationForm({
   };
 
   // Determine source and target languages
-  const sourceLang = React.useMemo(() => {
+  const sourceLang = useMemo(() => {
     if (!language) return undefined;
     // Extract language code (e.g., "en" from "en-US")
     return language.split("-")[0];

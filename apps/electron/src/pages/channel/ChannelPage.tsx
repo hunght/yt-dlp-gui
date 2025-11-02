@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
@@ -18,7 +18,7 @@ export default function ChannelPage() {
   const queryClient = useQueryClient();
 
   // Track active tab for lazy loading
-  const [activeTab, setActiveTab] = React.useState("latest");
+  const [activeTab, setActiveTab] = useState("latest");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["channel", channelId],

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { useNavigate } from "@tanstack/react-router";
@@ -24,7 +24,7 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive 
     refetchOnWindowFocus: false,
   });
 
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     if (isRefreshing) return;

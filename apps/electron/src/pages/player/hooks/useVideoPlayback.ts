@@ -1,4 +1,4 @@
-import React from "react";
+import { useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 
@@ -31,8 +31,8 @@ export function useVideoPlayback(videoId: string | undefined) {
   });
 
   // Auto-start download once if file is missing and not already downloading
-  const autoStartedRef = React.useRef(false);
-  React.useEffect(() => {
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
     if (!videoId) return;
     if (data?.filePath) return; // We already have the file
 
@@ -46,8 +46,8 @@ export function useVideoPlayback(videoId: string | undefined) {
   }, [videoId, data?.filePath, data?.status, startDownloadMutation]);
 
   // When status flips to completed but filePath not yet populated, force a refresh once
-  const completionRefetchRef = React.useRef(false);
-  React.useEffect(() => {
+  const completionRefetchRef = useRef(false);
+  useEffect(() => {
     if (!videoId) return;
     if (data?.filePath) return;
     if ((data?.status as string | undefined) === "completed" && !completionRefetchRef.current) {

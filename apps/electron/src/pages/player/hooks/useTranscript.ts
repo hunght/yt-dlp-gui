@@ -1,4 +1,4 @@
-import React from "react";
+import { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { useToast } from "@/hooks/use-toast";
@@ -31,8 +31,8 @@ export function useTranscript(videoId: string | undefined, videoPlaybackData?: a
   });
 
   // Auto-fetch video info when subtitle data is missing
-  const hasAttemptedFetchRef = React.useRef(false);
-  React.useEffect(() => {
+  const hasAttemptedFetchRef = useRef(false);
+  useEffect(() => {
     if (!videoId) return;
     if (videoPlaybackData === undefined) return; // Still loading
 
@@ -50,7 +50,7 @@ export function useTranscript(videoId: string | undefined, videoPlaybackData?: a
   }, [videoId, videoPlaybackData, fetchVideoInfoMutation.isPending, fetchVideoInfoMutation.isSuccess, fetchVideoInfoMutation.mutate]);
 
   // Reset attempt flag when videoId changes
-  React.useEffect(() => {
+  useEffect(() => {
     hasAttemptedFetchRef.current = false;
   }, [videoId]);
 
@@ -78,7 +78,7 @@ export function useTranscript(videoId: string | undefined, videoPlaybackData?: a
   });
 
   // Filter available subtitles to only show user's preferred languages
-  const filteredLanguages = React.useMemo(() => {
+  const filteredLanguages = useMemo(() => {
     const available = availableSubsQuery.data?.languages || [];
     const preferred = userPrefsQuery.data?.preferredLanguages || [];
     if (preferred.length === 0) return available; // Show all if no preferences
@@ -86,10 +86,10 @@ export function useTranscript(videoId: string | undefined, videoPlaybackData?: a
   }, [availableSubsQuery.data, userPrefsQuery.data]);
 
   // Selected language for transcript (null => use default stored transcript)
-  const [selectedLang, setSelectedLang] = React.useState<string | null>(null);
+  const [selectedLang, setSelectedLang] = useState<string | null>(null);
 
   // If selected language isn't available for this video, reset and notify
-  React.useEffect(() => {
+  useEffect(() => {
     const available = (availableSubsQuery.data?.languages || []).map((l: any) => l.lang);
     if (selectedLang && !available.includes(selectedLang)) {
       toast({
@@ -116,7 +116,7 @@ export function useTranscript(videoId: string | undefined, videoPlaybackData?: a
   });
 
   // Clear attempt ref when transcript is successfully loaded (to allow retry if needed later)
-  React.useEffect(() => {
+  useEffect(() => {
     if (transcriptQuery.data) {
       const key = `${videoId}|${selectedLang ?? "__default__"}`;
       attemptedRef.current.delete(key);
@@ -124,7 +124,7 @@ export function useTranscript(videoId: string | undefined, videoPlaybackData?: a
   }, [videoId, selectedLang, transcriptQuery.data]);
 
   // Transcript segments (timestamped) for highlighting
-  const effectiveLang = React.useMemo(() => {
+  const effectiveLang = useMemo(() => {
     return selectedLang ?? ((transcriptQuery.data as any)?.language as string | undefined);
   }, [selectedLang, transcriptQuery.data]);
 
@@ -194,8 +194,8 @@ export function useTranscript(videoId: string | undefined, videoPlaybackData?: a
 
   // This will be handled by the parent component that has access to filePath
   // We'll provide a function to trigger auto-download
-  const attemptedRef = React.useRef<Set<string>>(new Set());
-  const attemptAutoDownload = React.useCallback((filePath: string | null | undefined) => {
+  const attemptedRef = useRef<Set<string>>(new Set());
+  const attemptAutoDownload = useCallback((filePath: string | null | undefined) => {
     if (!videoId) return;
     if (!filePath) return; // File not downloaded yet
     if (downloadTranscriptMutation.isPending) return;

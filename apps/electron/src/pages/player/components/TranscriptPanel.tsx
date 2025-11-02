@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { FileText, Settings as SettingsIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -35,15 +35,15 @@ export function TranscriptPanel({
     text: string;
   }>;
 
-  const [activeSegIndex, setActiveSegIndex] = React.useState<number | null>(null);
-  const [followPlayback, setFollowPlayback] = React.useState<boolean>(true);
-  const [isSelecting, setIsSelecting] = React.useState<boolean>(false);
-  const transcriptContainerRef = React.useRef<HTMLDivElement>(null);
-  const segRefs = React.useRef<Array<HTMLParagraphElement | null>>([]);
-  const isSnappingRef = React.useRef<boolean>(false);
+  const [activeSegIndex, setActiveSegIndex] = useState<number | null>(null);
+  const [followPlayback, setFollowPlayback] = useState<boolean>(true);
+  const [isSelecting, setIsSelecting] = useState<boolean>(false);
+  const transcriptContainerRef = useRef<HTMLDivElement>(null);
+  const segRefs = useRef<Array<HTMLParagraphElement | null>>([]);
+  const isSnappingRef = useRef<boolean>(false);
 
   // Snap selection to word boundaries
-  const snapToWordBoundaries = React.useCallback(() => {
+  const snapToWordBoundaries = useCallback(() => {
     if (isSnappingRef.current) return; // Prevent infinite loop
 
     const selection = window.getSelection();
@@ -104,7 +104,7 @@ export function TranscriptPanel({
   }, []);
 
   // Track selection state and snap to word boundaries
-  React.useEffect(() => {
+  useEffect(() => {
     const handleSelectionChange = () => {
       if (!transcriptContainerRef.current) return;
 
@@ -137,7 +137,7 @@ export function TranscriptPanel({
   }, [snapToWordBoundaries]);
 
   // Active segment index based on current time (freeze when selecting)
-  React.useEffect(() => {
+  useEffect(() => {
     if (!segments.length) {
       setActiveSegIndex(null);
       return;
@@ -150,7 +150,7 @@ export function TranscriptPanel({
   }, [currentTime, segments, isSelecting]);
 
   // Scroll active segment into view (freeze when selecting)
-  React.useEffect(() => {
+  useEffect(() => {
     if (activeSegIndex == null || !followPlayback) return;
     // Don't auto-scroll while user is selecting text
     if (isSelecting) return;

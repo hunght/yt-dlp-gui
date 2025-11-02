@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, Search } from "lucide-react";
 
 export default function ChannelsPage() {
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [limit, setLimit] = React.useState(100);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [limit, setLimit] = useState(100);
 
   const channelsQuery = useQuery({
     queryKey: ["ytdlp", "channels", limit],
@@ -17,7 +17,7 @@ export default function ChannelsPage() {
     refetchOnWindowFocus: false,
   });
 
-  const filteredChannels = React.useMemo(() => {
+  const filteredChannels = useMemo(() => {
     if (!channelsQuery.data) return [];
     if (!searchQuery.trim()) return channelsQuery.data;
 

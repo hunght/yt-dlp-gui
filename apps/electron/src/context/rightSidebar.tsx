@@ -1,4 +1,4 @@
-import * as React from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
 
 type RightSidebarContent = "queue" | "annotations" | null;
 
@@ -12,10 +12,10 @@ type RightSidebarContext = {
   setAnnotationsData: (data: any) => void;
 };
 
-const RightSidebarContext = React.createContext<RightSidebarContext | null>(null);
+const RightSidebarContext = createContext<RightSidebarContext | null>(null);
 
 export function useRightSidebar() {
-  const context = React.useContext(RightSidebarContext);
+  const context = useContext(RightSidebarContext);
   if (!context) {
     throw new Error("useRightSidebar must be used within a RightSidebarProvider.");
   }
@@ -23,15 +23,15 @@ export function useRightSidebar() {
 }
 
 export function RightSidebarProvider({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(true);
-  const [content, setContent] = React.useState<RightSidebarContent>("queue");
-  const [annotationsData, setAnnotationsData] = React.useState<any>(null);
+  const [open, setOpen] = useState(true);
+  const [content, setContent] = useState<RightSidebarContent>("queue");
+  const [annotationsData, setAnnotationsData] = useState<any>(null);
 
-  const toggleRightSidebar = React.useCallback(() => {
+  const toggleRightSidebar = useCallback(() => {
     setOpen((prev) => !prev);
   }, []);
 
-  const value = React.useMemo(
+  const value = useMemo(
     () => ({
       open,
       setOpen,

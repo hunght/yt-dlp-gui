@@ -1,4 +1,4 @@
-import React from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { trpcClient } from "@/utils/trpc";
 
 export function useWatchProgress(
@@ -6,14 +6,14 @@ export function useWatchProgress(
   videoRef: React.RefObject<HTMLVideoElement>,
   lastPositionSeconds?: number | undefined
 ) {
-  const [currentTime, setCurrentTime] = React.useState(0);
-  const positionRestoredRef = React.useRef<boolean>(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const positionRestoredRef = useRef<boolean>(false);
 
-  const lastTimeRef = React.useRef<number>(0);
-  const accumulatedRef = React.useRef<number>(0);
-  const flushTimerRef = React.useRef<any>(null);
+  const lastTimeRef = useRef<number>(0);
+  const accumulatedRef = useRef<number>(0);
+  const flushTimerRef = useRef<any>(null);
 
-  const handleTimeUpdate = React.useCallback(
+  const handleTimeUpdate = useCallback(
     (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
       const el = e.currentTarget;
       const current = el.currentTime;
@@ -27,7 +27,7 @@ export function useWatchProgress(
     []
   );
 
-  const flushProgress = React.useCallback(async () => {
+  const flushProgress = useCallback(async () => {
     if (!videoId) return;
     const delta = Math.floor(accumulatedRef.current);
     if (delta <= 0) return;
@@ -42,7 +42,7 @@ export function useWatchProgress(
   }, [videoId]);
 
   // Restore last position when video is ready
-  React.useEffect(() => {
+  useEffect(() => {
     if (!videoRef.current || !videoId || positionRestoredRef.current) return;
     if (lastPositionSeconds === undefined || lastPositionSeconds <= 0) return;
 
@@ -77,11 +77,11 @@ export function useWatchProgress(
   }, [videoId, videoRef, lastPositionSeconds]);
 
   // Reset position restored flag when video changes
-  React.useEffect(() => {
+  useEffect(() => {
     positionRestoredRef.current = false;
   }, [videoId]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Flush every 10 seconds
     flushTimerRef.current = setInterval(() => {
       flushProgress();

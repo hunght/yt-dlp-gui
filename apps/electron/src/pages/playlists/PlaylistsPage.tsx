@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
@@ -11,8 +11,8 @@ import { toast } from "sonner";
 import Thumbnail from "@/components/Thumbnail";
 
 export default function PlaylistsPage() {
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [limit, setLimit] = React.useState(100);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [limit, setLimit] = useState(100);
 
   const playlistsQuery = useQuery({
     queryKey: ["ytdlp", "all-playlists", limit],
@@ -25,7 +25,7 @@ export default function PlaylistsPage() {
       trpcClient.ytdlp.updatePlaylistView.mutate({ playlistId }),
   });
 
-  const filteredPlaylists = React.useMemo(() => {
+  const filteredPlaylists = useMemo(() => {
     if (!playlistsQuery.data) return [];
     if (!searchQuery.trim()) return playlistsQuery.data;
 

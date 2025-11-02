@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -53,7 +53,7 @@ const getLanguageName = (code: string): string => {
 export const LanguagePreferencesSection = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [newLanguage, setNewLanguage] = React.useState("");
+  const [newLanguage, setNewLanguage] = useState("");
 
   // Get current preferences
   const prefsQuery = useQuery({

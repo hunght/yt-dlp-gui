@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
@@ -61,7 +61,7 @@ export const PopularTab: React.FC<PopularTabProps> = ({ channelId, onDownload })
     refetchOnWindowFocus: false,
   });
 
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     if (isRefreshing) return;

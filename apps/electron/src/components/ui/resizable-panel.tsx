@@ -1,4 +1,4 @@
-import * as React from "react";
+import React, { useState, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface ResizablePanelProps extends React.ComponentProps<"div"> {
@@ -23,18 +23,18 @@ export const ResizablePanel = React.forwardRef<HTMLDivElement, ResizablePanelPro
     },
     ref
   ) => {
-    const [width, setWidth] = React.useState(defaultWidth);
-    const [isResizing, setIsResizing] = React.useState(false);
-    const panelRef = React.useRef<HTMLDivElement>(null);
+    const [width, setWidth] = useState(defaultWidth);
+    const [isResizing, setIsResizing] = useState(false);
+    const panelRef = useRef<HTMLDivElement>(null);
 
-    React.useImperativeHandle(ref, () => panelRef.current!);
+    useImperativeHandle(ref, () => panelRef.current!);
 
-    const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
       e.preventDefault();
       setIsResizing(true);
     }, []);
 
-    React.useEffect(() => {
+    useEffect(() => {
       if (!isResizing) return;
 
       const handleMouseMove = (e: MouseEvent) => {

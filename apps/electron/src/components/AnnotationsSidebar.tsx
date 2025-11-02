@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useMemo, useEffect } from "react";
 import { UseQueryResult } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,10 +103,10 @@ export function AnnotationsSidebar({
   currentTime = 0,
 }: AnnotationsSidebarProps) {
   const annotations = annotationsQuery.data || [];
-  const annotationRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+  const annotationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Find the currently active annotation (closest one before or at current time)
-  const activeAnnotationId = React.useMemo(() => {
+  const activeAnnotationId = useMemo(() => {
     if (!currentTime || annotations.length === 0) return null;
 
     // Find all annotations at or before current time
@@ -125,7 +125,7 @@ export function AnnotationsSidebar({
   }, [annotations, currentTime]);
 
   // Auto-scroll to active annotation
-  React.useEffect(() => {
+  useEffect(() => {
     if (!activeAnnotationId) return;
 
     const element = annotationRefs.current.get(activeAnnotationId);

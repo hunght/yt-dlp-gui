@@ -1,4 +1,4 @@
-import * as React from "react";
+import React, { useState, useMemo } from "react";
 import { Timer, ScrollText, Clapperboard, History, Users, List, Languages } from "lucide-react";
 import { Link, useMatches } from "@tanstack/react-router";
 import { logger } from "@/helpers/logger";
@@ -55,9 +55,9 @@ const items = [
 ];
 
 export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [activeItem, setActiveItem] = React.useState<string | null>(null);
+  const [activeItem, setActiveItem] = useState<string | null>(null);
   const matches = useMatches();
-  const currentPath = React.useMemo(() => matches[matches.length - 1]?.pathname ?? "/", [matches]);
+  const currentPath = useMemo(() => matches[matches.length - 1]?.pathname ?? "/", [matches]);
 
   return (
     <Sidebar

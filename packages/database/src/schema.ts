@@ -264,3 +264,31 @@ export const translationCache = sqliteTable(
 
 export type TranslationCache = typeof translationCache.$inferSelect;
 export type NewTranslationCache = typeof translationCache.$inferInsert;
+
+// Translation contexts - links translations to specific videos and timestamps
+// This allows users to see where they translated each word and jump back to that moment
+export const translationContexts = sqliteTable(
+  "translation_contexts",
+  {
+    id: text("id").primaryKey(),
+    // Foreign key to translation_cache
+    translationId: text("translation_id").notNull().references(() => translationCache.id, { onDelete: "cascade" }),
+    // Video where this translation occurred
+    videoId: text("video_id").notNull(),
+    // Timestamp in seconds where the word appeared
+    timestampSeconds: integer("timestamp_seconds").notNull(),
+    // The surrounding text/context from the transcript
+    contextText: text("context_text"),
+
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [
+    index("translation_contexts_translation_id_idx").on(table.translationId),
+    index("translation_contexts_video_id_idx").on(table.videoId),
+    // Prevent duplicate contexts for same translation in same video at same timestamp
+    unique().on(table.translationId, table.videoId, table.timestampSeconds),
+  ]
+);
+
+export type TranslationContext = typeof translationContexts.$inferSelect;
+export type NewTranslationContext = typeof translationContexts.$inferInsert;

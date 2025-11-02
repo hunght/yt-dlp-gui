@@ -10,6 +10,7 @@ import PlaylistsPage from "@/pages/playlists/PlaylistsPage";
 import LogsPage from "@/pages/logs/LogsPage";
 import SubscriptionsPage from "@/pages/subscriptions/SubscriptionsPage";
 import HistoryPage from "@/pages/history/HistoryPage";
+import MyWordsPage from "@/pages/my-words/MyWordsPage";
 
 export const DashboardRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -86,6 +87,12 @@ export const HistoryRoute = createRoute({
   component: HistoryPage,
 });
 
+export const MyWordsRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/my-words",
+  component: MyWordsPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   DashboardRoute,
   SettingsRoute,
@@ -97,4 +104,5 @@ export const rootTree = RootRoute.addChildren([
   PlaylistsRoute,
   SubscriptionsRoute,
   HistoryRoute,
+  MyWordsRoute,
 ]);

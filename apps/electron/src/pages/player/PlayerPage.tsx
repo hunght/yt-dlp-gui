@@ -170,6 +170,7 @@ export default function PlayerPage() {
                 currentTime={currentTime}
                 selectedText={annotations.selectedText}
                 language={effectiveLang}
+                videoId={videoId}
                 note={annotations.annotationNote}
                 onNoteChange={annotations.setAnnotationNote}
                 onSave={() => annotations.createAnnotationMutation.mutate(currentTime)}

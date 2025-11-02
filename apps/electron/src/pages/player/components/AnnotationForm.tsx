@@ -23,6 +23,7 @@ interface AnnotationFormProps {
   selectedText: string;
   note: string;
   language?: string;
+  videoId?: string; // Video ID for linking translation to context
   onNoteChange: (note: string) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -35,6 +36,7 @@ export function AnnotationForm({
   selectedText,
   note,
   language,
+  videoId,
   onNoteChange,
   onSave,
   onCancel,
@@ -55,13 +57,17 @@ export function AnnotationForm({
 
   // Auto-translate when text is selected and dialog opens
   const translationQuery = useQuery({
-    queryKey: ["translate", selectedText, sourceLang, targetLang],
+    queryKey: ["translate", selectedText, sourceLang, targetLang, videoId, currentTime],
     queryFn: async () => {
       if (!selectedText) return null;
       return await trpcClient.utils.translateText.query({
         text: selectedText,
         sourceLang: sourceLang,
         targetLang: targetLang,
+        // Pass video context for linking translation to this moment
+        videoId: videoId,
+        timestampSeconds: currentTime,
+        contextText: selectedText, // Use the selected text as context
       });
     },
     enabled: !!selectedText && open, // Auto-translate when dialog opens with selected text

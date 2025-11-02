@@ -4,6 +4,7 @@ import { windowRouter } from "@/api/routers/window";
 import { ytdlpRouter } from "@/api/routers/ytdlp";
 import { queueRouter } from "@/api/routers/queue";
 import { preferencesRouter } from "@/api/routers/preferences";
+import { translationRouter } from "@/api/routers/translation";
 
 // Create the root router
 export const router = t.router({
@@ -12,6 +13,7 @@ export const router = t.router({
   ytdlp: ytdlpRouter,
   queue: queueRouter,
   preferences: preferencesRouter,
+  translation: translationRouter,
 });
 
 // Export type router type signature

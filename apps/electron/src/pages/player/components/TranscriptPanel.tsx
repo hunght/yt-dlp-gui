@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { FileText, Settings as SettingsIcon, Loader2 } from "lucide-react";
+import { FileText, Settings as SettingsIcon, Loader2, Rewind, FastForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTranscript } from "../hooks/useTranscript";
@@ -40,10 +40,13 @@ export function TranscriptPanel({
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const [hoveredWord, setHoveredWord] = useState<string | null>(null);
+  const [seekIndicator, setSeekIndicator] = useState<{ direction: 'forward' | 'backward'; amount: number } | null>(null);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const segRefs = useRef<Array<HTMLParagraphElement | null>>([]);
   const isSnappingRef = useRef<boolean>(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isScrollSeekingRef = useRef<boolean>(false);
 
   // Handle word hover with debouncing
   const handleWordMouseEnter = (word: string) => {
@@ -62,14 +65,70 @@ export function TranscriptPanel({
     }, 100);
   };
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
       }
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+      }
     };
   }, []);
+
+  // Mouse scroll seeking on transcript (reuse video player logic)
+  useEffect(() => {
+    const container = transcriptContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      // Prevent default scrolling
+      e.preventDefault();
+
+      // Mark that we're scroll-seeking (overrides hover pause)
+      isScrollSeekingRef.current = true;
+
+      // Determine seek direction and amount
+      const seekAmount = 5; // seconds per scroll tick
+      const direction = e.deltaY < 0 ? 'backward' : 'forward';
+      const delta = direction === 'forward' ? seekAmount : -seekAmount;
+
+      // Seek the video
+      const newTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + delta));
+      video.currentTime = newTime;
+
+      // Temporarily disable follow playback and enable it after seeking
+      setFollowPlayback(true);
+
+      // Show visual feedback
+      setSeekIndicator({ direction, amount: seekAmount });
+
+      // Clear previous timeout
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+      }
+
+      // Hide indicator and re-enable hover after 800ms
+      seekTimeoutRef.current = setTimeout(() => {
+        setSeekIndicator(null);
+        isScrollSeekingRef.current = false;
+      }, 800);
+    };
+
+    // Add wheel listener with passive: false to allow preventDefault
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+      }
+    };
+  }, [videoRef]);
 
   // Render text with individual word highlighting
   const renderTextWithWords = (text: string, opacity: string = "100") => {
@@ -200,24 +259,24 @@ export function TranscriptPanel({
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [snapToWordBoundaries]);
 
-  // Active segment index based on current time (freeze when selecting or hovering)
+  // Active segment index based on current time (freeze when selecting or hovering, unless scroll-seeking)
   useEffect(() => {
     if (!segments.length) {
       setActiveSegIndex(null);
       return;
     }
-    // Don't update active segment while user is selecting text or hovering
-    if (isSelecting || isHovering) return;
+    // Don't update active segment while user is selecting text or hovering (unless scroll-seeking)
+    if ((isSelecting || isHovering) && !isScrollSeekingRef.current) return;
 
     const idx = segments.findIndex((s) => currentTime >= s.start && currentTime < s.end);
     setActiveSegIndex(idx >= 0 ? idx : null);
   }, [currentTime, segments, isSelecting, isHovering]);
 
-  // Scroll active segment into view (freeze when selecting or hovering)
+  // Scroll active segment into view (freeze when selecting or hovering, unless scroll-seeking)
   useEffect(() => {
     if (activeSegIndex == null || !followPlayback) return;
-    // Don't auto-scroll while user is selecting text or hovering
-    if (isSelecting || isHovering) return;
+    // Don't auto-scroll while user is selecting text or hovering (unless scroll-seeking)
+    if ((isSelecting || isHovering) && !isScrollSeekingRef.current) return;
 
     const el = segRefs.current[activeSegIndex];
     const cont = transcriptContainerRef.current;
@@ -225,7 +284,7 @@ export function TranscriptPanel({
     const elTop = el.offsetTop;
     const targetScroll = Math.max(0, elTop - cont.clientHeight * 0.3);
     cont.scrollTo({ top: targetScroll, behavior: "smooth" });
-  }, [activeSegIndex, followPlayback, isSelecting]);
+  }, [activeSegIndex, followPlayback, isSelecting, isHovering]);
 
   // Handle mousedown to detect selection start
   const handleMouseDown = () => {
@@ -295,18 +354,19 @@ export function TranscriptPanel({
           }
         `}
       </style>
-      <div
-        className="relative p-6 rounded-lg border bg-gradient-to-br from-background to-muted/20 h-[150px] flex items-end justify-center overflow-hidden shadow-sm"
-        ref={transcriptContainerRef}
-        onMouseDown={segments.length > 0 ? handleMouseDown : undefined}
-        onMouseUp={segments.length > 0 ? (e) => { handleMouseUp(); onSelect(); } : undefined}
-        onKeyDown={segments.length > 0 ? handleTranscriptKeyDown : undefined}
-        tabIndex={segments.length > 0 ? 0 : undefined}
-        style={{
-          userSelect: segments.length > 0 ? "text" : "none",
-          cursor: isSelecting ? "text" : "default",
-        }}
-      >
+      <div className="relative">
+        <div
+          className="relative p-6 rounded-lg border bg-gradient-to-br from-background to-muted/20 h-[150px] flex items-end justify-center overflow-hidden shadow-sm"
+          ref={transcriptContainerRef}
+          onMouseDown={segments.length > 0 ? handleMouseDown : undefined}
+          onMouseUp={segments.length > 0 ? (e) => { handleMouseUp(); onSelect(); } : undefined}
+          onKeyDown={segments.length > 0 ? handleTranscriptKeyDown : undefined}
+          tabIndex={segments.length > 0 ? 0 : undefined}
+          style={{
+            userSelect: segments.length > 0 ? "text" : "none",
+            cursor: isSelecting ? "text" : "default",
+          }}
+        >
         {segments.length > 0 ? (
           <div className="w-full text-center space-y-1 pb-4">
             {/* Show previous 2 lines in faded color for context */}
@@ -386,9 +446,36 @@ export function TranscriptPanel({
         <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background to-transparent pointer-events-none rounded-t-lg" />
         <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-lg" />
       </div>
+
+      {/* Seek Indicator Overlay for Transcript Scrolling */}
+      {seekIndicator && (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <div className="bg-black/80 backdrop-blur-sm rounded-lg px-6 py-4 flex items-center gap-3 shadow-lg animate-in fade-in zoom-in-95 duration-200">
+            {seekIndicator.direction === 'backward' ? (
+              <>
+                <Rewind className="w-8 h-8 text-white" />
+                <div className="text-white">
+                  <p className="text-2xl font-bold">-{seekIndicator.amount}s</p>
+                  <p className="text-xs text-white/70">Backward</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-white text-right">
+                  <p className="text-2xl font-bold">+{seekIndicator.amount}s</p>
+                  <p className="text-xs text-white/70">Forward</p>
+                </div>
+                <FastForward className="w-8 h-8 text-white" />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      </div>
+
       {segments.length > 0 && (
         <p className="text-xs text-muted-foreground italic">
-          💡 Select text to look up in dictionary or create notes
+          💡 Scroll to seek video • Select text to translate or create notes
         </p>
       )}
       {/* Controls at bottom for better focus */}

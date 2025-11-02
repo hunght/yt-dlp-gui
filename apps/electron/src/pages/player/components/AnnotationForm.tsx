@@ -3,8 +3,6 @@ import { useAtom } from "jotai";
 import { Clock, Languages, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -15,36 +13,53 @@ import {
 } from "@/components/ui/dialog";
 import { trpcClient } from "@/utils/trpc";
 import { useQuery } from "@tanstack/react-query";
-import { translationTargetLangAtom, includeTranslationInNoteAtom } from "@/context/transcriptSettings";
+import { translationTargetLangAtom } from "@/context/transcriptSettings";
+import { Link } from "@tanstack/react-router";
 
 interface AnnotationFormProps {
   open: boolean;
   currentTime: number;
   selectedText: string;
   note: string;
+  emoji: string | null;
   language?: string;
-  videoId?: string; // Video ID for linking translation to context
+  videoId: string; // Required: Video ID for linking translation to context
   onNoteChange: (note: string) => void;
+  onEmojiChange: (emoji: string | null) => void;
   onSave: () => void;
   onCancel: () => void;
   isSaving: boolean;
 }
+
+// Emoji reaction types for quick note categorization
+const EMOJI_REACTIONS = [
+  { emoji: "❓", label: "Confused", description: "Mark as unclear or confusing" },
+  { emoji: "💡", label: "Insight", description: "Important learning moment" },
+  { emoji: "⭐", label: "Important", description: "Key point to remember" },
+  { emoji: "🔖", label: "Bookmark", description: "Save for later review" },
+] as const;
 
 export function AnnotationForm({
   open,
   currentTime,
   selectedText,
   note,
+  emoji,
   language,
   videoId,
   onNoteChange,
+  onEmojiChange,
   onSave,
   onCancel,
   isSaving,
 }: AnnotationFormProps) {
   // Use atoms directly for translation settings
   const [translationTargetLang] = useAtom(translationTargetLangAtom);
-  const [includeTranslationInNote, setIncludeTranslationInNote] = useAtom(includeTranslationInNoteAtom);
+
+  // Handle emoji selection
+  const handleEmojiClick = (newEmoji: string) => {
+    onEmojiChange(emoji === newEmoji ? null : newEmoji);
+  };
 
   // Determine source and target languages
   const sourceLang = React.useMemo(() => {
@@ -64,34 +79,16 @@ export function AnnotationForm({
         text: selectedText,
         sourceLang: sourceLang,
         targetLang: targetLang,
-        // Pass video context for linking translation to this moment
+        // Video context is required for all translations
         videoId: videoId,
         timestampSeconds: currentTime,
         contextText: selectedText, // Use the selected text as context
       });
     },
-    enabled: !!selectedText && open, // Auto-translate when dialog opens with selected text
+    enabled: !!selectedText && !!videoId && open, // Require videoId to be present
     staleTime: Infinity, // Cache translation results
   });
 
-  // Track previous checkbox state
-  const prevIncludeTranslationRef = React.useRef(includeTranslationInNote);
-
-  // Auto-fill or clear translation in note based on checkbox state
-  React.useEffect(() => {
-    const checkboxChanged = prevIncludeTranslationRef.current !== includeTranslationInNote;
-    prevIncludeTranslationRef.current = includeTranslationInNote;
-
-    if (open && translationQuery.data?.success) {
-      if (includeTranslationInNote && (checkboxChanged || !note)) {
-        // Fill translation when checkbox is checked
-        onNoteChange(translationQuery.data.translation);
-      } else if (!includeTranslationInNote && checkboxChanged && note === translationQuery.data.translation) {
-        // Clear note when checkbox is unchecked and note matches translation
-        onNoteChange("");
-      }
-    }
-  }, [translationQuery.data, includeTranslationInNote, open, note, onNoteChange]);
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
       <DialogContent className="sm:max-w-[500px]">
@@ -116,20 +113,21 @@ export function AnnotationForm({
               <div className="flex items-start gap-3">
                 <Languages className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold">
                       Translation ({targetLang.toUpperCase()})
                     </p>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="include-translation"
-                        checked={includeTranslationInNote}
-                        onCheckedChange={(checked) => setIncludeTranslationInNote(checked === true)}
-                      />
-                      <Label htmlFor="include-translation" className="text-xs cursor-pointer">
-                        Include in note
-                      </Label>
-                    </div>
+                    {translationQuery.data?.success && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <span>✓ Auto-saved to </span>
+                        <Link
+                          to="/my-words"
+                          className="font-semibold underline hover:text-blue-700 dark:hover:text-blue-300"
+                        >
+                          My Words
+                        </Link>
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -168,8 +166,31 @@ export function AnnotationForm({
             </div>
           )}
 
+          {/* Emoji Reactions */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Quick categorize (optional)
+            </label>
+            <div className="flex gap-2">
+              {EMOJI_REACTIONS.map((reaction) => (
+                <Button
+                  key={reaction.emoji}
+                  type="button"
+                  variant={emoji === reaction.emoji ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 gap-1.5"
+                  onClick={() => handleEmojiClick(reaction.emoji)}
+                  title={reaction.description}
+                >
+                  <span className="text-base">{reaction.emoji}</span>
+                  <span className="text-xs">{reaction.label}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+
           <Textarea
-            placeholder="Write your note..."
+            placeholder="Write your note... (optional)"
             value={note}
             onChange={(e) => onNoteChange(e.target.value)}
             className="text-sm min-h-24 resize-none"
@@ -182,16 +203,24 @@ export function AnnotationForm({
             }}
           />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button
-            onClick={onSave}
-            disabled={isSaving}
-          >
-            {isSaving ? "Saving..." : "Save note"}
-          </Button>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          {emoji && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground sm:mr-auto">
+              <span className="text-base">{emoji}</span>
+              <span>Selected</span>
+            </div>
+          )}
+          <div className="flex gap-2 sm:ml-auto">
+            <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button
+              onClick={onSave}
+              disabled={isSaving}
+            >
+              {isSaving ? "Saving..." : emoji ? `Save ${emoji}` : "Save note"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

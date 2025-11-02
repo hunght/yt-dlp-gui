@@ -8,6 +8,7 @@ export interface Annotation {
   timestampSeconds: number;
   selectedText?: string | null;
   note: string;
+  emoji?: string | null;
   createdAt: number;
   updatedAt?: number | null;
 }
@@ -26,6 +27,7 @@ export function useAnnotations(videoId: string | undefined, videoRef: React.RefO
 
   const [selectedText, setSelectedText] = React.useState("");
   const [annotationNote, setAnnotationNote] = React.useState("");
+  const [selectedEmoji, setSelectedEmoji] = React.useState<string | null>(null);
   const [showAnnotationForm, setShowAnnotationForm] = React.useState(false);
 
   const handleTranscriptSelect = () => {
@@ -48,12 +50,14 @@ export function useAnnotations(videoId: string | undefined, videoRef: React.RefO
         timestampSeconds: currentTime,
         selectedText: selectedText || undefined,
         note: annotationNote,
+        emoji: selectedEmoji || undefined,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["annotations", videoId] });
       setAnnotationNote("");
       setSelectedText("");
+      setSelectedEmoji(null);
       setShowAnnotationForm(false);
     },
   });
@@ -80,6 +84,8 @@ export function useAnnotations(videoId: string | undefined, videoRef: React.RefO
     setSelectedText,
     annotationNote,
     setAnnotationNote,
+    selectedEmoji,
+    setSelectedEmoji,
     showAnnotationForm,
     setShowAnnotationForm,
     handleTranscriptSelect,

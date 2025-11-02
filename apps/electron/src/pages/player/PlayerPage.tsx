@@ -172,12 +172,15 @@ export default function PlayerPage() {
                 language={effectiveLang}
                 videoId={videoId}
                 note={annotations.annotationNote}
+                emoji={annotations.selectedEmoji}
                 onNoteChange={annotations.setAnnotationNote}
+                onEmojiChange={annotations.setSelectedEmoji}
                 onSave={() => annotations.createAnnotationMutation.mutate(currentTime)}
                 onCancel={() => {
                   annotations.setShowAnnotationForm(false);
                   annotations.setAnnotationNote("");
                   annotations.setSelectedText("");
+                  annotations.setSelectedEmoji(null);
                 }}
                 isSaving={annotations.createAnnotationMutation.isPending}
               />

@@ -118,6 +118,8 @@ export const videoAnnotations = sqliteTable(
     selectedText: text("selected_text"),
     // The note/comment the user added
     note: text("note").notNull(),
+    // Emoji reaction for quick categorization (❓ confused, 💡 insight, ⭐ important, 🔖 bookmark)
+    emoji: text("emoji"),
 
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at"),

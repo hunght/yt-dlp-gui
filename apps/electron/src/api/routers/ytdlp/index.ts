@@ -2455,6 +2455,7 @@ export const ytdlpRouter = t.router({
         timestampSeconds: z.number().min(0),
         selectedText: z.string().optional(),
         note: z.string().min(1),
+        emoji: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -2468,6 +2469,7 @@ export const ytdlpRouter = t.router({
           timestampSeconds: Math.floor(input.timestampSeconds),
           selectedText: input.selectedText ?? null,
           note: input.note,
+          emoji: input.emoji ?? null,
           createdAt: now,
           updatedAt: now,
         });

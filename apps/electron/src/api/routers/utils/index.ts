@@ -15,6 +15,8 @@ import os from "os";
 import { EventEmitter } from "events";
 import { extractZipWithYauzl } from "./service";
 import { getDatabasePath } from "@/utils/paths";
+import { translationCache, translationContexts } from "@yt-dlp-gui/database";
+import crypto from "crypto";
 
 //   a function to get platform-specific download URL without triggering download
 const getPlatformDownloadUrl = (version: string): string => {
@@ -126,10 +128,10 @@ export const utilsRouter = t.router({
         text: z.string().min(1),
         targetLang: z.string().default("en"), // Default to English
         sourceLang: z.string().optional(), // Auto-detect if not provided
-        // Optional video context for linking translation to specific moment
-        videoId: z.string().optional(),
-        timestampSeconds: z.number().optional(),
-        contextText: z.string().optional(),
+        // Required video context for linking translation to specific moment
+        videoId: z.string().min(1),
+        timestampSeconds: z.number(),
+        contextText: z.string().optional(), // Context text can be optional
       })
     )
     .query(async ({ input, ctx }) => {
@@ -145,7 +147,6 @@ export const utilsRouter = t.router({
         // Check cache first
         if (db) {
           try {
-            const { translationCache } = await import("@yt-dlp-gui/database");
             const { eq, and } = await import("drizzle-orm");
 
             const cached = await db
@@ -193,32 +194,28 @@ export const utilsRouter = t.router({
                 // Don't fail the translation if update fails
               }
 
-              // Save video context if provided
-              if (input.videoId && input.timestampSeconds !== undefined) {
-                try {
-                  const { translationContexts } = await import("@yt-dlp-gui/database");
-                  const crypto = await import("crypto");
-                  const now = Date.now();
+              // Save video context
+              try {
+                const now = Date.now();
 
-                  await db.insert(translationContexts).values({
-                    id: crypto.randomUUID(),
-                    translationId: cachedEntry.id,
-                    videoId: input.videoId,
-                    timestampSeconds: Math.floor(input.timestampSeconds),
-                    contextText: input.contextText || null,
-                    createdAt: now,
-                  }).onConflictDoNothing(); // Ignore if duplicate
+                await db.insert(translationContexts).values({
+                  id: crypto.randomUUID(),
+                  translationId: cachedEntry.id,
+                  videoId: input.videoId,
+                  timestampSeconds: Math.floor(input.timestampSeconds),
+                  contextText: input.contextText || null,
+                  createdAt: now,
+                }).onConflictDoNothing(); // Ignore if duplicate
 
-                  logger.debug("[translation] Saved video context", {
-                    translationId: cachedEntry.id,
-                    videoId: input.videoId,
-                    timestamp: input.timestampSeconds,
-                  });
-                } catch (contextError) {
-                  logger.warn("[translation] Failed to save video context", {
-                    error: String(contextError),
-                  });
-                }
+                logger.debug("[translation] Saved video context", {
+                  translationId: cachedEntry.id,
+                  videoId: input.videoId,
+                  timestamp: input.timestampSeconds,
+                });
+              } catch (contextError) {
+                logger.warn("[translation] Failed to save video context", {
+                  error: String(contextError),
+                });
               }
 
               return {
@@ -267,9 +264,6 @@ export const utilsRouter = t.router({
           // Store in cache for future use
           if (db) {
             try {
-              const { translationCache, translationContexts } = await import("@yt-dlp-gui/database");
-              const crypto = await import("crypto");
-
               const cacheId = crypto.randomUUID();
               const now = Date.now();
 
@@ -294,28 +288,26 @@ export const utilsRouter = t.router({
                 queryCount: 1,
               });
 
-              // Save video context if provided
-              if (input.videoId && input.timestampSeconds !== undefined) {
-                try {
-                  await db.insert(translationContexts).values({
-                    id: crypto.randomUUID(),
-                    translationId: cacheId,
-                    videoId: input.videoId,
-                    timestampSeconds: Math.floor(input.timestampSeconds),
-                    contextText: input.contextText || null,
-                    createdAt: now,
-                  }).onConflictDoNothing();
+              // Save video context
+              try {
+                await db.insert(translationContexts).values({
+                  id: crypto.randomUUID(),
+                  translationId: cacheId,
+                  videoId: input.videoId,
+                  timestampSeconds: Math.floor(input.timestampSeconds),
+                  contextText: input.contextText || null,
+                  createdAt: now,
+                }).onConflictDoNothing();
 
-                  logger.debug("[translation] Saved video context for new translation", {
-                    translationId: cacheId,
-                    videoId: input.videoId,
-                    timestamp: input.timestampSeconds,
-                  });
-                } catch (contextError) {
-                  logger.warn("[translation] Failed to save video context", {
-                    error: String(contextError),
-                  });
-                }
+                logger.debug("[translation] Saved video context for new translation", {
+                  translationId: cacheId,
+                  videoId: input.videoId,
+                  timestamp: input.timestampSeconds,
+                });
+              } catch (contextError) {
+                logger.warn("[translation] Failed to save video context", {
+                  error: String(contextError),
+                });
               }
             } catch (cacheError) {
               logger.warn("[translation] Failed to cache translation", {

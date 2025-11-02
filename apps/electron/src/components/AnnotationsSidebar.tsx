@@ -11,6 +11,7 @@ interface Annotation {
   timestampSeconds: number;
   selectedText?: string | null;
   note: string;
+  emoji?: string | null;
   createdAt: number;
 }
 
@@ -139,15 +140,22 @@ export function AnnotationsSidebar({
               <Card key={annotation.id} className="shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-3">
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onSeek(annotation.timestampSeconds)}
-                      className="h-auto p-1 flex items-center gap-1 text-xs text-primary hover:text-primary/80"
-                    >
-                      <Clock className="w-3 h-3" />
-                      {formatTimestamp(annotation.timestampSeconds)}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {annotation.emoji && (
+                        <span className="text-lg" title="Category">
+                          {annotation.emoji}
+                        </span>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onSeek(annotation.timestampSeconds)}
+                        className="h-auto p-1 flex items-center gap-1 text-xs text-primary hover:text-primary/80"
+                      >
+                        <Clock className="w-3 h-3" />
+                        {formatTimestamp(annotation.timestampSeconds)}
+                      </Button>
+                    </div>
                     <Button
                       variant="ghost"
                       size="sm"

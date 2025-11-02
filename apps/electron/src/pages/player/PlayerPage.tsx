@@ -52,6 +52,7 @@ export default function PlayerPage() {
       onDelete: annotations.deleteAnnotationMutation.mutate,
       videoTitle: playback.data?.title,
       videoDescription: playback.data?.description,
+      currentTime: currentTime, // Pass current time for auto-scrolling
     });
 
     // Reset to queue when leaving PlayerPage
@@ -67,6 +68,7 @@ export default function PlayerPage() {
     annotations.deleteAnnotationMutation.mutate,
     playback.data?.title,
     playback.data?.description,
+    currentTime, // Update when current time changes
   ]);
 
   // Auto-pause video when annotation dialog opens, resume when it closes

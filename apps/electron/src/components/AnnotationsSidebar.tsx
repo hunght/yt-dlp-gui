@@ -21,6 +21,7 @@ interface AnnotationsSidebarProps {
   onDelete: (id: string) => void;
   videoTitle?: string;
   videoDescription?: string;
+  currentTime?: number; // Current video playback time for auto-scrolling
 }
 
 function formatTimestamp(seconds: number): string {
@@ -99,8 +100,42 @@ export function AnnotationsSidebar({
   onDelete,
   videoTitle,
   videoDescription,
+  currentTime = 0,
 }: AnnotationsSidebarProps) {
   const annotations = annotationsQuery.data || [];
+  const annotationRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Find the currently active annotation (closest one before or at current time)
+  const activeAnnotationId = React.useMemo(() => {
+    if (!currentTime || annotations.length === 0) return null;
+
+    // Find all annotations at or before current time
+    const passedAnnotations = annotations.filter(
+      (a) => a.timestampSeconds <= currentTime
+    );
+
+    if (passedAnnotations.length === 0) return null;
+
+    // Return the closest one (highest timestamp that's still <= currentTime)
+    const closest = passedAnnotations.reduce((prev, current) =>
+      current.timestampSeconds > prev.timestampSeconds ? current : prev
+    );
+
+    return closest.id;
+  }, [annotations, currentTime]);
+
+  // Auto-scroll to active annotation
+  React.useEffect(() => {
+    if (!activeAnnotationId) return;
+
+    const element = annotationRefs.current.get(activeAnnotationId);
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [activeAnnotationId]);
 
   return (
     <div className="flex h-full flex-col">
@@ -136,8 +171,24 @@ export function AnnotationsSidebar({
           </div>
         ) : (
           <div className="space-y-3">
-            {annotations.map((annotation) => (
-              <Card key={annotation.id} className="shadow-sm hover:shadow-md transition-shadow">
+            {annotations.map((annotation) => {
+              const isActive = annotation.id === activeAnnotationId;
+              return (
+              <Card
+                key={annotation.id}
+                ref={(el) => {
+                  if (el) {
+                    annotationRefs.current.set(annotation.id, el);
+                  } else {
+                    annotationRefs.current.delete(annotation.id);
+                  }
+                }}
+                className={`shadow-sm hover:shadow-md transition-all ${
+                  isActive
+                    ? 'ring-2 ring-primary shadow-lg scale-[1.02]'
+                    : ''
+                }`}
+              >
                 <CardContent className="p-3">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2">
@@ -186,7 +237,8 @@ export function AnnotationsSidebar({
                   </p>
                 </CardContent>
               </Card>
-            ))}
+            );
+            })}
           </div>
         )}
       </ScrollArea>

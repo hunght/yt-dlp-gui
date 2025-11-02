@@ -30,6 +30,7 @@ export function AppRightSidebar({ className, ...props }: React.ComponentProps<"d
             onDelete={annotationsData.onDelete}
             videoTitle={annotationsData.videoTitle}
             videoDescription={annotationsData.videoDescription}
+            currentTime={annotationsData.currentTime}
           />
         ) : (
           <DownloadQueueSidebar />

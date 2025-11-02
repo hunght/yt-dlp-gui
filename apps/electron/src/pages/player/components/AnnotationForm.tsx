@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { trpcClient } from "@/utils/trpc";
 import { useQuery } from "@tanstack/react-query";
-import { translationTargetLangAtom } from "@/context/transcriptSettings";
+import { translationTargetLangAtom, includeTranslationInNoteAtom } from "@/context/transcriptSettings";
 import { Link } from "@tanstack/react-router";
 
 interface AnnotationFormProps {
@@ -55,6 +55,29 @@ export function AnnotationForm({
 }: AnnotationFormProps) {
   // Use atoms directly for translation settings
   const [translationTargetLang] = useAtom(translationTargetLangAtom);
+  const [includeTranslationInNote] = useAtom(includeTranslationInNoteAtom);
+
+  // Handle save with translation auto-append
+  const handleSave = () => {
+    // If setting is enabled and translation is available, append it to the note
+    if (includeTranslationInNote && translationQuery.data?.success) {
+      const translation = translationQuery.data.translation;
+      const currentNote = note.trim();
+
+      // Only append if translation is not already in the note
+      if (currentNote && !currentNote.includes(translation)) {
+        onNoteChange(`${currentNote}\n\n→ ${translation}`);
+      } else if (!currentNote) {
+        onNoteChange(`→ ${translation}`);
+      }
+    }
+
+    // Call the original save handler
+    // Use setTimeout to ensure note state is updated before saving
+    setTimeout(() => {
+      onSave();
+    }, 0);
+  };
 
   // Handle emoji selection
   const handleEmojiClick = (newEmoji: string) => {
@@ -198,7 +221,7 @@ export function AnnotationForm({
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !isSaving) {
                 e.preventDefault();
-                onSave();
+                handleSave();
               }
             }}
           />
@@ -215,7 +238,7 @@ export function AnnotationForm({
               Cancel
             </Button>
             <Button
-              onClick={onSave}
+              onClick={handleSave}
               disabled={isSaving}
             >
               {isSaving ? "Saving..." : emoji ? `Save ${emoji}` : "Save note"}

@@ -66,17 +66,10 @@ export default function HistoryPage() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {v.downloadStatus === "completed" && v.downloadFilePath ? (
-                        <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId } })}>
+                    <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId } })}>
                           <Play className="mr-1 h-3 w-3" />
                           Play
                         </Button>
-                      ) : (
-                        <Button size="sm" variant="outline" onClick={() => trpcClient.utils.openExternalUrl.mutate({ url: v.url })}>
-                          <ExternalLinkIcon className="mr-1 h-3 w-3" />
-                          Watch on YouTube
-                        </Button>
-                      )}
                     </div>
                   </div>
                 );

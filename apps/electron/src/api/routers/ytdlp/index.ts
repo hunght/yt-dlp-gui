@@ -2454,9 +2454,16 @@ export const ytdlpRouter = t.router({
         videoId: z.string(),
         timestampSeconds: z.number().min(0),
         selectedText: z.string().optional(),
-        note: z.string().min(1),
+        note: z.string().optional(), // Allow empty notes when using emoji only
         emoji: z.string().optional(),
       })
+      .refine(
+        (data) => (data.note && data.note.length > 0) || data.emoji,
+        {
+          message: "Either note or emoji must be provided",
+          path: ["note"],
+        }
+      )
     )
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
@@ -2468,7 +2475,7 @@ export const ytdlpRouter = t.router({
           videoId: input.videoId,
           timestampSeconds: Math.floor(input.timestampSeconds),
           selectedText: input.selectedText ?? null,
-          note: input.note,
+          note: input.note || "", // Use empty string if no note provided
           emoji: input.emoji ?? null,
           createdAt: now,
           updatedAt: now,

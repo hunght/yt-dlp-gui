@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Pause, Play, X, RotateCw, Trash2, PlayCircle } from "lucide-react";
+import { Pause, Play, X, RotateCw, PlayCircle } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import type { QueueStatus } from "@/services/download-queue/types";
@@ -96,17 +96,6 @@ export const DownloadQueueCard: React.FC = () => {
     },
   });
 
-  // Clear completed mutation
-  const clearCompletedMutation = useMutation({
-    mutationFn: () => trpcClient.queue.clearCompleted.mutate(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
-      toast.success("Completed downloads cleared");
-    },
-    onError: (error: any) => {
-      toast.error(error?.message ?? "Failed to clear completed downloads");
-    },
-  });
 
   if (isLoading) {
     return (
@@ -146,19 +135,6 @@ export const DownloadQueueCard: React.FC = () => {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <CardTitle>Download Queue</CardTitle>
-        <div className="flex items-center gap-2">
-          {queueData.completed.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => clearCompletedMutation.mutate()}
-              disabled={clearCompletedMutation.isPending}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Clear Completed
-            </Button>
-          )}
-        </div>
       </CardHeader>
       <CardContent>
         {/* Queue Stats */}

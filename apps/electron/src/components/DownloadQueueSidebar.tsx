@@ -4,7 +4,7 @@ import { trpcClient } from "@/utils/trpc";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Pause, Play, X, RotateCw, Trash2, PlayCircle } from "lucide-react";
+import { Pause, Play, X, RotateCw, PlayCircle } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -95,17 +95,6 @@ export const DownloadQueueSidebar: React.FC = () => {
     },
   });
 
-  // Clear completed mutation
-  const clearCompletedMutation = useMutation({
-    mutationFn: () => trpcClient.queue.clearCompleted.mutate(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
-      toast.success("Completed downloads cleared");
-    },
-    onError: (error: any) => {
-      toast.error(error?.message ?? "Failed to clear completed downloads");
-    },
-  });
 
   if (isLoading) {
     return (
@@ -138,17 +127,6 @@ export const DownloadQueueSidebar: React.FC = () => {
         <h2 className="text-base font-semibold text-tracksy-blue dark:text-white">
           Download Queue
         </h2>
-        {queueData.completed.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => clearCompletedMutation.mutate()}
-            disabled={clearCompletedMutation.isPending}
-            className="h-8 px-2"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        )}
       </div>
 
       {/* Queue Stats - 2x2 Grid */}

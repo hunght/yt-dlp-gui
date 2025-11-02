@@ -358,8 +358,10 @@ export function TranscriptPanel({
         <div className="flex items-center gap-1.5">
           <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
           <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Auto-scroll</label>
-          {isSelecting && (
-            <span className="text-[10px] text-blue-500 font-medium">(paused)</span>
+          {(isSelecting || isHovering) && (
+            <span className="text-[10px] text-blue-500 font-medium">
+              {isSelecting ? "(selecting)" : "(hovering)"}
+            </span>
           )}
         </div>
 

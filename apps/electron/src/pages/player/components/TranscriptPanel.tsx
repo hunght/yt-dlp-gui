@@ -7,13 +7,17 @@ import {
   translationTargetLangAtom,
   currentTranscriptLangAtom,
   fontFamilyAtom,
-  fontSizeAtom
+  fontSizeAtom,
+  transcriptCollapsedAtom
 } from "@/context/transcriptSettings";
+import { openAnnotationFormAtom } from "@/context/annotations";
 import { toast } from "sonner";
 import { TranscriptContent } from "./TranscriptContent";
 import { TranslationTooltip } from "./TranslationTooltip";
-import { TranscriptControls } from "./TranscriptControls";
 import { TranscriptSettingsDialog } from "./TranscriptSettingsDialog";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Settings as SettingsIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { filterLanguagesByPreference, isInCooldown, setCooldown, clearCooldown } from "../utils/transcriptUtils";
 
@@ -22,10 +26,6 @@ interface TranscriptPanelProps {
   currentTime: number;
   videoRef: React.RefObject<HTMLVideoElement>;
   playbackData?: any; // For accessing availableLanguages
-  onSelect: () => void;
-  onEnterKey?: () => void;
-  isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
 }
 
 export function TranscriptPanel({
@@ -33,10 +33,6 @@ export function TranscriptPanel({
   currentTime,
   videoRef,
   playbackData,
-  onSelect,
-  onEnterKey,
-  isCollapsed = false,
-  onToggleCollapse,
 }: TranscriptPanelProps) {
   const queryClient = useQueryClient();
   const { toast: toastHook } = useToast();
@@ -47,6 +43,8 @@ export function TranscriptPanel({
   const [fontFamily] = useAtom(fontFamilyAtom);
   const [fontSize] = useAtom(fontSizeAtom);
   const [, setCurrentTranscriptLang] = useAtom(currentTranscriptLangAtom);
+  const [, setOpenAnnotationForm] = useAtom(openAnnotationFormAtom);
+  const [isCollapsed, setIsCollapsed] = useAtom(transcriptCollapsedAtom);
 
   // Local state
   const [showTranscriptSettings, setShowTranscriptSettings] = useState(false);
@@ -272,6 +270,29 @@ export function TranscriptPanel({
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const translateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Handle text selection - trigger annotation form via atom
+  const handleTranscriptSelect = () => {
+    const selection = window.getSelection()?.toString() || "";
+    if (selection.length > 0) {
+      const cleaned = selection.trim();
+      if (cleaned.length > 0) {
+        setOpenAnnotationForm({
+          trigger: Date.now(),
+          selectedText: cleaned,
+          currentTime: currentTime,
+        });
+      }
+    }
+  };
+
+  // Handle Enter key - trigger annotation form at current time
+  const handleEnterKey = () => {
+    setOpenAnnotationForm({
+      trigger: Date.now(),
+      currentTime: currentTime,
+    });
+  };
+
   // Mutation for saving words to My Words
   const saveWordMutation = useMutation({
     mutationFn: async (translationId: string) => {
@@ -453,10 +474,10 @@ export function TranscriptPanel({
 
   // Auto-collapse when no transcript is available
   useEffect(() => {
-    if (segments.length === 0 && !isCollapsed && onToggleCollapse) {
-      onToggleCollapse();
+    if (segments.length === 0 && !isCollapsed) {
+      setIsCollapsed(true);
     }
-  }, [segments.length, isCollapsed, onToggleCollapse]);
+  }, [segments.length, isCollapsed, setIsCollapsed]);
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -641,9 +662,7 @@ export function TranscriptPanel({
         videoRef.current.pause();
       }
       // Open annotation form at current time
-      if (onEnterKey) {
-        onEnterKey();
-      }
+      handleEnterKey();
       return;
     }
   };
@@ -662,7 +681,7 @@ export function TranscriptPanel({
               hoveredWord={hoveredWord}
               translationMap={translationMap}
               onMouseDown={handleMouseDown}
-              onMouseUp={(e) => { handleMouseUp(); onSelect(); }}
+              onMouseUp={(e) => { handleMouseUp(); handleTranscriptSelect(); }}
               onKeyDown={handleTranscriptKeyDown}
               onWordMouseEnter={handleWordMouseEnter}
               onWordMouseLeave={handleWordMouseLeave}
@@ -692,29 +711,143 @@ export function TranscriptPanel({
           </div>
         )}
 
-        {/* Controls at bottom for better focus */}
-        <TranscriptControls
-          isCollapsed={isCollapsed}
-          onToggleCollapse={onToggleCollapse}
-          hasSegments={segments.length > 0}
-          hasTranscriptData={!!transcriptData}
-          filteredLanguages={filteredLanguages}
-          selectedLang={selectedLang}
-          effectiveLang={effectiveLang}
-          onLanguageChange={setSelectedLang}
-          isLanguageDisabled={availableSubsQuery.isLoading || downloadTranscriptMutation.isPending}
-          followPlayback={followPlayback}
-          onFollowPlaybackChange={setFollowPlayback}
-          isSelecting={isSelecting}
-          isHovering={isHovering}
-          isHoveringTooltip={isHoveringTooltip}
-          hoveredWord={hoveredWord}
-          isFetching={transcriptQuery.isFetching || transcriptSegmentsQuery.isFetching || downloadTranscriptMutation.isPending}
-          isDownloading={downloadTranscriptMutation.isPending}
-          onDownloadTranscript={() => downloadTranscriptMutation.mutate()}
-          videoId={videoId}
-          onSettingsClick={() => setShowTranscriptSettings(true)}
-        />
+        {/* Controls at bottom */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t">
+          {/* Left side - hint text */}
+          {!isCollapsed && segments.length > 0 && (
+            <p className="text-xs text-muted-foreground italic">
+              💡 Hover words to translate • Saved words highlighted in blue
+            </p>
+          )}
+          {isCollapsed && (
+            <div className="flex items-center gap-2">
+              {segments.length === 0 ? (
+                <>
+                  <p className="text-xs text-muted-foreground italic">
+                    No transcript available
+                  </p>
+                  {!transcriptData && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadTranscriptMutation.mutate()}
+                      disabled={downloadTranscriptMutation.isPending}
+                      className="h-6 text-xs"
+                    >
+                      {downloadTranscriptMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Downloading...
+                        </>
+                      ) : (
+                        "Download Transcript"
+                      )}
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">
+                  Transcript collapsed
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Right side - controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Language selector */}
+            {!isCollapsed && filteredLanguages.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-muted-foreground">Language:</label>
+                <select
+                  className="text-xs border rounded px-2 py-1 bg-background hover:bg-muted/30"
+                  value={selectedLang ?? effectiveLang ?? ""}
+                  onChange={(e) => setSelectedLang(e.target.value)}
+                  disabled={availableSubsQuery.isLoading || downloadTranscriptMutation.isPending}
+                >
+                  {filteredLanguages.map((l) => (
+                    <option key={l.lang} value={l.lang}>
+                      {l.lang}{l.hasManual ? "" : " (auto)"}
+                    </option>
+                  ))}
+                  {filteredLanguages.length === 0 && (
+                    <option value={effectiveLang ?? "en"}>{effectiveLang ?? "en"}</option>
+                  )}
+                </select>
+              </div>
+            )}
+
+            {/* Follow playback toggle */}
+            {!isCollapsed && (
+              <div className="flex items-center gap-1.5">
+                <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
+                <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Auto-scroll</label>
+                {(isSelecting || isHovering || isHoveringTooltip) && (
+                  <span className="text-[10px] text-blue-500 font-medium">
+                    {isSelecting
+                      ? "(selecting)"
+                      : isHoveringTooltip
+                      ? "(viewing translation)"
+                      : hoveredWord
+                      ? `(hovering: ${hoveredWord.trim().substring(0, 15)}...)`
+                      : "(hovering)"}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Collapse/Expand Toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="h-7"
+            >
+              {isCollapsed ? (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5 mr-1.5" />
+                  <span className="text-xs">Show</span>
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5 mr-1.5" />
+                  <span className="text-xs">Hide</span>
+                </>
+              )}
+            </Button>
+
+            {/* Transcript Settings Button */}
+            {!isCollapsed && (
+              <Button size="sm" variant="outline" onClick={() => setShowTranscriptSettings(true)} className="h-7">
+                <SettingsIcon className="w-3.5 h-3.5 mr-1.5" />
+                <span className="text-xs">Settings</span>
+              </Button>
+            )}
+
+            {/* Status indicators */}
+            {!isCollapsed && (
+              <div className="flex items-center gap-3">
+                {/* Tiny loader (non-blocking) when fetching or downloading */}
+                {(transcriptQuery.isFetching || transcriptSegmentsQuery.isFetching || downloadTranscriptMutation.isPending) && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Updating…
+                  </span>
+                )}
+
+                {/* Cooldown badge when rate-limited for this video/language */}
+                {(() => {
+                  const cooldownInfo = isInCooldown(videoId, selectedLang);
+                  return cooldownInfo.inCooldown ? (
+                    <span className="text-[10px] text-amber-500">
+                      retry in ~{cooldownInfo.minutesRemaining}m
+                    </span>
+                  ) : null;
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Transcript Settings Dialog (owned by TranscriptPanel) */}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useAtom } from "jotai";
 import { Clock, Languages, Loader2, BookmarkPlus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,22 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import { trpcClient } from "@/utils/trpc";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { translationTargetLangAtom, includeTranslationInNoteAtom } from "@/context/transcriptSettings";
+import { translationTargetLangAtom, includeTranslationInNoteAtom, currentTranscriptLangAtom } from "@/context/transcriptSettings";
 import { toast } from "sonner";
+import { openAnnotationFormAtom } from "@/context/annotations";
 
 interface AnnotationFormProps {
-  open: boolean;
+  videoId: string;
   currentTime: number;
-  selectedText: string;
-  note: string;
-  emoji: string | null;
-  language?: string;
-  videoId: string; // Required: Video ID for linking translation to context
-  onNoteChange: (note: string) => void;
-  onEmojiChange: (emoji: string | null) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  isSaving: boolean;
+  videoRef: React.RefObject<HTMLVideoElement>;
 }
 
 // Emoji reaction types for quick note categorization
@@ -40,25 +32,62 @@ const EMOJI_REACTIONS = [
 ] as const;
 
 export function AnnotationForm({
-  open,
-  currentTime,
-  selectedText,
-  note,
-  emoji,
-  language,
   videoId,
-  onNoteChange,
-  onEmojiChange,
-  onSave,
-  onCancel,
-  isSaving,
+  currentTime,
+  videoRef,
 }: AnnotationFormProps) {
-  // Use atoms directly for translation settings
+  const queryClient = useQueryClient();
+
+  // Atoms for settings and shared state
   const [translationTargetLang] = useAtom(translationTargetLangAtom);
   const [includeTranslationInNote] = useAtom(includeTranslationInNoteAtom);
-  const [wordSaved, setWordSaved] = useState(false);
+  const [currentTranscriptLang] = useAtom(currentTranscriptLangAtom);
+  const [openTrigger, setOpenTrigger] = useAtom(openAnnotationFormAtom);
 
-  const queryClient = useQueryClient();
+  // Component owns ALL its state
+  const [open, setOpen] = useState(false);
+  const [selectedText, setSelectedText] = useState("");
+  const [note, setNote] = useState("");
+  const [emoji, setEmoji] = useState<string | null>(null);
+  const [wordSaved, setWordSaved] = useState(false);
+  const [timestampWhenOpened, setTimestampWhenOpened] = useState(0);
+
+  // Listen to open trigger from other components
+  useEffect(() => {
+    if (openTrigger && openTrigger.trigger > 0) {
+      setOpen(true);
+      setSelectedText(openTrigger.selectedText || "");
+      setTimestampWhenOpened(openTrigger.currentTime || currentTime);
+      // Clear the trigger
+      setOpenTrigger(null);
+    }
+  }, [openTrigger, currentTime, setOpenTrigger]);
+
+  // Create annotation mutation
+  const createAnnotationMutation = useMutation({
+    mutationFn: async () => {
+      if (!videoId) throw new Error("Missing videoId");
+      return await trpcClient.ytdlp.createAnnotation.mutate({
+        videoId,
+        timestampSeconds: timestampWhenOpened,
+        selectedText: selectedText || undefined,
+        note: note,
+        emoji: emoji || undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["annotations", videoId] });
+      // Reset form
+      setNote("");
+      setSelectedText("");
+      setEmoji(null);
+      setOpen(false);
+      toast.success("Note saved!");
+    },
+    onError: (error) => {
+      toast.error("Failed to save note: " + String(error));
+    },
+  });
 
   // Mutation for saving word to My Words
   const saveWordMutation = useMutation({
@@ -75,6 +104,27 @@ export function AnnotationForm({
     },
   });
 
+  // Auto-pause video when form opens
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    if (open) {
+      // Pause video when form opens
+      if (!videoRef.current.paused) {
+        videoRef.current.pause();
+      }
+    }
+  }, [open, videoRef]);
+
+  // Handle cancel
+  const handleCancel = () => {
+    setOpen(false);
+    setNote("");
+    setSelectedText("");
+    setEmoji(null);
+    setWordSaved(false);
+  };
+
   // Handle save with translation auto-append
   const handleSave = () => {
     // If setting is enabled and translation is available, append it to the note
@@ -84,47 +134,46 @@ export function AnnotationForm({
 
       // Only append if translation is not already in the note
       if (currentNote && !currentNote.includes(translation)) {
-        onNoteChange(`${currentNote}\n\n→ ${translation}`);
+        setNote(`${currentNote}\n\n→ ${translation}`);
       } else if (!currentNote) {
-        onNoteChange(`→ ${translation}`);
+        setNote(`→ ${translation}`);
       }
     }
 
-    // Call the original save handler
-    // Use setTimeout to ensure note state is updated before saving
+    // Save after brief delay to ensure state is updated
     setTimeout(() => {
-      onSave();
+      createAnnotationMutation.mutate();
     }, 0);
   };
 
   // Handle emoji selection
   const handleEmojiClick = (newEmoji: string) => {
-    onEmojiChange(emoji === newEmoji ? null : newEmoji);
+    setEmoji(emoji === newEmoji ? null : newEmoji);
   };
 
   // Determine source and target languages
   const sourceLang = useMemo(() => {
-    if (!language) return undefined;
+    if (!currentTranscriptLang) return undefined;
     // Extract language code (e.g., "en" from "en-US")
-    return language.split("-")[0];
-  }, [language]);
+    return currentTranscriptLang.split("-")[0];
+  }, [currentTranscriptLang]);
 
   const targetLang = translationTargetLang || "en"; // Use user preference or default to English
 
   // Reset wordSaved state when dialog closes or text changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (!open) {
       setWordSaved(false);
     }
   }, [open]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setWordSaved(false);
   }, [selectedText]);
 
   // Auto-translate when text is selected and dialog opens
   const translationQuery = useQuery({
-    queryKey: ["translate", selectedText, sourceLang, targetLang, videoId, currentTime],
+    queryKey: ["translate", selectedText, sourceLang, targetLang, videoId, timestampWhenOpened],
     queryFn: async () => {
       if (!selectedText) return null;
       return await trpcClient.utils.translateText.query({
@@ -133,7 +182,7 @@ export function AnnotationForm({
         targetLang: targetLang,
         // Video context is required for all translations
         videoId: videoId,
-        timestampSeconds: currentTime,
+        timestampSeconds: Math.floor(timestampWhenOpened),
         contextText: selectedText, // Use the selected text as context
       });
     },
@@ -142,12 +191,12 @@ export function AnnotationForm({
   });
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-muted-foreground" />
-            Add note at {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, "0")}
+            Add note at {Math.floor(timestampWhenOpened / 60)}:{String(Math.floor(timestampWhenOpened % 60)).padStart(2, "0")}
           </DialogTitle>
           {selectedText && (
             <DialogDescription asChild>
@@ -269,11 +318,11 @@ export function AnnotationForm({
           <Textarea
             placeholder="Write your note... (optional)"
             value={note}
-            onChange={(e) => onNoteChange(e.target.value)}
+            onChange={(e) => setNote(e.target.value)}
             className="text-sm min-h-24 resize-none"
             autoFocus
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !isSaving) {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !createAnnotationMutation.isPending) {
                 e.preventDefault();
                 handleSave();
               }
@@ -288,14 +337,14 @@ export function AnnotationForm({
             </div>
           )}
           <div className="flex gap-2 sm:ml-auto">
-            <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+            <Button variant="outline" onClick={handleCancel} disabled={createAnnotationMutation.isPending}>
               Cancel
             </Button>
             <Button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={createAnnotationMutation.isPending}
             >
-              {isSaving ? "Saving..." : emoji ? `Save ${emoji}` : "Save note"}
+              {createAnnotationMutation.isPending ? "Saving..." : emoji ? `Save ${emoji}` : "Save note"}
             </Button>
           </div>
         </DialogFooter>

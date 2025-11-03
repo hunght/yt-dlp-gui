@@ -1,9 +1,20 @@
 import React from "react";
 import { Clock, X } from "lucide-react";
-import { Annotation, useAnnotations } from "../hooks/useAnnotations";
+import { UseQueryResult } from "@tanstack/react-query";
+
+export interface Annotation {
+  id: string;
+  videoId: string;
+  timestampSeconds: number;
+  selectedText?: string | null;
+  note: string;
+  emoji?: string | null;
+  createdAt: number;
+  updatedAt?: number | null;
+}
 
 interface AnnotationsPanelProps {
-  annotationsQuery: ReturnType<typeof useAnnotations>["annotationsQuery"];
+  annotationsQuery: UseQueryResult<Annotation[], any>;
   onSeek: (timestampSeconds: number) => void;
   onDelete: (id: string) => void;
 }

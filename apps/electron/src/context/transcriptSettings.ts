@@ -31,3 +31,9 @@ export const showInlineTranslationsAtom = atomWithStorage<boolean>(
 // This is the effective language of the currently displayed transcript
 export const currentTranscriptLangAtom = atom<string | undefined>(undefined);
 
+// Transcript panel collapsed state (persisted)
+export const transcriptCollapsedAtom = atomWithStorage<boolean>(
+  "transcript-collapsed",
+  false
+);
+

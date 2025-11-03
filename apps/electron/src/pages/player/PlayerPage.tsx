@@ -1,20 +1,18 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { useSearch } from "@tanstack/react-router";
+import { useSearch, useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Rewind, FastForward } from "lucide-react";
-import { useVideoPlayback } from "./hooks/useVideoPlayback";
 import { useWatchProgress } from "./hooks/useWatchProgress";
-import { useAnnotations } from "./hooks/useAnnotations";
-import { usePlaylistNavigation } from "./hooks/usePlaylistNavigation";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { DownloadStatus } from "./components/DownloadStatus";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { AnnotationForm } from "./components/AnnotationForm";
 import { PlaylistNavigation } from "./components/PlaylistNavigation";
-import { currentTranscriptLangAtom } from "@/context/transcriptSettings";
 import { useRightSidebar } from "@/context/rightSidebar";
+import { trpcClient } from "@/utils/trpc";
 
 export default function PlayerPage() {
   const search = useSearch({ from: "/player" });
@@ -24,38 +22,203 @@ export default function PlayerPage() {
 
   // Video reference for playback control
   const videoRef = useRef<HTMLVideoElement>(null);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  // Hooks
-  const playback = useVideoPlayback(videoId);
-  const { currentTime, handleTimeUpdate } = useWatchProgress(videoId, videoRef, playback.data?.lastPositionSeconds);
-  const annotations = useAnnotations(videoId, videoRef);
-  const playlistNav = usePlaylistNavigation({ playlistId, playlistIndex, videoId });
+  // ============================================================================
+  // VIDEO PLAYBACK (previously in useVideoPlayback hook)
+  // ============================================================================
+
+  const { data: playback, isLoading: playbackIsLoading } = useQuery({
+    queryKey: ["video-playback", videoId],
+    queryFn: async () => {
+      if (!videoId) return null;
+      return await trpcClient.ytdlp.getVideoPlayback.query({ videoId });
+    },
+    enabled: !!videoId,
+    refetchInterval: (q) => {
+      const status = (q.state.data as any)?.status as string | undefined;
+      if (!status) return false;
+      return ["downloading", "queued", "paused"].includes(status) ? 1500 : false;
+    },
+  });
+
+  const startDownloadMutation = useMutation({
+    mutationFn: async () => {
+      if (!videoId) throw new Error("Missing videoId");
+      const url = `https://www.youtube.com/watch?v=${videoId}`;
+      return await trpcClient.queue.addToQueue.mutate({ urls: [url] });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["video-playback", videoId] });
+    },
+  });
+
+  // Auto-start download once if file is missing and not already downloading
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (!videoId) return;
+    if (playback?.filePath) return; // We already have the file
+
+    const st = (playback?.status as string | undefined) || undefined;
+    const isActive = st && ["downloading", "queued", "paused"].includes(st);
+
+    if (!isActive && !autoStartedRef.current) {
+      autoStartedRef.current = true;
+      startDownloadMutation.mutate();
+    }
+  }, [videoId, playback?.filePath, playback?.status, startDownloadMutation]);
+
+  // When status flips to completed but filePath not yet populated, force a refresh once
+  const completionRefetchRef = useRef(false);
+  useEffect(() => {
+    if (!videoId) return;
+    if (playback?.filePath) return;
+    if ((playback?.status as string | undefined) === "completed" && !completionRefetchRef.current) {
+      completionRefetchRef.current = true;
+      queryClient.invalidateQueries({ queryKey: ["video-playback", videoId] });
+    }
+  }, [playback?.status, playback?.filePath, videoId, queryClient]);
+
+  // ============================================================================
+  // WATCH PROGRESS (using existing useWatchProgress hook - complex reusable logic)
+  // ============================================================================
+
+  const { currentTime, handleTimeUpdate } = useWatchProgress(videoId, videoRef, playback?.lastPositionSeconds);
+
+  // ============================================================================
+  // ANNOTATIONS - Queries for sidebar (form owns its own logic)
+  // ============================================================================
+
+  const annotationsQuery = useQuery({
+    queryKey: ["annotations", videoId],
+    queryFn: async () => {
+      if (!videoId) return [];
+      return await trpcClient.ytdlp.getAnnotations.query({ videoId });
+    },
+    enabled: !!videoId,
+  });
+
+  const deleteAnnotationMutation = useMutation({
+    mutationFn: async (annotationId: string) => {
+      return await trpcClient.ytdlp.deleteAnnotation.mutate({ id: annotationId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["annotations", videoId] });
+    },
+  });
+
+  const handleSeekToAnnotation = (timestampSeconds: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = timestampSeconds;
+      videoRef.current.play();
+    }
+  };
+
+
+  // ============================================================================
+  // PLAYLIST NAVIGATION (previously in usePlaylistNavigation hook)
+  // ============================================================================
+
+  // Fetch playlist details if we have a playlistId
+  const playlistQuery = useQuery({
+    queryKey: ["playlist-details", playlistId],
+    queryFn: async () => {
+      if (!playlistId) return null;
+      return await trpcClient.ytdlp.getPlaylistDetails.query({ playlistId });
+    },
+    enabled: !!playlistId,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    networkMode: "offlineFirst",
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+
+  // Update playback position mutation
+  const updatePlaybackMutation = useMutation({
+    mutationFn: ({ videoIndex, watchTime }: { videoIndex: number; watchTime?: number }) =>
+      trpcClient.ytdlp.updatePlaylistPlayback.mutate({
+        playlistId: playlistId!,
+        currentVideoIndex: videoIndex,
+        watchTimeSeconds: watchTime,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ytdlp", "all-playlists"] });
+    },
+  });
+
+  const playlistData = playlistQuery.data as any | null;
+  const playlistVideos = playlistData?.videos || [];
+  const playlistCurrentIndex = playlistIndex ?? 0;
+
+  // Check if there's a next/previous video
+  const playlistHasNext = playlistCurrentIndex < playlistVideos.length - 1;
+  const playlistHasPrevious = playlistCurrentIndex > 0;
+
+  // Navigate to next video
+  const goToNextVideo = useCallback(() => {
+    if (!playlistHasNext || !playlistId) return;
+
+    const nextIndex = playlistCurrentIndex + 1;
+    const nextVideo = playlistVideos[nextIndex];
+
+    if (nextVideo) {
+      updatePlaybackMutation.mutate({ videoIndex: nextIndex });
+      navigate({
+        to: "/player",
+        search: {
+          videoId: nextVideo.videoId,
+          playlistId: playlistId,
+          playlistIndex: nextIndex,
+        },
+      });
+    }
+  }, [playlistHasNext, playlistId, playlistCurrentIndex, playlistVideos, updatePlaybackMutation, navigate]);
+
+  // Navigate to previous video
+  const goToPreviousVideo = useCallback(() => {
+    if (!playlistHasPrevious || !playlistId) return;
+
+    const previousIndex = playlistCurrentIndex - 1;
+    const previousVideo = playlistVideos[previousIndex];
+
+    if (previousVideo) {
+      updatePlaybackMutation.mutate({ videoIndex: previousIndex });
+      navigate({
+        to: "/player",
+        search: {
+          videoId: previousVideo.videoId,
+          playlistId: playlistId,
+          playlistIndex: previousIndex,
+        },
+      });
+    }
+  }, [playlistHasPrevious, playlistId, playlistCurrentIndex, playlistVideos, updatePlaybackMutation, navigate]);
+
+  const isPlaylist = !!playlistId && !!playlistData;
+  const playlistTitle = playlistData?.title;
+  const playlistTotalVideos = playlistVideos.length;
 
   // Right sidebar for annotations
   const { setContent, setAnnotationsData } = useRightSidebar();
-
-  // Transcript collapsed state
-  const [isTranscriptCollapsed, setIsTranscriptCollapsed] = useState(false);
-
-  // Transcript language from atom (shared by TranscriptPanel)
-  const [currentTranscriptLang] = useAtom(currentTranscriptLangAtom);
 
   // Global scroll-to-seek indicator
   const [seekIndicator, setSeekIndicator] = useState<{ direction: 'forward' | 'backward'; amount: number } | null>(null);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const filePath = playback.data?.filePath || null;
-  const videoTitle = playback.data?.title || playback.data?.videoId || "Video";
+  const filePath = playback?.filePath || null;
+  const videoTitle = playback?.title || playback?.videoId || "Video";
 
   // Set sidebar to show annotations when on PlayerPage
   useEffect(() => {
     setContent("annotations");
     setAnnotationsData({
-      annotationsQuery: annotations.annotationsQuery,
-      onSeek: annotations.handleSeekToAnnotation,
-      onDelete: annotations.deleteAnnotationMutation.mutate,
-      videoTitle: playback.data?.title,
-      videoDescription: playback.data?.description,
+      annotationsQuery,
+      onSeek: handleSeekToAnnotation,
+      onDelete: deleteAnnotationMutation.mutate,
+      videoTitle: playback?.title,
+      videoDescription: playback?.description,
       currentTime: currentTime, // Pass current time for auto-scrolling
     });
 
@@ -67,55 +230,14 @@ export default function PlayerPage() {
   }, [
     setContent,
     setAnnotationsData,
-    annotations.annotationsQuery,
-    annotations.handleSeekToAnnotation,
-    annotations.deleteAnnotationMutation.mutate,
-    playback.data?.title,
-    playback.data?.description,
+    annotationsQuery,
+    handleSeekToAnnotation,
+    deleteAnnotationMutation.mutate,
+    playback?.title,
+    playback?.description,
     currentTime, // Update when current time changes
   ]);
 
-  // Auto-pause video when annotation dialog opens, resume when it closes
-  const wasPlayingRef = useRef<boolean>(false);
-  const pauseForDialog = useCallback((isOpen: boolean) => {
-    if (!videoRef.current) return;
-
-    if (isOpen) {
-      // Dialog is opening - pause video if it's playing
-      if (!wasPlayingRef.current) {
-        wasPlayingRef.current = !videoRef.current.paused;
-      }
-      if (wasPlayingRef.current && !videoRef.current.paused) {
-        videoRef.current.pause();
-      }
-    } else {
-      // Dialog is closing - resume if it was playing before
-      if (!annotations.showAnnotationForm) {
-        if (wasPlayingRef.current && videoRef.current.paused) {
-          videoRef.current.play().catch(() => {
-            // Ignore play() errors (e.g., if video was removed)
-          });
-        }
-        wasPlayingRef.current = false;
-      }
-    }
-  }, [annotations.showAnnotationForm]);
-
-  useEffect(() => {
-    pauseForDialog(annotations.showAnnotationForm);
-  }, [annotations.showAnnotationForm, pauseForDialog]);
-
-
-  // Handle annotation form Enter key (for keyboard navigation)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (annotations.showAnnotationForm && e.key === "Enter" && e.ctrlKey) {
-        annotations.createAnnotationMutation.mutate(currentTime);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [annotations.showAnnotationForm, annotations.annotationNote, annotations.createAnnotationMutation, currentTime]);
 
   // Global scroll-to-seek (works anywhere on the page when video is playing)
   useEffect(() => {
@@ -192,14 +314,14 @@ export default function PlayerPage() {
           <CardTitle className="text-base">{videoTitle}</CardTitle>
         </CardHeader>
         <CardContent>
-          {playback.isLoading ? (
+          {playbackIsLoading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
           ) : !videoId ? (
             <Alert>
               <AlertTitle>Missing video</AlertTitle>
               <AlertDescription>No video id provided.</AlertDescription>
             </Alert>
-          ) : !playback.data ? (
+          ) : !playback ? (
             <Alert>
               <AlertTitle>Not found</AlertTitle>
               <AlertDescription>Could not find that video.</AlertDescription>
@@ -207,10 +329,10 @@ export default function PlayerPage() {
           ) : !filePath ? (
             <DownloadStatus
               videoId={videoId}
-              status={playback.data?.status as string | undefined}
-              progress={playback.data?.progress ?? null}
-              onStartDownload={() => playback.startDownloadMutation.mutate()}
-              isStarting={playback.startDownloadMutation.isPending}
+              status={playback?.status as string | undefined}
+              progress={playback?.progress ?? null}
+              onStartDownload={() => startDownloadMutation.mutate()}
+              isStarting={startDownloadMutation.isPending}
             />
           ) : (
             <div className="space-y-4">
@@ -220,50 +342,32 @@ export default function PlayerPage() {
                 onTimeUpdate={handleTimeUpdate}
               />
 
-              {/* Transcript - Full Width (Annotations moved to right sidebar) */}
+              {/* Transcript - Self-contained, owns all its state */}
               <TranscriptPanel
                 videoId={videoId}
                 currentTime={currentTime}
                 videoRef={videoRef}
-                playbackData={playback.data}
-                onSelect={annotations.handleTranscriptSelect}
-                onEnterKey={() => annotations.setShowAnnotationForm(true)}
-                isCollapsed={isTranscriptCollapsed}
-                onToggleCollapse={() => setIsTranscriptCollapsed(!isTranscriptCollapsed)}
+                playbackData={playback}
               />
 
               {/* Playlist Navigation - Show when playing from a playlist */}
-              {playlistNav.isPlaylist && (
+              {isPlaylist && (
                 <PlaylistNavigation
-                  playlistTitle={playlistNav.playlistTitle}
-                  currentIndex={playlistNav.currentIndex}
-                  totalVideos={playlistNav.totalVideos}
-                  hasNext={playlistNav.hasNext}
-                  hasPrevious={playlistNav.hasPrevious}
-                  onNext={playlistNav.goToNext}
-                  onPrevious={playlistNav.goToPrevious}
+                  playlistTitle={playlistTitle}
+                  currentIndex={playlistCurrentIndex}
+                  totalVideos={playlistTotalVideos}
+                  hasNext={playlistHasNext}
+                  hasPrevious={playlistHasPrevious}
+                  onNext={goToNextVideo}
+                  onPrevious={goToPreviousVideo}
                 />
               )}
 
-              {/* Annotation Form Dialog */}
+              {/* Annotation Form Dialog - Self-contained, owns all its state */}
               <AnnotationForm
-                open={annotations.showAnnotationForm}
-                currentTime={currentTime}
-                selectedText={annotations.selectedText}
-                language={currentTranscriptLang}
                 videoId={videoId}
-                note={annotations.annotationNote}
-                emoji={annotations.selectedEmoji}
-                onNoteChange={annotations.setAnnotationNote}
-                onEmojiChange={annotations.setSelectedEmoji}
-                onSave={() => annotations.createAnnotationMutation.mutate(currentTime)}
-                onCancel={() => {
-                  annotations.setShowAnnotationForm(false);
-                  annotations.setAnnotationNote("");
-                  annotations.setSelectedText("");
-                  annotations.setSelectedEmoji(null);
-                }}
-                isSaving={annotations.createAnnotationMutation.isPending}
+                currentTime={currentTime}
+                videoRef={videoRef}
               />
             </div>
           )}

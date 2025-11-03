@@ -65,9 +65,16 @@ export default function PlaylistPage() {
     // Start from saved position or beginning
     const startIndex = data.currentVideoIndex || 0;
     const video = data.videos[startIndex];
-    if (video) {
+    if (video && playlistId) {
       setCurrentVideoIndex(startIndex);
-      navigate({ to: "/player", search: { videoId: video.videoId } });
+      navigate({
+        to: "/player",
+        search: {
+          videoId: video.videoId,
+          playlistId: playlistId,
+          playlistIndex: startIndex
+        }
+      });
     }
   };
 
@@ -75,8 +82,15 @@ export default function PlaylistPage() {
     setCurrentVideoIndex(videoIndex);
     updatePlaybackMutation.mutate({ videoIndex });
     const video = data?.videos[videoIndex];
-    if (video) {
-      navigate({ to: "/player", search: { videoId: video.videoId } });
+    if (video && playlistId) {
+      navigate({
+        to: "/player",
+        search: {
+          videoId: video.videoId,
+          playlistId: playlistId,
+          playlistIndex: videoIndex
+        }
+      });
     }
   };
 

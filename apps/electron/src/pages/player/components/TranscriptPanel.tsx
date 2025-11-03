@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { FileText, Settings as SettingsIcon, Loader2, Rewind, FastForward } from "lucide-react";
+import { FileText, Settings as SettingsIcon, Loader2, Rewind, FastForward, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTranscript } from "../hooks/useTranscript";
@@ -20,6 +20,8 @@ interface TranscriptPanelProps {
   onSettingsClick: () => void;
   onSelect: () => void;
   onEnterKey?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function TranscriptPanel({
@@ -32,6 +34,8 @@ export function TranscriptPanel({
   onSettingsClick,
   onSelect,
   onEnterKey,
+  isCollapsed = false,
+  onToggleCollapse,
 }: TranscriptPanelProps) {
   const segments = ((transcript.transcriptSegmentsQuery.data as any)?.segments ?? []) as Array<{
     start: number;
@@ -222,14 +226,14 @@ export function TranscriptPanel({
               onMouseLeave={handleWordMouseLeave}
               style={{
                 cursor: word.trim() ? 'pointer' : 'default',
-                minHeight: showInlineTranslations && hasTranslation ? '1.4em' : 'auto'
+                minHeight: showInlineTranslations && hasTranslation ? '1.8em' : 'auto'
               }}
             >
               <span className={hasTranslation && !isHovered ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}>
                 {word}
               </span>
               {hasTranslation && showInlineTranslations && (
-                <span className="text-[7px] text-blue-500 dark:text-blue-400 leading-none whitespace-nowrap opacity-70">
+                <span className="text-[10px] text-blue-500 dark:text-blue-400 leading-none whitespace-nowrap opacity-90">
                   {translation.translatedText}
                 </span>
               )}
@@ -429,6 +433,8 @@ export function TranscriptPanel({
           }
         `}
       </style>
+
+      {!isCollapsed && (
       <div className="relative">
         <div
           className="relative p-6 rounded-lg border bg-gradient-to-br from-background to-muted/20 h-[150px] flex items-end justify-center overflow-hidden shadow-sm"
@@ -456,8 +462,8 @@ export function TranscriptPanel({
                       ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
                       : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
                   fontSize: `${fontSize - 2}px`,
-                  lineHeight: showInlineTranslations ? '1.5' : '1.5',
-                  minHeight: showInlineTranslations ? '1.5em' : 'auto',
+                  lineHeight: showInlineTranslations ? '1.8' : '1.5',
+                  minHeight: showInlineTranslations ? '2em' : 'auto',
                 }}
               >
                 {renderTextWithWords(segments[activeSegIndex - 2].text)}
@@ -475,8 +481,8 @@ export function TranscriptPanel({
                       ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
                       : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
                   fontSize: `${fontSize - 1}px`,
-                  lineHeight: showInlineTranslations ? '1.5' : '1.5',
-                  minHeight: showInlineTranslations ? '1.5em' : 'auto',
+                  lineHeight: showInlineTranslations ? '1.8' : '1.5',
+                  minHeight: showInlineTranslations ? '2em' : 'auto',
                 }}
               >
                 {renderTextWithWords(segments[activeSegIndex - 1].text)}
@@ -495,8 +501,8 @@ export function TranscriptPanel({
                       ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
                       : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
                   fontSize: `${fontSize}px`,
-                  lineHeight: showInlineTranslations ? '1.6' : '1.6',
-                  minHeight: showInlineTranslations ? '1.6em' : 'auto',
+                  lineHeight: showInlineTranslations ? '1.9' : '1.6',
+                  minHeight: showInlineTranslations ? '2.2em' : 'auto',
                 }}
                 data-start={segments[activeSegIndex].start}
                 data-end={segments[activeSegIndex].end}
@@ -551,15 +557,26 @@ export function TranscriptPanel({
       )}
       </div>
 
-      {segments.length > 0 && (
-        <p className="text-xs text-muted-foreground italic">
-          💡 Scroll to seek video • Select text to translate or create notes
-        </p>
       )}
+
       {/* Controls at bottom for better focus */}
-      <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t">
+        {/* Left side - hint text */}
+        {!isCollapsed && segments.length > 0 && (
+          <p className="text-xs text-muted-foreground italic">
+            💡 Scroll to seek video • Select text to translate or create notes
+          </p>
+        )}
+        {isCollapsed && (
+          <p className="text-xs text-muted-foreground italic">
+            Transcript collapsed
+          </p>
+        )}
+
+        {/* Right side - controls */}
+        <div className="flex flex-wrap items-center gap-2">
         {/* Language selector - filtered to user's preferred languages */}
-        {transcript.filteredLanguages.length > 0 && (
+        {!isCollapsed && transcript.filteredLanguages.length > 0 && (
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-muted-foreground">Language:</label>
             <select
@@ -581,24 +598,50 @@ export function TranscriptPanel({
         )}
 
         {/* Follow playback toggle */}
-        <div className="flex items-center gap-1.5">
-          <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
-          <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Auto-scroll</label>
-          {(isSelecting || isHovering) && (
-            <span className="text-[10px] text-blue-500 font-medium">
-              {isSelecting ? "(selecting)" : hoveredWord ? `(hovering: ${hoveredWord.trim().substring(0, 15)}...)` : "(hovering)"}
-            </span>
-          )}
-        </div>
+        {!isCollapsed && (
+          <div className="flex items-center gap-1.5">
+            <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
+            <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Auto-scroll</label>
+            {(isSelecting || isHovering) && (
+              <span className="text-[10px] text-blue-500 font-medium">
+                {isSelecting ? "(selecting)" : hoveredWord ? `(hovering: ${hoveredWord.trim().substring(0, 15)}...)` : "(hovering)"}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Collapse/Expand Toggle */}
+        {onToggleCollapse && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onToggleCollapse}
+            className="h-7"
+          >
+            {isCollapsed ? (
+              <>
+                <ChevronDown className="w-3.5 h-3.5 mr-1.5" />
+                <span className="text-xs">Show</span>
+              </>
+            ) : (
+              <>
+                <ChevronUp className="w-3.5 h-3.5 mr-1.5" />
+                <span className="text-xs">Hide</span>
+              </>
+            )}
+          </Button>
+        )}
 
         {/* Transcript Settings Button */}
-        <Button size="sm" variant="outline" onClick={onSettingsClick} className="h-7">
-          <SettingsIcon className="w-3.5 h-3.5 mr-1.5" />
-          <span className="text-xs">Settings</span>
-        </Button>
+        {!isCollapsed && (
+          <Button size="sm" variant="outline" onClick={onSettingsClick} className="h-7">
+            <SettingsIcon className="w-3.5 h-3.5 mr-1.5" />
+            <span className="text-xs">Settings</span>
+          </Button>
+        )}
 
         {/* Manual download fallback */}
-        {!transcriptData && (
+        {!isCollapsed && !transcriptData && (
           <Button
             size="sm"
             variant="outline"
@@ -613,34 +656,36 @@ export function TranscriptPanel({
         )}
 
         {/* Status indicators */}
-        <div className="flex items-center gap-3">
-          {/* Tiny loader (non-blocking) when fetching or downloading */}
-          {(transcript.transcriptQuery.isFetching || transcript.transcriptSegmentsQuery.isFetching || transcript.downloadTranscriptMutation.isPending) && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Updating…
-            </span>
-          )}
+        {!isCollapsed && (
+          <div className="flex items-center gap-3">
+            {/* Tiny loader (non-blocking) when fetching or downloading */}
+            {(transcript.transcriptQuery.isFetching || transcript.transcriptSegmentsQuery.isFetching || transcript.downloadTranscriptMutation.isPending) && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Updating…
+              </span>
+            )}
 
-          {/* Cooldown badge when rate-limited for this video/language */}
-          {(() => {
-            try {
-              const key = `${videoId}|${transcript.selectedLang ?? "__default__"}`;
-              const raw = localStorage.getItem("transcript-download-cooldowns");
-              const map = raw ? (JSON.parse(raw) as Record<string, number>) : {};
-              const until = map[key];
-              if (until && Date.now() < until) {
-                const mins = Math.max(1, Math.ceil((until - Date.now()) / 60000));
-                return <span className="text-[10px] text-amber-500">retry in ~{mins}m</span>;
-              }
-            } catch {}
-            return null;
-          })()}
+            {/* Cooldown badge when rate-limited for this video/language */}
+            {(() => {
+              try {
+                const key = `${videoId}|${transcript.selectedLang ?? "__default__"}`;
+                const raw = localStorage.getItem("transcript-download-cooldowns");
+                const map = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+                const until = map[key];
+                if (until && Date.now() < until) {
+                  const mins = Math.max(1, Math.ceil((until - Date.now()) / 60000));
+                  return <span className="text-[10px] text-amber-500">retry in ~{mins}m</span>;
+                }
+              } catch {}
+              return null;
+            })()}
 
 
+          </div>
+        )}
         </div>
       </div>
-
 
     </div>
   );

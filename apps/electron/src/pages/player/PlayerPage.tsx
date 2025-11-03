@@ -7,17 +7,21 @@ import { useVideoPlayback } from "./hooks/useVideoPlayback";
 import { useWatchProgress } from "./hooks/useWatchProgress";
 import { useTranscript } from "./hooks/useTranscript";
 import { useAnnotations } from "./hooks/useAnnotations";
+import { usePlaylistNavigation } from "./hooks/usePlaylistNavigation";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { DownloadStatus } from "./components/DownloadStatus";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { AnnotationForm } from "./components/AnnotationForm";
 import { TranscriptSettingsDialog } from "./components/TranscriptSettingsDialog";
+import { PlaylistNavigation } from "./components/PlaylistNavigation";
 import { fontFamilyAtom, fontSizeAtom } from "@/context/transcriptSettings";
 import { useRightSidebar } from "@/context/rightSidebar";
 
 export default function PlayerPage() {
   const search = useSearch({ from: "/player" });
   const videoId = search.videoId as string | undefined;
+  const playlistId = search.playlistId as string | undefined;
+  const playlistIndex = search.playlistIndex as number | undefined;
 
   // Video reference for playback control
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -27,12 +31,14 @@ export default function PlayerPage() {
   const { currentTime, handleTimeUpdate } = useWatchProgress(videoId, videoRef, playback.data?.lastPositionSeconds);
   const transcript = useTranscript(videoId, playback.data);
   const annotations = useAnnotations(videoId, videoRef);
+  const playlistNav = usePlaylistNavigation({ playlistId, playlistIndex, videoId });
 
   // Right sidebar for annotations
   const { setContent, setAnnotationsData } = useRightSidebar();
 
   // Transcript settings - using Jotai atoms with localStorage persistence
   const [showTranscriptSettings, setShowTranscriptSettings] = useState(false);
+  const [isTranscriptCollapsed, setIsTranscriptCollapsed] = useState(false);
   const [fontFamily] = useAtom(fontFamilyAtom);
   const [fontSize] = useAtom(fontSizeAtom);
 
@@ -164,7 +170,22 @@ export default function PlayerPage() {
                 onSettingsClick={() => setShowTranscriptSettings(true)}
                 onSelect={annotations.handleTranscriptSelect}
                 onEnterKey={() => annotations.setShowAnnotationForm(true)}
+                isCollapsed={isTranscriptCollapsed}
+                onToggleCollapse={() => setIsTranscriptCollapsed(!isTranscriptCollapsed)}
               />
+
+              {/* Playlist Navigation - Show when playing from a playlist */}
+              {playlistNav.isPlaylist && (
+                <PlaylistNavigation
+                  playlistTitle={playlistNav.playlistTitle}
+                  currentIndex={playlistNav.currentIndex}
+                  totalVideos={playlistNav.totalVideos}
+                  hasNext={playlistNav.hasNext}
+                  hasPrevious={playlistNav.hasPrevious}
+                  onNext={playlistNav.goToNext}
+                  onPrevious={playlistNav.goToPrevious}
+                />
+              )}
 
               {/* Annotation Form Dialog */}
               <AnnotationForm

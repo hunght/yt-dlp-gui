@@ -37,6 +37,8 @@ export const PlayerRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => {
     return {
       videoId: (search.videoId as string) || undefined,
+      playlistId: (search.playlistId as string) || undefined,
+      playlistIndex: typeof search.playlistIndex === 'number' ? search.playlistIndex : undefined,
     };
   },
 });

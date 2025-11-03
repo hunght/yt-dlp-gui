@@ -9,6 +9,11 @@ export const downloadImageToCache = async (
   filenameBase: string
 ): Promise<string | null> => {
   try {
+    // Skip YouTube's placeholder "no thumbnail" image to avoid unnecessary 404s
+    if (url.includes('no_thumbnail.jpg') || url.includes('no_thumbnail')) {
+      return null;
+    }
+
     await ensureDir(getThumbCacheDir());
     const extMatch = url.match(/\.(jpg|jpeg|png|webp)(?:\?|$)/i);
     const ext = (extMatch?.[1] || "jpg").toLowerCase();

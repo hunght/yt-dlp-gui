@@ -1116,9 +1116,9 @@ export const utilsRouter = t.router({
       try {
         const { imagePath } = input;
 
-        // Check if file exists
+        // Check if file exists - this is expected behavior for lazy-loaded thumbnails
+        // so we don't log it as a warning to reduce log noise
         if (!fs.existsSync(imagePath)) {
-          logger.warn(`Image file not found: ${imagePath}`);
           return null;
         }
 

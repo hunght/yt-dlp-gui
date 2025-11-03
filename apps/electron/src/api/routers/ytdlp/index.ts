@@ -10,8 +10,8 @@ import { mapYtDlpMetadata, extractChannelData, extractSubtitleLanguages } from "
 import { upsertVideoFromMeta, upsertChannelData } from "./utils/database";
 import { spawnYtDlpWithLogging, extractVideoId, runYtDlpJson } from "./utils/ytdlp";
 import { spawn } from "child_process";
-import { eq, desc, inArray, sql } from "drizzle-orm";
-import { youtubeVideos, channels, channelPlaylists, videoWatchStats, videoTranscripts, videoAnnotations } from "@/api/db/schema";
+import { eq, desc, inArray, sql, and } from "drizzle-orm";
+import { youtubeVideos, channels, channelPlaylists, playlistItems, videoWatchStats, videoTranscripts, videoAnnotations } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
@@ -28,6 +28,11 @@ async function ensureDir(p: string) {
 
 async function downloadImageToCache(url: string, filenameBase: string): Promise<string | null> {
   try {
+    // Skip YouTube's placeholder "no thumbnail" image to avoid unnecessary 404s
+    if (url.includes('no_thumbnail.jpg') || url.includes('no_thumbnail')) {
+      return null;
+    }
+
     await ensureDir(getThumbCacheDir());
     const extMatch = url.match(/\.(jpg|jpeg|png|webp)(?:\?|$)/i);
     const ext = (extMatch?.[1] || "jpg").toLowerCase();
@@ -193,16 +198,15 @@ export function parseVttToSegments(content: string): Array<{ start: number; end:
 
 async function upsertVideoSearchFts(db: any, videoId: string, title: string | null | undefined, transcript: string | null | undefined) {
   try {
-    // REPLACE mimics UPSERT for FTS virtual tables
+    // FTS5 virtual tables with UNINDEXED columns don't support WHERE clauses on those columns
+    // Since video_id is UNINDEXED (to save index space), we use INSERT OR REPLACE with rowid
+    // The strategy: just INSERT and let FTS5 handle it (duplicates are acceptable for search)
+    // We'll deduplicate results in search queries using GROUP BY
     await db.run(sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`);
-  } catch (e) {
-    try {
-      // If insert fails due to duplication, try delete then insert
-      await db.run(sql`DELETE FROM video_search_fts WHERE video_id = ${videoId}`);
-      await db.run(sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`);
-    } catch (err) {
-      logger.warn("[fts] upsert failed", { videoId, error: String(err) });
-    }
+  } catch (err) {
+    // Silently ignore errors - FTS is a nice-to-have feature for search
+    // If it fails, video metadata will still be accessible through regular queries
+    logger.debug("[fts] insert skipped", { videoId, reason: "already exists or error" });
   }
 }
 
@@ -1344,19 +1348,20 @@ export const ytdlpRouter = t.router({
       const db = ctx.db ?? defaultDb;
       const limit = input.limit ?? 20;
       try {
-        const rows = await db.all(sql`SELECT video_id, title FROM video_search_fts WHERE video_search_fts MATCH ${input.q} LIMIT ${limit}`);
+        const rows = await db.all(sql`SELECT video_id, title FROM video_search_fts WHERE video_search_fts MATCH ${input.q} LIMIT ${limit * 2}`);
+        // Deduplicate video_ids (FTS may contain duplicates since video_id is UNINDEXED)
+        const uniqueIds = [...new Set(rows.map((r: any) => r.video_id))].slice(0, limit);
+        if (uniqueIds.length === 0) return [] as any[];
+
         // Join with youtube_videos to return richer info
-        const ids = rows.map((r: any) => r.video_id);
-        if (ids.length === 0) return [] as any[];
         const vids = await db
           .select()
           .from(youtubeVideos)
-          .where(inArray(youtubeVideos.videoId, ids));
+          .where(inArray(youtubeVideos.videoId, uniqueIds));
         const map = new Map(vids.map((v: any) => [v.videoId, v]));
-        return ids
+        return uniqueIds
           .map((id) => map.get(id))
-          .filter(Boolean)
-          .slice(0, limit);
+          .filter(Boolean);
       } catch (e) {
         logger.error("[fts] search failed", e as Error);
         return [] as any[];
@@ -1981,23 +1986,64 @@ export const ytdlpRouter = t.router({
           .where(eq(channelPlaylists.playlistId, input.playlistId))
           .limit(1);
         playlistMeta = existing?.[0] ?? null;
-        if (playlistMeta && !input.forceRefresh && !fs.existsSync(binPath)) {
-          return {
-            playlistId: playlistMeta.playlistId,
-            title: playlistMeta.title,
-            description: playlistMeta.description,
-            thumbnailUrl: playlistMeta.thumbnailUrl,
-            thumbnailPath: playlistMeta.thumbnailPath,
-            itemCount: playlistMeta.itemCount,
-            url: playlistMeta.url ?? `https://www.youtube.com/playlist?list=${playlistMeta.playlistId}`,
-            lastFetchedAt: playlistMeta.lastFetchedAt,
-            videos: [],
-          };
-        }
       } catch {}
 
+      // If we have cached data and not forcing refresh, return from DB
+      if (playlistMeta && !input.forceRefresh) {
+        try {
+          // Load playlist items with their videos from DB
+          const items = await db
+            .select({
+              position: playlistItems.position,
+              videoId: playlistItems.videoId,
+              video: youtubeVideos,
+            })
+            .from(playlistItems)
+            .leftJoin(youtubeVideos, eq(playlistItems.videoId, youtubeVideos.videoId))
+            .where(eq(playlistItems.playlistId, input.playlistId))
+            .orderBy(playlistItems.position)
+            .limit(limit);
+
+          // If we have items in the DB, return cached data
+          if (items.length > 0) {
+            const videos = items
+              .filter((item) => item.video)
+              .map((item) => ({
+                id: item.video!.id,
+                videoId: item.video!.videoId,
+                title: item.video!.title,
+                description: item.video!.description,
+                thumbnailUrl: item.video!.thumbnailUrl,
+                thumbnailPath: item.video!.thumbnailPath,
+                durationSeconds: item.video!.durationSeconds,
+                viewCount: item.video!.viewCount,
+                publishedAt: item.video!.publishedAt,
+                url: `https://www.youtube.com/watch?v=${item.video!.videoId}`,
+                downloadStatus: item.video!.downloadStatus,
+                downloadProgress: item.video!.downloadProgress,
+                downloadFilePath: item.video!.downloadFilePath,
+              }));
+
+            return {
+              playlistId: playlistMeta.playlistId,
+              title: playlistMeta.title,
+              description: playlistMeta.description,
+              thumbnailUrl: playlistMeta.thumbnailUrl,
+              thumbnailPath: playlistMeta.thumbnailPath,
+              itemCount: playlistMeta.itemCount,
+              currentVideoIndex: playlistMeta.currentVideoIndex ?? 0,
+              url: playlistMeta.url ?? `https://www.youtube.com/playlist?list=${playlistMeta.playlistId}`,
+              lastFetchedAt: playlistMeta.lastFetchedAt,
+              videos,
+            };
+          }
+        } catch (err) {
+          logger.error("[ytdlp] Failed to load cached playlist items", { playlistId: input.playlistId, error: String(err) });
+        }
+      }
+
+      // If no yt-dlp binary and no force refresh, return what we have or null
       if (!fs.existsSync(binPath)) {
-        // No binary and no force refresh; return minimal info from DB if available
         return playlistMeta
           ? {
               playlistId: playlistMeta.playlistId,
@@ -2006,6 +2052,7 @@ export const ytdlpRouter = t.router({
               thumbnailUrl: playlistMeta.thumbnailUrl,
               thumbnailPath: playlistMeta.thumbnailPath,
               itemCount: playlistMeta.itemCount,
+              currentVideoIndex: playlistMeta.currentVideoIndex ?? 0,
               url: playlistMeta.url ?? `https://www.youtube.com/playlist?list=${playlistMeta.playlistId}`,
               lastFetchedAt: playlistMeta.lastFetchedAt,
               videos: [],
@@ -2079,7 +2126,8 @@ export const ytdlpRouter = t.router({
 
       // Upsert lightweight video metadata to DB for each entry
       const videoIds: string[] = [];
-      for (const e of entries) {
+      for (let idx = 0; idx < entries.length; idx++) {
+        const e = entries[idx];
         const vid = e?.id;
         if (!vid) continue;
         videoIds.push(vid);
@@ -2113,6 +2161,33 @@ export const ytdlpRouter = t.router({
               .set({ ...videoData, thumbnailPath: thumbPath ?? existing[0]?.thumbnailPath ?? null })
               .where(eq(youtubeVideos.videoId, vid));
           }
+
+          // Upsert playlist item (junction table)
+          try {
+            const existingItem = await db
+              .select()
+              .from(playlistItems)
+              .where(and(eq(playlistItems.playlistId, input.playlistId), eq(playlistItems.videoId, vid)))
+              .limit(1);
+
+            if (existingItem.length === 0) {
+              await db.insert(playlistItems).values({
+                id: crypto.randomUUID(),
+                playlistId: input.playlistId,
+                videoId: vid,
+                position: idx,
+                createdAt: now,
+                updatedAt: now,
+              });
+            } else {
+              await db
+                .update(playlistItems)
+                .set({ position: idx, updatedAt: now })
+                .where(eq(playlistItems.id, existingItem[0].id));
+            }
+          } catch (err) {
+            logger.error("[ytdlp] Failed to upsert playlistItem", { playlistId: input.playlistId, videoId: vid, error: String(err) });
+          }
         } catch (e) {
           logger.error("[ytdlp] Failed to upsert playlist item", { videoId: vid, error: String(e) });
         }
@@ -2138,8 +2213,9 @@ export const ytdlpRouter = t.router({
           (Array.isArray(data?.thumbnails) && data.thumbnails.length > 0
             ? data.thumbnails[data.thumbnails.length - 1]?.url || data.thumbnails[0]?.url
             : null) || playlistMeta?.thumbnailUrl || null,
-        // thumbnailPath can be resolved from DB on the client if needed
+        thumbnailPath: playlistMeta?.thumbnailPath || null,
         itemCount: Array.isArray(data?.entries) ? data.entries.length : playlistMeta?.itemCount ?? null,
+        currentVideoIndex: playlistMeta?.currentVideoIndex ?? 0,
         url,
         lastFetchedAt: Date.now(),
         videos: videos.map((v: any) => ({

@@ -161,6 +161,27 @@ export const channelPlaylists = sqliteTable(
   ]
 );
 
+// Junction table: stores which videos belong to which playlists and their order
+export const playlistItems = sqliteTable(
+  "playlist_items",
+  {
+    id: text("id").primaryKey(),
+    playlistId: text("playlist_id").notNull().references(() => channelPlaylists.playlistId, { onDelete: "cascade" }),
+    videoId: text("video_id").notNull().references(() => youtubeVideos.videoId, { onDelete: "cascade" }),
+    position: integer("position").notNull(), // 0-based position in playlist
+
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at"),
+  },
+  (table) => [
+    index("playlist_items_playlist_id_idx").on(table.playlistId),
+    index("playlist_items_video_id_idx").on(table.videoId),
+    index("playlist_items_position_idx").on(table.playlistId, table.position),
+    // Ensure no duplicate videos in the same playlist
+    unique().on(table.playlistId, table.videoId),
+  ]
+);
+
 // Watch stats per video (accumulated)
 export const videoWatchStats = sqliteTable(
   "video_watch_stats",
@@ -192,10 +213,22 @@ export const youtubeVideosRelations = relations(youtubeVideos, ({ one }) => ({
   }),
 }));
 
-export const channelPlaylistsRelations = relations(channelPlaylists, ({ one }) => ({
+export const channelPlaylistsRelations = relations(channelPlaylists, ({ one, many }) => ({
   channel: one(channels, {
     fields: [channelPlaylists.channelId],
     references: [channels.channelId],
+  }),
+  items: many(playlistItems),
+}));
+
+export const playlistItemsRelations = relations(playlistItems, ({ one }) => ({
+  playlist: one(channelPlaylists, {
+    fields: [playlistItems.playlistId],
+    references: [channelPlaylists.playlistId],
+  }),
+  video: one(youtubeVideos, {
+    fields: [playlistItems.videoId],
+    references: [youtubeVideos.videoId],
   }),
 }));
 
@@ -211,6 +244,9 @@ export type NewYoutubeVideo = typeof youtubeVideos.$inferInsert;
 
 export type ChannelPlaylist = typeof channelPlaylists.$inferSelect;
 export type NewChannelPlaylist = typeof channelPlaylists.$inferInsert;
+
+export type PlaylistItem = typeof playlistItems.$inferSelect;
+export type NewPlaylistItem = typeof playlistItems.$inferInsert;
 
 // User preferences (singleton table, single row with id='default')
 export const userPreferences = sqliteTable("user_preferences", {

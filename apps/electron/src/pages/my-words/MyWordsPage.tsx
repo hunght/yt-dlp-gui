@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
   Video,
+  BookmarkCheck,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "@tanstack/react-router";
@@ -27,7 +28,6 @@ import Thumbnail from "@/components/Thumbnail";
 export default function MyWordsPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"recent" | "frequent">("recent");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [expandedTranslations, setExpandedTranslations] = useState<Set<string>>(new Set());
 
@@ -39,12 +39,12 @@ export default function MyWordsPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch translations
-  const { data: translationsData, isLoading: translationsLoading, refetch: refetchTranslations } = useQuery({
-    queryKey: ["translations", sortBy],
-    queryFn: async () => trpcClient.translation.getTranslations.query({
+  // Fetch saved words (not all translations - only user-saved ones)
+  const { data: savedWordsData, isLoading: savedWordsLoading, refetch: refetchSavedWords } = useQuery({
+    queryKey: ["saved-words"],
+    queryFn: async () => trpcClient.translation.getSavedWords.query({
       limit: 100,
-      sortBy
+      offset: 0,
     }),
   });
 
@@ -54,7 +54,7 @@ export default function MyWordsPage() {
     queryFn: async () => trpcClient.translation.getStatistics.query(),
   });
 
-  // Search translations
+  // Search all translations (includes saved and unsaved)
   const { data: searchResults, isLoading: searchLoading } = useQuery({
     queryKey: ["translation-search", debouncedSearch],
     queryFn: async () => {
@@ -64,12 +64,13 @@ export default function MyWordsPage() {
     enabled: debouncedSearch.length > 0,
   });
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (translationId: string) => {
     try {
-      await trpcClient.translation.deleteTranslation.mutate({ id });
-      refetchTranslations();
+      // Only remove from saved_words, keep in translation_cache for future use
+      await trpcClient.translation.unsaveWord.mutate({ translationId });
+      refetchSavedWords();
     } catch (error) {
-      console.error("Failed to delete translation:", error);
+      console.error("Failed to unsave word:", error);
     }
   };
 
@@ -95,11 +96,21 @@ export default function MyWordsPage() {
     });
   };
 
+  // Format saved words to match the expected structure
+  const savedWords = savedWordsData?.words.map(w => ({
+    ...w.translation,
+    savedWordId: w.id,
+    notes: w.notes,
+    reviewCount: w.reviewCount,
+    lastReviewedAt: w.lastReviewedAt,
+    savedAt: w.createdAt,
+  })) || [];
+
   const displayTranslations = debouncedSearch
     ? searchResults || []
-    : translationsData?.translations || [];
+    : savedWords;
 
-  const isLoading = debouncedSearch ? searchLoading : translationsLoading;
+  const isLoading = debouncedSearch ? searchLoading : savedWordsLoading;
 
   // Helper component to show video contexts for a translation
   const VideoContexts = ({ translationId }: { translationId: string }) => {
@@ -192,7 +203,7 @@ export default function MyWordsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">My Words</h1>
           <p className="text-muted-foreground">
-            Track and review all your translated words and phrases
+            Your personal vocabulary learning list - words you've saved for study
           </p>
         </div>
       </div>
@@ -201,19 +212,19 @@ export default function MyWordsPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Words</CardTitle>
+            <CardTitle className="text-sm font-medium">Saved Words</CardTitle>
             <Languages className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {statsLoading ? (
+              {savedWordsLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                stats?.totalTranslations || 0
+                savedWordsData?.total || 0
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Unique translations
+              Words in your learning list
             </p>
           </CardContent>
         </Card>
@@ -281,9 +292,9 @@ export default function MyWordsPage() {
       {/* Search and Filter */}
       <Card>
         <CardHeader>
-          <CardTitle>Translation History</CardTitle>
+          <CardTitle>Saved Words</CardTitle>
           <CardDescription>
-            Search and browse your translation history
+            Your personal vocabulary learning list - words you've explicitly saved for study
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -292,33 +303,23 @@ export default function MyWordsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search translations..."
+                placeholder="Search saved words..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-8"
               />
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setSortBy(sortBy === "recent" ? "frequent" : "recent")}
-              title={`Sort by ${sortBy === "recent" ? "frequency" : "recency"}`}
-            >
-              <ArrowUpDown className="h-4 w-4" />
-            </Button>
           </div>
 
-          {/* Sort indicator */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {sortBy === "recent" ? (
+          {/* Info text */}
+          {!debouncedSearch && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-4 w-4" />
-            ) : (
-              <TrendingUp className="h-4 w-4" />
-            )}
-            <span>
-              Sorted by {sortBy === "recent" ? "most recent" : "most frequent"}
-            </span>
-          </div>
+              <span>
+                Showing saved words (most recent first)
+              </span>
+            </div>
+          )}
 
           {/* Translations List */}
           <div className="space-y-2">
@@ -329,9 +330,12 @@ export default function MyWordsPage() {
             ) : displayTranslations.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {debouncedSearch ? (
-                  <p>No translations found for "{debouncedSearch}"</p>
+                  <p>No saved words found for "{debouncedSearch}"</p>
                 ) : (
-                  <p>No translations yet. Start translating words in the player!</p>
+                  <div className="space-y-2">
+                    <p>No saved words yet.</p>
+                    <p className="text-sm">Hover over words in video transcripts for 800ms and click "Save to My Words" to build your vocabulary!</p>
+                  </div>
                 )}
               </div>
             ) : (
@@ -349,7 +353,10 @@ export default function MyWordsPage() {
                               </Badge>
                               <span className="text-xs text-muted-foreground">Source</span>
                             </div>
-                            <p className="font-medium">{translation.sourceText}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{translation.sourceText}</p>
+                              <BookmarkCheck className="h-4 w-4 text-blue-500 flex-shrink-0" title="Saved word" />
+                            </div>
                           </div>
 
                           <div>
@@ -363,6 +370,14 @@ export default function MyWordsPage() {
                           </div>
                         </div>
 
+                        {/* Notes (if any) */}
+                        {(translation as any).notes && (
+                          <div className="pt-2 border-t">
+                            <p className="text-xs text-muted-foreground mb-1">Notes:</p>
+                            <p className="text-sm italic">{(translation as any).notes}</p>
+                          </div>
+                        )}
+
                         {/* Metadata */}
                         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
@@ -373,7 +388,7 @@ export default function MyWordsPage() {
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             <span>
-                              Last used {formatDistanceToNow(new Date(translation.lastQueriedAt), { addSuffix: true })}
+                              Saved {formatDistanceToNow(new Date((translation as any).savedAt || translation.createdAt), { addSuffix: true })}
                             </span>
                           </div>
 
@@ -417,7 +432,7 @@ export default function MyWordsPage() {
                         size="icon"
                         onClick={() => handleDelete(translation.id)}
                         className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Delete translation"
+                        title="Remove from My Words (keeps in cache)"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -429,7 +444,7 @@ export default function MyWordsPage() {
           </div>
 
           {/* Load More */}
-          {!debouncedSearch && translationsData?.hasMore && (
+          {!debouncedSearch && savedWordsData?.hasMore && (
             <div className="text-center pt-4">
               <Button variant="outline">
                 Load More

@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useAtom } from "jotai";
-import { Clock, Languages, Loader2 } from "lucide-react";
+import { Clock, Languages, Loader2, BookmarkPlus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -12,9 +12,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { trpcClient } from "@/utils/trpc";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { translationTargetLangAtom, includeTranslationInNoteAtom } from "@/context/transcriptSettings";
-import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 
 interface AnnotationFormProps {
   open: boolean;
@@ -56,6 +56,24 @@ export function AnnotationForm({
   // Use atoms directly for translation settings
   const [translationTargetLang] = useAtom(translationTargetLangAtom);
   const [includeTranslationInNote] = useAtom(includeTranslationInNoteAtom);
+  const [wordSaved, setWordSaved] = useState(false);
+
+  const queryClient = useQueryClient();
+
+  // Mutation for saving word to My Words
+  const saveWordMutation = useMutation({
+    mutationFn: async (translationId: string) => {
+      return await trpcClient.translation.saveWord.mutate({ translationId });
+    },
+    onSuccess: (data) => {
+      setWordSaved(true);
+      toast.success(data.alreadySaved ? "Word already in My Words" : "Word saved to My Words! 📚");
+      queryClient.invalidateQueries({ queryKey: ["saved-words"] });
+    },
+    onError: (error) => {
+      toast.error("Failed to save word: " + String(error));
+    },
+  });
 
   // Handle save with translation auto-append
   const handleSave = () => {
@@ -92,6 +110,17 @@ export function AnnotationForm({
   }, [language]);
 
   const targetLang = translationTargetLang || "en"; // Use user preference or default to English
+
+  // Reset wordSaved state when dialog closes or text changes
+  React.useEffect(() => {
+    if (!open) {
+      setWordSaved(false);
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    setWordSaved(false);
+  }, [selectedText]);
 
   // Auto-translate when text is selected and dialog opens
   const translationQuery = useQuery({
@@ -140,17 +169,6 @@ export function AnnotationForm({
                     <p className="text-xs font-semibold">
                       Translation ({targetLang.toUpperCase()})
                     </p>
-                    {translationQuery.data?.success && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                        <span>✓ Auto-saved to </span>
-                        <Link
-                          to="/my-words"
-                          className="font-semibold underline hover:text-blue-700 dark:hover:text-blue-300"
-                        >
-                          My Words
-                        </Link>
-                      </p>
-                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -162,14 +180,50 @@ export function AnnotationForm({
                     )}
 
                     {translationQuery.data?.success && (
-                      <div className="p-2 rounded bg-background border text-sm">
-                        <p className="font-medium text-foreground">
-                          {translationQuery.data.translation}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {translationQuery.data.sourceLang} → {translationQuery.data.targetLang}
-                        </p>
-                      </div>
+                      <>
+                        <div className="p-2 rounded bg-background border text-sm">
+                          <p className="font-medium text-foreground">
+                            {translationQuery.data.translation}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {translationQuery.data.sourceLang} → {translationQuery.data.targetLang}
+                          </p>
+                        </div>
+
+                        {/* Save to My Words Button */}
+                        <div className="flex items-center gap-2">
+                          {wordSaved ? (
+                            <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-3 py-1.5 rounded border border-green-200 dark:border-green-800">
+                              <Check className="w-3 h-3" />
+                              <span>Saved to My Words</span>
+                            </div>
+                          ) : translationQuery.data.success && (translationQuery.data as any).translationId ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                if (translationQuery.data?.success && (translationQuery.data as any).translationId) {
+                                  saveWordMutation.mutate((translationQuery.data as any).translationId);
+                                }
+                              }}
+                              disabled={saveWordMutation.isPending}
+                              className="text-xs h-7"
+                            >
+                              {saveWordMutation.isPending ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <BookmarkPlus className="w-3 h-3 mr-1.5" />
+                                  Save to My Words
+                                </>
+                              )}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </>
                     )}
 
                     {translationQuery.data && !translationQuery.data.success && (

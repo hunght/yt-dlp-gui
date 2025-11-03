@@ -267,8 +267,10 @@ export const utilsRouter = t.router({
             try {
               const cacheId = crypto.randomUUID();
               const now = Date.now();
+              const { sql } = await import("drizzle-orm");
 
-              await db.insert(translationCache).values({
+              // Use upsert: insert or update if already exists, return the record
+              const [upsertedRecord] = await db.insert(translationCache).values({
                 id: cacheId,
                 sourceText: cleanText,
                 sourceLang: sl,
@@ -280,20 +282,29 @@ export const utilsRouter = t.router({
                 lastQueriedAt: now, // Same as first for initial entry
                 createdAt: now,
                 updatedAt: now,
-              }).onConflictDoNothing();
+              }).onConflictDoUpdate({
+                target: [translationCache.sourceText, translationCache.sourceLang, translationCache.targetLang],
+                set: {
+                  queryCount: sql`${translationCache.queryCount} + 1`,
+                  lastQueriedAt: now,
+                  updatedAt: now,
+                },
+              }).returning();
+
+              const actualCacheId = upsertedRecord.id;
 
               logger.debug("[translation] Cached translation", {
                 sourceText: cleanText,
                 sourceLang: sl,
                 targetLang: tl,
-                queryCount: 1,
+                queryCount: upsertedRecord.queryCount,
               });
 
               // Save video context
               try {
                 await db.insert(translationContexts).values({
                   id: crypto.randomUUID(),
-                  translationId: cacheId,
+                  translationId: actualCacheId,
                   videoId: input.videoId,
                   timestampSeconds: Math.floor(input.timestampSeconds),
                   contextText: input.contextText || null,
@@ -301,7 +312,7 @@ export const utilsRouter = t.router({
                 }).onConflictDoNothing();
 
                 logger.debug("[translation] Saved video context for new translation", {
-                  translationId: cacheId,
+                  translationId: actualCacheId,
                   videoId: input.videoId,
                   timestamp: input.timestampSeconds,
                 });
@@ -315,7 +326,7 @@ export const utilsRouter = t.router({
               return {
                 success: true as const,
                 translation: translatedText,
-                translationId: cacheId, // Include translation ID
+                translationId: actualCacheId,
                 originalText: cleanText,
                 sourceLang: detectedLang,
                 targetLang: tl,

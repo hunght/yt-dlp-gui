@@ -76,32 +76,32 @@ export function TranscriptPanel({
       // Show success toast
       toast.success(data.alreadySaved ? "Word already in My Words" : "Word saved to My Words! 📚");
 
-      // Invalidate saved words query to refresh MyWords page
+      // Invalidate saved words queries to refresh transcript highlights and MyWords page
       queryClient.invalidateQueries({ queryKey: ["saved-words"] });
+      queryClient.invalidateQueries({ queryKey: ["saved-words-all"] });
     },
     onError: (error) => {
       toast.error("Failed to save word: " + String(error));
     },
   });
 
-  // Fetch translations for this video (for inline display)
-  const { data: videoTranslations } = useQuery({
-    queryKey: ["translations-by-video", videoId],
+  // Fetch all saved words (for inline highlighting across all videos)
+  const { data: savedWords } = useQuery({
+    queryKey: ["saved-words-all"],
     queryFn: async () => {
-      if (!videoId) return [];
-      return await trpcClient.translation.getByVideoId.query({ videoId });
+      return await trpcClient.translation.getAllSavedWords.query();
     },
-    enabled: showInlineTranslations && !!videoId,
-    staleTime: Infinity, // Cache indefinitely - translations don't change often
+    enabled: showInlineTranslations,
+    staleTime: 60000, // Cache for 1 minute - saved words may change when user adds/removes
   });
 
-  // Build efficient lookup map for translations (memoized)
+  // Build efficient lookup map for saved words (memoized)
   const translationMap = useMemo(() => {
-    if (!videoTranslations || !showInlineTranslations) return new Map();
+    if (!savedWords || !showInlineTranslations) return new Map();
 
     const map = new Map<string, { translatedText: string; targetLang: string; queryCount: number }>();
 
-    videoTranslations.forEach(t => {
+    savedWords.forEach(t => {
       // Index by exact match (lowercase, trimmed)
       const cleanSource = t.sourceText.toLowerCase().trim();
       map.set(cleanSource, {
@@ -122,7 +122,7 @@ export function TranscriptPanel({
     });
 
     return map;
-  }, [videoTranslations, showInlineTranslations]);
+  }, [savedWords, showInlineTranslations]);
 
   // Get translation for a word (O(1) lookup)
   const getTranslationForWord = useCallback((word: string) => {
@@ -743,7 +743,7 @@ export function TranscriptPanel({
         {/* Left side - hint text */}
         {!isCollapsed && segments.length > 0 && (
           <p className="text-xs text-muted-foreground italic">
-            💡 Scroll to seek video • Hover words to translate • Select text for notes
+            💡 Scroll to seek video • Hover words to translate • Saved words highlighted in blue
           </p>
         )}
         {isCollapsed && (

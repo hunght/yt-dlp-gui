@@ -422,6 +422,37 @@ export const translationRouter = t.router({
         throw error;
       }
     }),
+
+  /**
+   * Get all saved words for transcript highlighting
+   * Returns all saved words with their translations (no pagination)
+   * Used to build lookup map for highlighting in transcripts
+   */
+  getAllSavedWords: publicProcedure
+    .query(async ({ ctx }) => {
+      const db = ctx.db ?? defaultDb;
+
+      try {
+        const words = await db
+          .select({
+            sourceText: translationCache.sourceText,
+            translatedText: translationCache.translatedText,
+            sourceLang: translationCache.sourceLang,
+            targetLang: translationCache.targetLang,
+            queryCount: translationCache.queryCount,
+          })
+          .from(savedWords)
+          .innerJoin(translationCache, eq(savedWords.translationId, translationCache.id))
+          .orderBy(desc(translationCache.queryCount)); // Most frequently used first
+
+        logger.debug("[translation] getAllSavedWords", { count: words.length });
+
+        return words;
+      } catch (error) {
+        logger.error("[translation] getAllSavedWords failed", error as Error);
+        throw error;
+      }
+    }),
 });
 
 export type TranslationRouter = typeof translationRouter;

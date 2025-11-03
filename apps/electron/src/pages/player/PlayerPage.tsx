@@ -11,7 +11,7 @@ import { DownloadStatus } from "./components/DownloadStatus";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { AnnotationForm } from "./components/AnnotationForm";
 import { PlaylistNavigation } from "./components/PlaylistNavigation";
-import { useRightSidebar } from "@/context/rightSidebar";
+import { rightSidebarContentAtom, annotationsSidebarDataAtom } from "@/context/rightSidebar";
 import { trpcClient } from "@/utils/trpc";
 
 export default function PlayerPage() {
@@ -86,34 +86,6 @@ export default function PlayerPage() {
 
   const { currentTime, handleTimeUpdate } = useWatchProgress(videoId, videoRef, playback?.lastPositionSeconds);
 
-  // ============================================================================
-  // ANNOTATIONS - Queries for sidebar (form owns its own logic)
-  // ============================================================================
-
-  const annotationsQuery = useQuery({
-    queryKey: ["annotations", videoId],
-    queryFn: async () => {
-      if (!videoId) return [];
-      return await trpcClient.ytdlp.getAnnotations.query({ videoId });
-    },
-    enabled: !!videoId,
-  });
-
-  const deleteAnnotationMutation = useMutation({
-    mutationFn: async (annotationId: string) => {
-      return await trpcClient.ytdlp.deleteAnnotation.mutate({ id: annotationId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["annotations", videoId] });
-    },
-  });
-
-  const handleSeekToAnnotation = (timestampSeconds: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = timestampSeconds;
-      videoRef.current.play();
-    }
-  };
 
 
   // ============================================================================
@@ -200,8 +172,9 @@ export default function PlayerPage() {
   const playlistTitle = playlistData?.title;
   const playlistTotalVideos = playlistVideos.length;
 
-  // Right sidebar for annotations
-  const { setContent, setAnnotationsData } = useRightSidebar();
+  // Right sidebar atoms
+  const [, setRightSidebarContent] = useAtom(rightSidebarContentAtom);
+  const [, setAnnotationsSidebarData] = useAtom(annotationsSidebarDataAtom);
 
   // Global scroll-to-seek indicator
   const [seekIndicator, setSeekIndicator] = useState<{ direction: 'forward' | 'backward'; amount: number } | null>(null);
@@ -212,30 +185,32 @@ export default function PlayerPage() {
 
   // Set sidebar to show annotations when on PlayerPage
   useEffect(() => {
-    setContent("annotations");
-    setAnnotationsData({
-      annotationsQuery,
-      onSeek: handleSeekToAnnotation,
-      onDelete: deleteAnnotationMutation.mutate,
-      videoTitle: playback?.title,
-      videoDescription: playback?.description,
-      currentTime: currentTime, // Pass current time for auto-scrolling
-    });
+    setRightSidebarContent("annotations");
+
+    // Only set data when we have videoId
+    if (videoId) {
+      setAnnotationsSidebarData({
+        videoId,
+        videoRef,
+        videoTitle: playback?.title || undefined,
+        videoDescription: playback?.description || undefined,
+        currentTime,
+      });
+    }
 
     // Reset to queue when leaving PlayerPage
     return () => {
-      setContent("queue");
-      setAnnotationsData(null);
+      setRightSidebarContent("queue");
+      setAnnotationsSidebarData(null);
     };
   }, [
-    setContent,
-    setAnnotationsData,
-    annotationsQuery,
-    handleSeekToAnnotation,
-    deleteAnnotationMutation.mutate,
+    setRightSidebarContent,
+    setAnnotationsSidebarData,
+    videoId,
+    videoRef,
     playback?.title,
     playback?.description,
-    currentTime, // Update when current time changes
+    currentTime,
   ]);
 
 

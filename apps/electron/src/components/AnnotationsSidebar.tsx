@@ -1,9 +1,10 @@
-import React, { useRef, useMemo, useEffect } from "react";
-import { UseQueryResult } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useRef, useMemo, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Trash2, Clock } from "lucide-react";
+import { trpcClient } from "@/utils/trpc";
 
 interface Annotation {
   id: string;
@@ -16,12 +17,11 @@ interface Annotation {
 }
 
 interface AnnotationsSidebarProps {
-  annotationsQuery: UseQueryResult<Annotation[], Error>;
-  onSeek: (timestampSeconds: number) => void;
-  onDelete: (id: string) => void;
+  videoId: string;
+  videoRef: React.RefObject<HTMLVideoElement>;
   videoTitle?: string;
   videoDescription?: string;
-  currentTime?: number; // Current video playback time for auto-scrolling
+  currentTime?: number;
 }
 
 function formatTimestamp(seconds: number): string {
@@ -95,15 +95,44 @@ function renderDescriptionWithTimestamps(
 }
 
 export function AnnotationsSidebar({
-  annotationsQuery,
-  onSeek,
-  onDelete,
+  videoId,
+  videoRef,
   videoTitle,
   videoDescription,
   currentTime = 0,
 }: AnnotationsSidebarProps) {
-  const annotations = annotationsQuery.data || [];
+  const queryClient = useQueryClient();
   const annotationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Own annotations query
+  const annotationsQuery = useQuery({
+    queryKey: ["annotations", videoId],
+    queryFn: async () => {
+      if (!videoId) return [];
+      return await trpcClient.ytdlp.getAnnotations.query({ videoId });
+    },
+    enabled: !!videoId,
+  });
+
+  // Own delete mutation
+  const deleteAnnotationMutation = useMutation({
+    mutationFn: async (annotationId: string) => {
+      return await trpcClient.ytdlp.deleteAnnotation.mutate({ id: annotationId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["annotations", videoId] });
+    },
+  });
+
+  // Own seek handler
+  const handleSeek = useCallback((timestampSeconds: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = timestampSeconds;
+      videoRef.current.play();
+    }
+  }, [videoRef]);
+
+  const annotations = annotationsQuery.data || [];
 
   // Find the currently active annotation (closest one before or at current time)
   const activeAnnotationId = useMemo(() => {
@@ -153,7 +182,7 @@ export function AnnotationsSidebar({
             <h3 className="text-sm font-semibold mb-2">Description</h3>
             <div className="text-xs text-muted-foreground max-h-[200px] overflow-y-auto">
               <div className="whitespace-pre-wrap break-words">
-                {renderDescriptionWithTimestamps(videoDescription, onSeek)}
+                {renderDescriptionWithTimestamps(videoDescription, handleSeek)}
               </div>
             </div>
           </CardContent>
@@ -200,7 +229,7 @@ export function AnnotationsSidebar({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onSeek(annotation.timestampSeconds)}
+                        onClick={() => handleSeek(annotation.timestampSeconds)}
                         className="h-auto p-1 flex items-center gap-1 text-xs text-primary hover:text-primary/80"
                       >
                         <Clock className="w-3 h-3" />
@@ -210,7 +239,7 @@ export function AnnotationsSidebar({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onDelete(annotation.id)}
+                      onClick={() => deleteAnnotationMutation.mutate(annotation.id)}
                       className="h-auto p-1 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                     >
                       <Trash2 className="w-3 h-3" />

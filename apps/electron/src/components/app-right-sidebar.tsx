@@ -1,12 +1,15 @@
 import * as React from "react";
+import { useAtom } from "jotai";
 import { cn } from "@/lib/utils";
 import { ResizablePanel } from "@/components/ui/resizable-panel";
-import { useRightSidebar } from "@/context/rightSidebar";
+import { rightSidebarOpenAtom, rightSidebarContentAtom, annotationsSidebarDataAtom } from "@/context/rightSidebar";
 import { DownloadQueueSidebar } from "@/components/DownloadQueueSidebar";
 import { AnnotationsSidebar } from "@/components/AnnotationsSidebar";
 
 export function AppRightSidebar({ className, ...props }: React.ComponentProps<"div">) {
-  const { open, content, annotationsData } = useRightSidebar();
+  const [open] = useAtom(rightSidebarOpenAtom);
+  const [content] = useAtom(rightSidebarContentAtom);
+  const [annotationsData] = useAtom(annotationsSidebarDataAtom);
 
   if (!open) return null;
 
@@ -25,9 +28,8 @@ export function AppRightSidebar({ className, ...props }: React.ComponentProps<"d
       <div className="flex h-full flex-col p-4">
         {content === "annotations" && annotationsData ? (
           <AnnotationsSidebar
-            annotationsQuery={annotationsData.annotationsQuery}
-            onSeek={annotationsData.onSeek}
-            onDelete={annotationsData.onDelete}
+            videoId={annotationsData.videoId}
+            videoRef={annotationsData.videoRef}
             videoTitle={annotationsData.videoTitle}
             videoDescription={annotationsData.videoDescription}
             currentTime={annotationsData.currentTime}

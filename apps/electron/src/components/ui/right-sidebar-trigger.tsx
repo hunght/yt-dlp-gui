@@ -1,14 +1,15 @@
 import * as React from "react";
+import { useSetAtom } from "jotai";
 import { PanelRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useRightSidebar } from "@/context/rightSidebar";
+import { toggleRightSidebarAtom } from "@/context/rightSidebar";
 
 export const RightSidebarTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentProps<typeof Button>
 >(({ className, onClick, ...props }, ref) => {
-  const { toggleRightSidebar } = useRightSidebar();
+  const toggleRightSidebar = useSetAtom(toggleRightSidebarAtom);
 
   return (
     <Button

@@ -39,6 +39,7 @@ This document captures lessons learned from refactoring the YouTube downloader a
 1. **Components should own their domain logic**
 2. **Use atoms for communication, not callbacks**
 3. **>10 props = bad abstraction, inline it**
+4. **Use only atoms, not Context API** - Consistent state management
 
 ---
 
@@ -454,7 +455,7 @@ If a component needs >10 props, it's either doing too much or shouldn't exist.
       💡 Hover words to translate • Saved words highlighted in blue
     </p>
   )}
-  
+
   {/* Right side - controls */}
   <div className="flex flex-wrap items-center gap-2">
     {/* Language selector */}
@@ -465,12 +466,12 @@ If a component needs >10 props, it's either doing too much or shouldn't exist.
         </select>
       </div>
     )}
-    
+
     {/* Follow playback toggle */}
     {!isCollapsed && (
       <Switch checked={followPlayback} onCheckedChange={setFollowPlayback} />
     )}
-    
+
     {/* All other controls directly here */}
   </div>
 </div>
@@ -484,6 +485,93 @@ If a component needs >10 props, it's either doing too much or shouldn't exist.
 - Simpler and clearer
 
 **The Rule: If a component has >10 props and doesn't do complex logic, it's probably not a good abstraction. Just inline it.**
+
+---
+
+### 12. **Use Atoms Consistently (Not Context API)**
+
+Don't mix state management approaches. Pick one and stick with it.
+
+❌ **Bad**: Mixing Context API and atoms
+```typescript
+// Some files use Context API
+const { open, setOpen, content, setContent } = useRightSidebar();
+
+// Other files use atoms
+const [fontSize] = useAtom(fontSizeAtom);
+
+// Inconsistent! Have to remember which is which
+```
+
+**Problems:**
+- Two different patterns to remember
+- Context API creates provider hell
+- Context value changes cause all consumers to re-render
+- Can cause infinite loops if not careful with dependencies
+
+✅ **Good**: Use atoms for everything
+```typescript
+// context/rightSidebar.ts
+export const rightSidebarOpenAtom = atomWithStorage("right-sidebar-open", true);
+export const rightSidebarContentAtom = atom("queue");
+export const annotationsDataAtom = atom(null);
+
+export const toggleRightSidebarAtom = atom(null, (get, set) => {
+  set(rightSidebarOpenAtom, !get(rightSidebarOpenAtom));
+});
+
+// In components - consistent pattern everywhere
+const [open] = useAtom(rightSidebarOpenAtom);
+const [content] = useAtom(rightSidebarContentAtom);
+const toggle = useSetAtom(toggleRightSidebarAtom);
+```
+
+**Benefits:**
+- Consistent pattern everywhere
+- No provider needed (removed RightSidebarProvider)
+- Stable references (no re-creation on render)
+- No infinite loop bugs
+- Simpler mental model
+
+**Before (Context API):**
+```typescript
+// 50 lines of context boilerplate
+export function RightSidebarProvider({ children }) {
+  const [open, setOpen] = useState(true);
+  const [content, setContent] = useState("queue");
+  const value = useMemo(() => ({ open, setOpen, content, setContent }), [open, content]);
+  return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+
+// In BaseLayout - provider wrapper
+<RightSidebarProvider>
+  <App />
+</RightSidebarProvider>
+```
+
+**After (Atoms):**
+```typescript
+// 24 lines, no provider needed
+export const rightSidebarOpenAtom = atomWithStorage("right-sidebar-open", true);
+export const rightSidebarContentAtom = atom("queue");
+export const toggleRightSidebarAtom = atom(null, (get, set) => {
+  set(rightSidebarOpenAtom, !get(rightSidebarOpenAtom));
+});
+
+// In BaseLayout - no provider!
+<App />
+
+// In components - just use the atoms
+const [open] = useAtom(rightSidebarOpenAtom);
+```
+
+**Results:**
+- 50 lines → 24 lines (52% reduction)
+- No provider wrapper needed
+- No infinite loop bugs
+- Consistent with all other state management
+
+**The Rule: Use atoms for all global state. Context API is unnecessary complexity.**
 
 ---
 

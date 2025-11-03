@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { FileText, Settings as SettingsIcon, Loader2, Rewind, FastForward, ChevronDown, ChevronUp, BookmarkPlus, Check } from "lucide-react";
+import { FileText, Settings as SettingsIcon, Loader2, ChevronDown, ChevronUp, BookmarkPlus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTranscript } from "../hooks/useTranscript";
@@ -52,15 +52,12 @@ export function TranscriptPanel({
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const [hoveredWord, setHoveredWord] = useState<string | null>(null);
   const [isHoveringTooltip, setIsHoveringTooltip] = useState<boolean>(false);
-  const [seekIndicator, setSeekIndicator] = useState<{ direction: 'forward' | 'backward'; amount: number } | null>(null);
   const [hoverTranslation, setHoverTranslation] = useState<{ word: string; translation: string; translationId: string; loading: boolean; saved?: boolean } | null>(null);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const segRefs = useRef<Array<HTMLParagraphElement | null>>([]);
   const isSnappingRef = useRef<boolean>(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const translateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isScrollSeekingRef = useRef<boolean>(false);
 
   const queryClient = useQueryClient();
 
@@ -243,6 +240,13 @@ export function TranscriptPanel({
     }, 100);
   };
 
+  // Auto-collapse when no transcript is available
+  useEffect(() => {
+    if (segments.length === 0 && !isCollapsed && onToggleCollapse) {
+      onToggleCollapse();
+    }
+  }, [segments.length, isCollapsed, onToggleCollapse]);
+
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
@@ -252,64 +256,8 @@ export function TranscriptPanel({
       if (translateTimeoutRef.current) {
         clearTimeout(translateTimeoutRef.current);
       }
-      if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current);
-      }
     };
   }, []);
-
-  // Mouse scroll seeking on transcript (reuse video player logic)
-  useEffect(() => {
-    const container = transcriptContainerRef.current;
-    if (!container) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      const video = videoRef.current;
-      if (!video) return;
-
-      // Prevent default scrolling
-      e.preventDefault();
-
-      // Mark that we're scroll-seeking (overrides hover pause)
-      isScrollSeekingRef.current = true;
-
-      // Determine seek direction and amount
-      const seekAmount = 5; // seconds per scroll tick
-      const direction = e.deltaY < 0 ? 'backward' : 'forward';
-      const delta = direction === 'forward' ? seekAmount : -seekAmount;
-
-      // Seek the video
-      const newTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + delta));
-      video.currentTime = newTime;
-
-      // Temporarily disable follow playback and enable it after seeking
-      setFollowPlayback(true);
-
-      // Show visual feedback
-      setSeekIndicator({ direction, amount: seekAmount });
-
-      // Clear previous timeout
-      if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current);
-      }
-
-      // Hide indicator and re-enable hover after 800ms
-      seekTimeoutRef.current = setTimeout(() => {
-        setSeekIndicator(null);
-        isScrollSeekingRef.current = false;
-      }, 800);
-    };
-
-    // Add wheel listener with passive: false to allow preventDefault
-    container.addEventListener('wheel', handleWheel, { passive: false });
-
-    return () => {
-      container.removeEventListener('wheel', handleWheel);
-      if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current);
-      }
-    };
-  }, [videoRef]);
 
   // Render text with individual word highlighting and inline translations
   const renderTextWithWords = (text: string, opacity: string = "100") => {
@@ -454,24 +402,24 @@ export function TranscriptPanel({
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [snapToWordBoundaries]);
 
-  // Active segment index based on current time (freeze when selecting or hovering, unless scroll-seeking)
+  // Active segment index based on current time (freeze when selecting or hovering)
   useEffect(() => {
     if (!segments.length) {
       setActiveSegIndex(null);
       return;
     }
-    // Don't update active segment while user is selecting text or hovering over word/tooltip (unless scroll-seeking)
-    if ((isSelecting || isHovering || isHoveringTooltip) && !isScrollSeekingRef.current) return;
+    // Don't update active segment while user is selecting text or hovering over word/tooltip
+    if (isSelecting || isHovering || isHoveringTooltip) return;
 
     const idx = segments.findIndex((s) => currentTime >= s.start && currentTime < s.end);
     setActiveSegIndex(idx >= 0 ? idx : null);
   }, [currentTime, segments, isSelecting, isHovering, isHoveringTooltip]);
 
-  // Scroll active segment into view (freeze when selecting or hovering, unless scroll-seeking)
+  // Scroll active segment into view (freeze when selecting or hovering)
   useEffect(() => {
     if (activeSegIndex == null || !followPlayback) return;
-    // Don't auto-scroll while user is selecting text or hovering over word/tooltip (unless scroll-seeking)
-    if ((isSelecting || isHovering || isHoveringTooltip) && !isScrollSeekingRef.current) return;
+    // Don't auto-scroll while user is selecting text or hovering over word/tooltip
+    if (isSelecting || isHovering || isHoveringTooltip) return;
 
     const el = segRefs.current[activeSegIndex];
     const cont = transcriptContainerRef.current;
@@ -564,113 +512,71 @@ export function TranscriptPanel({
             cursor: isSelecting ? "text" : "default",
           }}
         >
-        {segments.length > 0 ? (
-          <div className="w-full text-center space-y-1 pb-4">
-            {/* Show previous 2 lines in faded color for context */}
-            {activeSegIndex !== null && activeSegIndex > 1 && segments[activeSegIndex - 2] && (
-              <div
-                className="text-foreground/30 cursor-text px-4 transcript-text"
-                style={{
-                  fontFamily:
-                    fontFamily === "serif"
-                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
-                      : fontFamily === "mono"
-                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
-                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-                  fontSize: `${fontSize - 2}px`,
-                  lineHeight: showInlineTranslations ? '1.8' : '1.5',
-                  minHeight: showInlineTranslations ? '2em' : 'auto',
-                }}
-              >
-                {renderTextWithWords(segments[activeSegIndex - 2].text)}
-              </div>
-            )}
-            {/* Show previous line in lighter color */}
-            {activeSegIndex !== null && activeSegIndex > 0 && segments[activeSegIndex - 1] && (
-              <div
-                className="text-foreground/50 cursor-text px-4 transcript-text"
-                style={{
-                  fontFamily:
-                    fontFamily === "serif"
-                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
-                      : fontFamily === "mono"
-                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
-                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-                  fontSize: `${fontSize - 1}px`,
-                  lineHeight: showInlineTranslations ? '1.8' : '1.5',
-                  minHeight: showInlineTranslations ? '2em' : 'auto',
-                }}
-              >
-                {renderTextWithWords(segments[activeSegIndex - 1].text)}
-              </div>
-            )}
-            {/* Show current line (active) */}
-            {activeSegIndex !== null && segments[activeSegIndex] && (
-              <div
-                ref={(el) => (segRefs.current[activeSegIndex] = el as any)}
-                className="text-foreground font-semibold cursor-text px-4 leading-relaxed transcript-text"
-                style={{
-                  fontFamily:
-                    fontFamily === "serif"
-                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
-                      : fontFamily === "mono"
-                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
-                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-                  fontSize: `${fontSize}px`,
-                  lineHeight: showInlineTranslations ? '1.9' : '1.6',
-                  minHeight: showInlineTranslations ? '2.2em' : 'auto',
-                }}
-                data-start={segments[activeSegIndex].start}
-                data-end={segments[activeSegIndex].end}
-              >
-                {renderTextWithWords(segments[activeSegIndex].text)}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="py-10 text-center space-y-2">
-            <p className="text-sm text-muted-foreground italic">No transcript available for the selected language.</p>
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => transcript.downloadTranscriptMutation.mutate()}
-                disabled={transcript.downloadTranscriptMutation.isPending}
-              >
-                {transcript.downloadTranscriptMutation.isPending ? "Downloading…" : "Try Download"}
-              </Button>
-              <Button size="sm" onClick={onSettingsClick}>Change Language</Button>
+        <div className="w-full text-center space-y-1 pb-4">
+          {/* Show previous 2 lines in faded color for context */}
+          {activeSegIndex !== null && activeSegIndex > 1 && segments[activeSegIndex - 2] && (
+            <div
+              className="text-foreground/30 cursor-text px-4 transcript-text"
+              style={{
+                fontFamily:
+                  fontFamily === "serif"
+                    ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
+                    : fontFamily === "mono"
+                    ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+                    : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+                fontSize: `${fontSize - 2}px`,
+                lineHeight: showInlineTranslations ? '1.8' : '1.5',
+                minHeight: showInlineTranslations ? '2em' : 'auto',
+              }}
+            >
+              {renderTextWithWords(segments[activeSegIndex - 2].text)}
             </div>
-          </div>
-        )}
+          )}
+          {/* Show previous line in lighter color */}
+          {activeSegIndex !== null && activeSegIndex > 0 && segments[activeSegIndex - 1] && (
+            <div
+              className="text-foreground/50 cursor-text px-4 transcript-text"
+              style={{
+                fontFamily:
+                  fontFamily === "serif"
+                    ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
+                    : fontFamily === "mono"
+                    ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+                    : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+                fontSize: `${fontSize - 1}px`,
+                lineHeight: showInlineTranslations ? '1.8' : '1.5',
+                minHeight: showInlineTranslations ? '2em' : 'auto',
+              }}
+            >
+              {renderTextWithWords(segments[activeSegIndex - 1].text)}
+            </div>
+          )}
+          {/* Show current line (active) */}
+          {activeSegIndex !== null && segments[activeSegIndex] && (
+            <div
+              ref={(el) => (segRefs.current[activeSegIndex] = el as any)}
+              className="text-foreground font-semibold cursor-text px-4 leading-relaxed transcript-text"
+              style={{
+                fontFamily:
+                  fontFamily === "serif"
+                    ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
+                    : fontFamily === "mono"
+                    ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+                    : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+                fontSize: `${fontSize}px`,
+                lineHeight: showInlineTranslations ? '1.9' : '1.6',
+                minHeight: showInlineTranslations ? '2.2em' : 'auto',
+              }}
+              data-start={segments[activeSegIndex].start}
+              data-end={segments[activeSegIndex].end}
+            >
+              {renderTextWithWords(segments[activeSegIndex].text)}
+            </div>
+          )}
+        </div>
         <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background to-transparent pointer-events-none rounded-t-lg" />
         <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-lg" />
       </div>
-
-      {/* Seek Indicator Overlay for Transcript Scrolling */}
-      {seekIndicator && (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div className="bg-black/80 backdrop-blur-sm rounded-lg px-6 py-4 flex items-center gap-3 shadow-lg animate-in fade-in zoom-in-95 duration-200">
-            {seekIndicator.direction === 'backward' ? (
-              <>
-                <Rewind className="w-8 h-8 text-white" />
-                <div className="text-white">
-                  <p className="text-2xl font-bold">-{seekIndicator.amount}s</p>
-                  <p className="text-xs text-white/70">Backward</p>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-white text-right">
-                  <p className="text-2xl font-bold">+{seekIndicator.amount}s</p>
-                  <p className="text-xs text-white/70">Forward</p>
-                </div>
-                <FastForward className="w-8 h-8 text-white" />
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Translation Tooltip - appears on long hover */}
       {hoverTranslation && (
@@ -743,13 +649,41 @@ export function TranscriptPanel({
         {/* Left side - hint text */}
         {!isCollapsed && segments.length > 0 && (
           <p className="text-xs text-muted-foreground italic">
-            💡 Scroll to seek video • Hover words to translate • Saved words highlighted in blue
+            💡 Hover words to translate • Saved words highlighted in blue
           </p>
         )}
         {isCollapsed && (
-          <p className="text-xs text-muted-foreground italic">
-            Transcript collapsed
-          </p>
+          <div className="flex items-center gap-2">
+            {segments.length === 0 ? (
+              <>
+                <p className="text-xs text-muted-foreground italic">
+                  No transcript available
+                </p>
+                {!transcriptData && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => transcript.downloadTranscriptMutation.mutate()}
+                    disabled={transcript.downloadTranscriptMutation.isPending}
+                    className="h-6 text-xs"
+                  >
+                    {transcript.downloadTranscriptMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        Downloading...
+                      </>
+                    ) : (
+                      "Download Transcript"
+                    )}
+                  </Button>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">
+                Transcript collapsed
+              </p>
+            )}
+          </div>
         )}
 
         {/* Right side - controls */}
@@ -822,21 +756,6 @@ export function TranscriptPanel({
           <Button size="sm" variant="outline" onClick={onSettingsClick} className="h-7">
             <SettingsIcon className="w-3.5 h-3.5 mr-1.5" />
             <span className="text-xs">Settings</span>
-          </Button>
-        )}
-
-        {/* Manual download fallback */}
-        {!isCollapsed && !transcriptData && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => transcript.downloadTranscriptMutation.mutate()}
-            disabled={transcript.downloadTranscriptMutation.isPending}
-            className="h-7"
-          >
-            <span className="text-xs">
-              {transcript.downloadTranscriptMutation.isPending ? "Downloading…" : "Download"}
-            </span>
           </Button>
         )}
 

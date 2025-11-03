@@ -68,6 +68,40 @@ function normalizeLangCode(lang: string | null | undefined): string {
   return normalized || "en";
 }
 
+// Helper function to decode HTML entities in transcript text
+function decodeHTMLEntities(text: string): string {
+  // Common HTML entities map
+  const entities: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&apos;': "'",
+    '&#39;': "'",
+    '&nbsp;': ' ',
+    '&mdash;': '\u2014', // em dash
+    '&ndash;': '\u2013', // en dash
+    '&hellip;': '\u2026', // ellipsis
+    '&lsquo;': '\u2018', // left single quote
+    '&rsquo;': '\u2019', // right single quote
+    '&ldquo;': '\u201C', // left double quote
+    '&rdquo;': '\u201D', // right double quote
+  };
+
+  let decoded = text;
+
+  // Replace named entities
+  for (const [entity, char] of Object.entries(entities)) {
+    decoded = decoded.replace(new RegExp(entity, 'g'), char);
+  }
+
+  // Replace numeric entities (e.g., &#8217; or &#x2019;)
+  decoded = decoded.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+  decoded = decoded.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+
+  return decoded;
+}
+
 // spawnYtDlpWithLogging and extractVideoId are imported from utils/ytdlp.ts
 
 // VTT -> plain text converter: strips timing/headers, tags, and concatenates text lines
@@ -90,7 +124,9 @@ export function parseVttToText(content: string): string {
     .map((line) => {
       // Remove all VTT/HTML-like tags including timing tags <00:02:53.680> and cue tags <c>, </c>
       const withoutTags = line.replace(/<[^>]+>/g, "");
-      return withoutTags.replace(/\s+/g, " ").trim();
+      const normalized = withoutTags.replace(/\s+/g, " ").trim();
+      // Decode HTML entities like &gt;&gt; to >>
+      return decodeHTMLEntities(normalized);
     })
     .filter((line) => line.length > 0);
 
@@ -181,14 +217,17 @@ export function parseVttToSegments(content: string): Array<{ start: number; end:
     const text = textLines.join(" ").trim();
     if (!text) continue;
 
+    // Decode HTML entities like &gt;&gt; to >>
+    const decodedText = decodeHTMLEntities(text);
+
     // Deduplicate against recent cue texts (lowercased)
-    const lc = text.toLowerCase();
+    const lc = decodedText.toLowerCase();
     const tail = recent.join(" ");
     const tailSlice = tail.slice(Math.max(0, tail.length - 600));
     const isDup = recent.includes(lc) || (lc.length > 10 && tailSlice.includes(lc));
     if (isDup) continue;
 
-    segs.push({ start, end, text });
+    segs.push({ start, end, text: decodedText });
     recent.push(lc);
     if (recent.length > 16) recent.shift();
   }

@@ -512,68 +512,68 @@ export function TranscriptPanel({
             cursor: isSelecting ? "text" : "default",
           }}
         >
-        <div className="w-full text-center space-y-1 pb-4">
-          {/* Show previous 2 lines in faded color for context */}
-          {activeSegIndex !== null && activeSegIndex > 1 && segments[activeSegIndex - 2] && (
-            <div
-              className="text-foreground/30 cursor-text px-4 transcript-text"
-              style={{
-                fontFamily:
-                  fontFamily === "serif"
-                    ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
-                    : fontFamily === "mono"
-                    ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
-                    : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-                fontSize: `${fontSize - 2}px`,
-                lineHeight: showInlineTranslations ? '1.8' : '1.5',
-                minHeight: showInlineTranslations ? '2em' : 'auto',
-              }}
-            >
-              {renderTextWithWords(segments[activeSegIndex - 2].text)}
-            </div>
-          )}
-          {/* Show previous line in lighter color */}
-          {activeSegIndex !== null && activeSegIndex > 0 && segments[activeSegIndex - 1] && (
-            <div
-              className="text-foreground/50 cursor-text px-4 transcript-text"
-              style={{
-                fontFamily:
-                  fontFamily === "serif"
-                    ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
-                    : fontFamily === "mono"
-                    ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
-                    : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-                fontSize: `${fontSize - 1}px`,
-                lineHeight: showInlineTranslations ? '1.8' : '1.5',
-                minHeight: showInlineTranslations ? '2em' : 'auto',
-              }}
-            >
-              {renderTextWithWords(segments[activeSegIndex - 1].text)}
-            </div>
-          )}
-          {/* Show current line (active) */}
-          {activeSegIndex !== null && segments[activeSegIndex] && (
-            <div
-              ref={(el) => (segRefs.current[activeSegIndex] = el as any)}
-              className="text-foreground font-semibold cursor-text px-4 leading-relaxed transcript-text"
-              style={{
-                fontFamily:
-                  fontFamily === "serif"
-                    ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
-                    : fontFamily === "mono"
-                    ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
-                    : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-                fontSize: `${fontSize}px`,
-                lineHeight: showInlineTranslations ? '1.9' : '1.6',
-                minHeight: showInlineTranslations ? '2.2em' : 'auto',
-              }}
-              data-start={segments[activeSegIndex].start}
-              data-end={segments[activeSegIndex].end}
-            >
-              {renderTextWithWords(segments[activeSegIndex].text)}
-            </div>
-          )}
-        </div>
+          <div className="w-full text-center space-y-1 pb-4">
+            {/* Show previous 2 lines in faded color for context */}
+            {activeSegIndex !== null && activeSegIndex > 1 && segments[activeSegIndex - 2] && (
+              <div
+                className="text-foreground/30 cursor-text px-4 transcript-text"
+                style={{
+                  fontFamily:
+                    fontFamily === "serif"
+                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
+                      : fontFamily === "mono"
+                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+                  fontSize: `${fontSize - 2}px`,
+                  lineHeight: showInlineTranslations ? '1.8' : '1.5',
+                  minHeight: showInlineTranslations ? '2em' : 'auto',
+                }}
+              >
+                {renderTextWithWords(segments[activeSegIndex - 2].text)}
+              </div>
+            )}
+            {/* Show previous line in lighter color */}
+            {activeSegIndex !== null && activeSegIndex > 0 && segments[activeSegIndex - 1] && (
+              <div
+                className="text-foreground/50 cursor-text px-4 transcript-text"
+                style={{
+                  fontFamily:
+                    fontFamily === "serif"
+                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
+                      : fontFamily === "mono"
+                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+                  fontSize: `${fontSize - 1}px`,
+                  lineHeight: showInlineTranslations ? '1.8' : '1.5',
+                  minHeight: showInlineTranslations ? '2em' : 'auto',
+                }}
+              >
+                {renderTextWithWords(segments[activeSegIndex - 1].text)}
+              </div>
+            )}
+            {/* Show current line (active) */}
+            {activeSegIndex !== null && segments[activeSegIndex] && (
+              <div
+                ref={(el) => (segRefs.current[activeSegIndex] = el as any)}
+                className="text-foreground font-semibold cursor-text px-4 leading-relaxed transcript-text"
+                style={{
+                  fontFamily:
+                    fontFamily === "serif"
+                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
+                      : fontFamily === "mono"
+                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+                  fontSize: `${fontSize}px`,
+                  lineHeight: showInlineTranslations ? '1.9' : '1.6',
+                  minHeight: showInlineTranslations ? '2.2em' : 'auto',
+                }}
+                data-start={segments[activeSegIndex].start}
+                data-end={segments[activeSegIndex].end}
+              >
+                {renderTextWithWords(segments[activeSegIndex].text)}
+              </div>
+            )}
+          </div>
         <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background to-transparent pointer-events-none rounded-t-lg" />
         <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-lg" />
       </div>
@@ -679,9 +679,9 @@ export function TranscriptPanel({
                 )}
               </>
             ) : (
-              <p className="text-xs text-muted-foreground italic">
-                Transcript collapsed
-              </p>
+          <p className="text-xs text-muted-foreground italic">
+            Transcript collapsed
+          </p>
             )}
           </div>
         )}

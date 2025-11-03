@@ -1,12 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { FileText, Settings as SettingsIcon, Loader2, Rewind, FastForward, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, Settings as SettingsIcon, Loader2, Rewind, FastForward, ChevronDown, ChevronUp, BookmarkPlus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTranscript } from "../hooks/useTranscript";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { useAtom } from "jotai";
-import { showInlineTranslationsAtom } from "@/context/transcriptSettings";
+import { showInlineTranslationsAtom, translationTargetLangAtom } from "@/context/transcriptSettings";
+import { toast } from "sonner";
 
 type TranscriptHookReturn = ReturnType<typeof useTranscript>;
 
@@ -44,18 +45,44 @@ export function TranscriptPanel({
   }>;
 
   const [showInlineTranslations] = useAtom(showInlineTranslationsAtom);
+  const [translationTargetLang] = useAtom(translationTargetLangAtom);
   const [activeSegIndex, setActiveSegIndex] = useState<number | null>(null);
   const [followPlayback, setFollowPlayback] = useState<boolean>(true);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const [hoveredWord, setHoveredWord] = useState<string | null>(null);
+  const [isHoveringTooltip, setIsHoveringTooltip] = useState<boolean>(false);
   const [seekIndicator, setSeekIndicator] = useState<{ direction: 'forward' | 'backward'; amount: number } | null>(null);
+  const [hoverTranslation, setHoverTranslation] = useState<{ word: string; translation: string; translationId: string; loading: boolean; saved?: boolean } | null>(null);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const segRefs = useRef<Array<HTMLParagraphElement | null>>([]);
   const isSnappingRef = useRef<boolean>(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const translateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isScrollSeekingRef = useRef<boolean>(false);
+
+  const queryClient = useQueryClient();
+
+  // Mutation for saving words to My Words
+  const saveWordMutation = useMutation({
+    mutationFn: async (translationId: string) => {
+      return await trpcClient.translation.saveWord.mutate({ translationId });
+    },
+    onSuccess: (data) => {
+      // Update the hover translation to show it's saved
+      setHoverTranslation(prev => prev ? { ...prev, saved: true } : null);
+
+      // Show success toast
+      toast.success(data.alreadySaved ? "Word already in My Words" : "Word saved to My Words! 📚");
+
+      // Invalidate saved words query to refresh MyWords page
+      queryClient.invalidateQueries({ queryKey: ["saved-words"] });
+    },
+    onError: (error) => {
+      toast.error("Failed to save word: " + String(error));
+    },
+  });
 
   // Fetch translations for this video (for inline display)
   const { data: videoTranslations } = useQuery({
@@ -113,20 +140,106 @@ export function TranscriptPanel({
     return translation;
   }, [translationMap, showInlineTranslations]);
 
-  // Handle word hover with debouncing
-  const handleWordMouseEnter = (word: string) => {
+  // Handle word hover with debouncing and automatic translation
+  const handleWordMouseEnter = async (word: string) => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
+    if (translateTimeoutRef.current) {
+      clearTimeout(translateTimeoutRef.current);
+    }
+
     setHoveredWord(word);
     setIsHovering(true);
+
+    // Check if word already has a translation in cache
+    const existingTranslation = getTranslationForWord(word);
+    if (existingTranslation) {
+      // Already translated, no need to call API
+      return;
+    }
+
+    // Clean the word (remove punctuation)
+    const cleanWord = word.replace(/[.,!?;:'"()\[\]{}]/g, '').trim();
+    if (!cleanWord || cleanWord.length < 2) return;
+
+    // Set up timer to trigger translation after 800ms of hovering
+    translateTimeoutRef.current = setTimeout(async () => {
+      try {
+        // Show loading state
+        setHoverTranslation({ word: cleanWord, translation: '', translationId: '', loading: true });
+
+        // Get current timestamp for context
+        const timestamp = activeSegIndex !== null && segments[activeSegIndex]
+          ? segments[activeSegIndex].start
+          : currentTime;
+
+        // Get context text (current segment)
+        const contextText = activeSegIndex !== null && segments[activeSegIndex]
+          ? segments[activeSegIndex].text
+          : '';
+
+        // Call translation API (this will cache it automatically)
+        const result = await trpcClient.utils.translateText.query({
+          text: cleanWord,
+          targetLang: translationTargetLang, // From transcript settings atom
+          sourceLang: 'auto', // Auto-detect source language
+          videoId,
+          timestampSeconds: Math.floor(timestamp),
+          contextText,
+        });
+
+        if (result.success && result.translation && result.translationId) {
+          setHoverTranslation({
+            word: cleanWord,
+            translation: result.translation,
+            translationId: result.translationId, // Get translationId from response
+            loading: false,
+            saved: false,
+          });
+        } else {
+          setHoverTranslation(null);
+        }
+      } catch (error) {
+        console.error('Translation failed:', error);
+        setHoverTranslation(null);
+      }
+    }, 800); // 800ms hover delay before translation
   };
 
   const handleWordMouseLeave = () => {
-    // Add small delay before clearing hover to prevent flickering when moving between words
+    // Clear translation timer if user stops hovering
+    if (translateTimeoutRef.current) {
+      clearTimeout(translateTimeoutRef.current);
+    }
+
+    // Add small delay before clearing hover to allow moving to tooltip
+    hoverTimeoutRef.current = setTimeout(() => {
+      // Only hide if not hovering over the tooltip
+      if (!isHoveringTooltip) {
+        setHoveredWord(null);
+        setIsHovering(false);
+        setHoverTranslation(null);
+      }
+    }, 150); // Slightly longer delay to allow moving to tooltip
+  };
+
+  // Handle tooltip hover to keep it visible
+  const handleTooltipMouseEnter = () => {
+    setIsHoveringTooltip(true);
+    // Clear any pending hide timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+  };
+
+  const handleTooltipMouseLeave = () => {
+    setIsHoveringTooltip(false);
+    // Hide after leaving tooltip
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredWord(null);
       setIsHovering(false);
+      setHoverTranslation(null);
     }, 100);
   };
 
@@ -135,6 +248,9 @@ export function TranscriptPanel({
     return () => {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
+      }
+      if (translateTimeoutRef.current) {
+        clearTimeout(translateTimeoutRef.current);
       }
       if (seekTimeoutRef.current) {
         clearTimeout(seekTimeoutRef.current);
@@ -344,18 +460,18 @@ export function TranscriptPanel({
       setActiveSegIndex(null);
       return;
     }
-    // Don't update active segment while user is selecting text or hovering (unless scroll-seeking)
-    if ((isSelecting || isHovering) && !isScrollSeekingRef.current) return;
+    // Don't update active segment while user is selecting text or hovering over word/tooltip (unless scroll-seeking)
+    if ((isSelecting || isHovering || isHoveringTooltip) && !isScrollSeekingRef.current) return;
 
     const idx = segments.findIndex((s) => currentTime >= s.start && currentTime < s.end);
     setActiveSegIndex(idx >= 0 ? idx : null);
-  }, [currentTime, segments, isSelecting, isHovering]);
+  }, [currentTime, segments, isSelecting, isHovering, isHoveringTooltip]);
 
   // Scroll active segment into view (freeze when selecting or hovering, unless scroll-seeking)
   useEffect(() => {
     if (activeSegIndex == null || !followPlayback) return;
-    // Don't auto-scroll while user is selecting text or hovering (unless scroll-seeking)
-    if ((isSelecting || isHovering) && !isScrollSeekingRef.current) return;
+    // Don't auto-scroll while user is selecting text or hovering over word/tooltip (unless scroll-seeking)
+    if ((isSelecting || isHovering || isHoveringTooltip) && !isScrollSeekingRef.current) return;
 
     const el = segRefs.current[activeSegIndex];
     const cont = transcriptContainerRef.current;
@@ -363,7 +479,7 @@ export function TranscriptPanel({
     const elTop = el.offsetTop;
     const targetScroll = Math.max(0, elTop - cont.clientHeight * 0.3);
     cont.scrollTo({ top: targetScroll, behavior: "smooth" });
-  }, [activeSegIndex, followPlayback, isSelecting, isHovering]);
+  }, [activeSegIndex, followPlayback, isSelecting, isHovering, isHoveringTooltip]);
 
   // Handle mousedown to detect selection start
   const handleMouseDown = () => {
@@ -555,6 +671,69 @@ export function TranscriptPanel({
           </div>
         </div>
       )}
+
+      {/* Translation Tooltip - appears on long hover */}
+      {hoverTranslation && (
+        <div
+          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 pointer-events-auto z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+          onMouseEnter={handleTooltipMouseEnter}
+          onMouseLeave={handleTooltipMouseLeave}
+        >
+          <div className="bg-blue-600 dark:bg-blue-500 text-white rounded-lg px-4 py-3 shadow-xl border border-blue-400 dark:border-blue-600 max-w-sm">
+            {hoverTranslation.loading ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <p className="text-sm">Translating "{hoverTranslation.word}"...</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <p className="text-xs text-blue-100 dark:text-blue-200 font-medium uppercase tracking-wide">
+                    {hoverTranslation.word}
+                  </p>
+                  <p className="text-lg font-semibold">
+                    {hoverTranslation.translation}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-blue-400/30">
+                  {hoverTranslation.saved ? (
+                    <p className="text-xs text-blue-200 dark:text-blue-300 flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      Saved to My Words
+                    </p>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (hoverTranslation.translationId) {
+                          saveWordMutation.mutate(hoverTranslation.translationId);
+                        }
+                      }}
+                      disabled={saveWordMutation.isPending}
+                      className="text-xs text-white bg-blue-700 dark:bg-blue-600 hover:bg-blue-800 dark:hover:bg-blue-700 px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    >
+                      {saveWordMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <BookmarkPlus className="w-3 h-3" />
+                          Save to My Words
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          {/* Tooltip arrow */}
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+            <div className="w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-blue-600 dark:border-t-blue-500"></div>
+          </div>
+        </div>
+      )}
       </div>
 
       )}
@@ -564,7 +743,7 @@ export function TranscriptPanel({
         {/* Left side - hint text */}
         {!isCollapsed && segments.length > 0 && (
           <p className="text-xs text-muted-foreground italic">
-            💡 Scroll to seek video • Select text to translate or create notes
+            💡 Scroll to seek video • Hover words to translate • Select text for notes
           </p>
         )}
         {isCollapsed && (
@@ -602,9 +781,15 @@ export function TranscriptPanel({
           <div className="flex items-center gap-1.5">
             <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
             <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Auto-scroll</label>
-            {(isSelecting || isHovering) && (
+            {(isSelecting || isHovering || isHoveringTooltip) && (
               <span className="text-[10px] text-blue-500 font-medium">
-                {isSelecting ? "(selecting)" : hoveredWord ? `(hovering: ${hoveredWord.trim().substring(0, 15)}...)` : "(hovering)"}
+                {isSelecting
+                  ? "(selecting)"
+                  : isHoveringTooltip
+                  ? "(viewing translation)"
+                  : hoveredWord
+                  ? `(hovering: ${hoveredWord.trim().substring(0, 15)}...)`
+                  : "(hovering)"}
               </span>
             )}
           </div>

@@ -330,3 +330,31 @@ export const translationContexts = sqliteTable(
 
 export type TranslationContext = typeof translationContexts.$inferSelect;
 export type NewTranslationContext = typeof translationContexts.$inferInsert;
+
+// Saved words - user's vocabulary learning list
+// Tracks which translations the user explicitly saved for learning
+export const savedWords = sqliteTable(
+  "saved_words",
+  {
+    id: text("id").primaryKey(),
+    // Foreign key to translation_cache
+    translationId: text("translation_id").notNull().references(() => translationCache.id, { onDelete: "cascade" }),
+    // User notes about this word (optional)
+    notes: text("notes"),
+    // Learning progress tracking
+    reviewCount: integer("review_count").notNull().default(0),
+    lastReviewedAt: integer("last_reviewed_at"),
+
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at"),
+  },
+  (table) => [
+    index("saved_words_translation_id_idx").on(table.translationId),
+    index("saved_words_last_reviewed_idx").on(table.lastReviewedAt),
+    // Ensure each translation can only be saved once
+    unique().on(table.translationId),
+  ]
+);
+
+export type SavedWord = typeof savedWords.$inferSelect;
+export type NewSavedWord = typeof savedWords.$inferInsert;

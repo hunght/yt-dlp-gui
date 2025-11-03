@@ -221,6 +221,7 @@ export const utilsRouter = t.router({
               return {
                 success: true as const,
                 translation: cachedEntry.translatedText,
+                translationId: cachedEntry.id, // Include translation ID for saving to My Words
                 originalText: cleanText,
                 sourceLang: cachedEntry.detectedLang || sl,
                 targetLang: tl,
@@ -309,6 +310,17 @@ export const utilsRouter = t.router({
                   error: String(contextError),
                 });
               }
+
+              // Return with translationId for saving to My Words
+              return {
+                success: true as const,
+                translation: translatedText,
+                translationId: cacheId, // Include translation ID
+                originalText: cleanText,
+                sourceLang: detectedLang,
+                targetLang: tl,
+                fromCache: false,
+              };
             } catch (cacheError) {
               logger.warn("[translation] Failed to cache translation", {
                 error: String(cacheError),
@@ -320,6 +332,7 @@ export const utilsRouter = t.router({
           return {
             success: true as const,
             translation: translatedText,
+            translationId: '', // No ID if caching failed
             originalText: cleanText,
             sourceLang: detectedLang,
             targetLang: tl,

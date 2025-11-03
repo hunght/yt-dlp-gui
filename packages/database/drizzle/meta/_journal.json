@@ -8,6 +8,13 @@
       "when": 1762139524945,
       "tag": "0000_gifted_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1762142640163,
+      "tag": "0001_curved_logan",
+      "breakpoints": true
     }
   ]
 }

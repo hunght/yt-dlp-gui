@@ -2,8 +2,9 @@ import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { logger } from "@/helpers/logger";
 import defaultDb from "@/api/db";
-import { translationCache, translationContexts, youtubeVideos } from "@yt-dlp-gui/database/schema";
+import { translationCache, translationContexts, youtubeVideos, savedWords } from "@yt-dlp-gui/database/schema";
 import { desc, sql, eq } from "drizzle-orm";
+import crypto from "crypto";
 
 /**
  * Translation router - handles translation cache and learning features
@@ -263,6 +264,161 @@ export const translationRouter = t.router({
         return videoTranslations;
       } catch (error) {
         logger.error("[translation] getByVideoId failed", error as Error);
+        throw error;
+      }
+    }),
+
+  /**
+   * Save a word to the user's learning list
+   * Creates a saved_words entry for the translation
+   */
+  saveWord: publicProcedure
+    .input(
+      z.object({
+        translationId: z.string(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = ctx.db ?? defaultDb;
+
+      try {
+        const now = Date.now();
+
+        // Check if already saved
+        const existing = await db
+          .select()
+          .from(savedWords)
+          .where(eq(savedWords.translationId, input.translationId))
+          .limit(1);
+
+        if (existing.length > 0) {
+          // Already saved, just update notes if provided
+          if (input.notes !== undefined) {
+            await db
+              .update(savedWords)
+              .set({ notes: input.notes, updatedAt: now })
+              .where(eq(savedWords.id, existing[0].id));
+          }
+          logger.debug("[translation] Word already saved", { translationId: input.translationId });
+          return { success: true, alreadySaved: true, id: existing[0].id };
+        }
+
+        // Create new saved word entry
+        const id = crypto.randomUUID();
+        await db.insert(savedWords).values({
+          id,
+          translationId: input.translationId,
+          notes: input.notes ?? null,
+          reviewCount: 0,
+          lastReviewedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        logger.info("[translation] Word saved", { translationId: input.translationId });
+        return { success: true, alreadySaved: false, id };
+      } catch (error) {
+        logger.error("[translation] saveWord failed", error as Error);
+        throw error;
+      }
+    }),
+
+  /**
+   * Remove a word from the user's learning list
+   */
+  unsaveWord: publicProcedure
+    .input(
+      z.object({
+        translationId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = ctx.db ?? defaultDb;
+
+      try {
+        await db
+          .delete(savedWords)
+          .where(eq(savedWords.translationId, input.translationId));
+
+        logger.info("[translation] Word unsaved", { translationId: input.translationId });
+        return { success: true };
+      } catch (error) {
+        logger.error("[translation] unsaveWord failed", error as Error);
+        throw error;
+      }
+    }),
+
+  /**
+   * Get all saved words with their translations
+   */
+  getSavedWords: publicProcedure
+    .input(
+      z.object({
+        limit: z.number().optional().default(100),
+        offset: z.number().optional().default(0),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const db = ctx.db ?? defaultDb;
+
+      try {
+        const words = await db
+          .select({
+            id: savedWords.id,
+            notes: savedWords.notes,
+            reviewCount: savedWords.reviewCount,
+            lastReviewedAt: savedWords.lastReviewedAt,
+            createdAt: savedWords.createdAt,
+            translation: translationCache,
+          })
+          .from(savedWords)
+          .innerJoin(translationCache, eq(savedWords.translationId, translationCache.id))
+          .orderBy(desc(savedWords.createdAt))
+          .limit(input.limit)
+          .offset(input.offset);
+
+        const [countResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(savedWords);
+
+        const total = countResult?.count ?? 0;
+
+        logger.debug("[translation] getSavedWords", { count: words.length, total });
+
+        return {
+          words,
+          total,
+          hasMore: input.offset + words.length < total,
+        };
+      } catch (error) {
+        logger.error("[translation] getSavedWords failed", error as Error);
+        throw error;
+      }
+    }),
+
+  /**
+   * Check if a translation is saved
+   */
+  isWordSaved: publicProcedure
+    .input(
+      z.object({
+        translationId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const db = ctx.db ?? defaultDb;
+
+      try {
+        const saved = await db
+          .select()
+          .from(savedWords)
+          .where(eq(savedWords.translationId, input.translationId))
+          .limit(1);
+
+        return { isSaved: saved.length > 0 };
+      } catch (error) {
+        logger.error("[translation] isWordSaved failed", error as Error);
         throw error;
       }
     }),

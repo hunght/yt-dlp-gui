@@ -16,6 +16,7 @@ import {
   fontSizeAtom,
   translationTargetLangAtom,
   includeTranslationInNoteAtom,
+  showInlineTranslationsAtom,
 } from "@/context/transcriptSettings";
 
 interface TranscriptSettingsDialogProps {
@@ -40,6 +41,7 @@ export function TranscriptSettingsDialog({
   const [fontSize, setFontSize] = useAtom(fontSizeAtom);
   const [translationTargetLang, setTranslationTargetLang] = useAtom(translationTargetLangAtom);
   const [includeTranslationInNote, setIncludeTranslationInNote] = useAtom(includeTranslationInNoteAtom);
+  const [showInlineTranslations, setShowInlineTranslations] = useAtom(showInlineTranslationsAtom);
 
   // Common translation target languages
   const translationLanguages = [
@@ -154,6 +156,18 @@ export function TranscriptSettingsDialog({
             />
             <Label htmlFor="include-translation-setting" className="text-xs cursor-pointer">
               Auto-include translation in note (default)
+            </Label>
+          </div>
+
+          {/* Show Inline Translations */}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="show-inline-translations"
+              checked={showInlineTranslations}
+              onCheckedChange={(checked) => setShowInlineTranslations(checked === true)}
+            />
+            <Label htmlFor="show-inline-translations" className="text-xs cursor-pointer">
+              Show inline translations in transcript
             </Label>
           </div>
 

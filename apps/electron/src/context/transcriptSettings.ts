@@ -21,3 +21,8 @@ export const includeTranslationInNoteAtom = atomWithStorage<boolean>(
   true
 );
 
+export const showInlineTranslationsAtom = atomWithStorage<boolean>(
+  "transcript-show-inline-translations",
+  false
+);
+

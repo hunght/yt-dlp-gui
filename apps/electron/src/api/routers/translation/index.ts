@@ -223,6 +223,49 @@ export const translationRouter = t.router({
         throw error;
       }
     }),
+
+  /**
+   * Get all translations for a specific video (for inline display)
+   * Returns translations with their source text for matching against transcript
+   */
+  getByVideoId: publicProcedure
+    .input(
+      z.object({
+        videoId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const db = ctx.db ?? defaultDb;
+
+      try {
+        // Fetch all translations for this video via contexts
+        const videoTranslations = await db
+          .select({
+            id: translationCache.id,
+            sourceText: translationCache.sourceText,
+            translatedText: translationCache.translatedText,
+            sourceLang: translationCache.sourceLang,
+            targetLang: translationCache.targetLang,
+            detectedLang: translationCache.detectedLang,
+            queryCount: translationCache.queryCount,
+            timestampSeconds: translationContexts.timestampSeconds,
+          })
+          .from(translationContexts)
+          .innerJoin(translationCache, eq(translationContexts.translationId, translationCache.id))
+          .where(eq(translationContexts.videoId, input.videoId))
+          .orderBy(desc(translationCache.queryCount)); // Most frequent first for better matching
+
+        logger.debug("[translation] getByVideoId", {
+          videoId: input.videoId,
+          count: videoTranslations.length,
+        });
+
+        return videoTranslations;
+      } catch (error) {
+        logger.error("[translation] getByVideoId failed", error as Error);
+        throw error;
+      }
+    }),
 });
 
 export type TranslationRouter = typeof translationRouter;

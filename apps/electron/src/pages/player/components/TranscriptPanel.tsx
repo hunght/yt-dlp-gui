@@ -1,8 +1,12 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { FileText, Settings as SettingsIcon, Loader2, Rewind, FastForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTranscript } from "../hooks/useTranscript";
+import { useQuery } from "@tanstack/react-query";
+import { trpcClient } from "@/utils/trpc";
+import { useAtom } from "jotai";
+import { showInlineTranslationsAtom } from "@/context/transcriptSettings";
 
 type TranscriptHookReturn = ReturnType<typeof useTranscript>;
 
@@ -35,6 +39,7 @@ export function TranscriptPanel({
     text: string;
   }>;
 
+  const [showInlineTranslations] = useAtom(showInlineTranslationsAtom);
   const [activeSegIndex, setActiveSegIndex] = useState<number | null>(null);
   const [followPlayback, setFollowPlayback] = useState<boolean>(true);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
@@ -47,6 +52,62 @@ export function TranscriptPanel({
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isScrollSeekingRef = useRef<boolean>(false);
+
+  // Fetch translations for this video (for inline display)
+  const { data: videoTranslations } = useQuery({
+    queryKey: ["translations-by-video", videoId],
+    queryFn: async () => {
+      if (!videoId) return [];
+      return await trpcClient.translation.getByVideoId.query({ videoId });
+    },
+    enabled: showInlineTranslations && !!videoId,
+    staleTime: Infinity, // Cache indefinitely - translations don't change often
+  });
+
+  // Build efficient lookup map for translations (memoized)
+  const translationMap = useMemo(() => {
+    if (!videoTranslations || !showInlineTranslations) return new Map();
+
+    const map = new Map<string, { translatedText: string; targetLang: string; queryCount: number }>();
+
+    videoTranslations.forEach(t => {
+      // Index by exact match (lowercase, trimmed)
+      const cleanSource = t.sourceText.toLowerCase().trim();
+      map.set(cleanSource, {
+        translatedText: t.translatedText,
+        targetLang: t.targetLang,
+        queryCount: t.queryCount,
+      });
+
+      // Also index without punctuation for better matching
+      const noPunctuation = t.sourceText.replace(/[.,!?;:'"()\[\]{}]/g, '').toLowerCase().trim();
+      if (noPunctuation !== cleanSource && noPunctuation.length > 0) {
+        map.set(noPunctuation, {
+          translatedText: t.translatedText,
+          targetLang: t.targetLang,
+          queryCount: t.queryCount,
+        });
+      }
+    });
+
+    return map;
+  }, [videoTranslations, showInlineTranslations]);
+
+  // Get translation for a word (O(1) lookup)
+  const getTranslationForWord = useCallback((word: string) => {
+    if (!showInlineTranslations || translationMap.size === 0) return null;
+
+    const cleanWord = word.toLowerCase().trim();
+    let translation = translationMap.get(cleanWord);
+
+    // If not found, try without punctuation
+    if (!translation) {
+      const noPunctuation = word.replace(/[.,!?;:'"()\[\]{}]/g, '').toLowerCase().trim();
+      translation = translationMap.get(noPunctuation);
+    }
+
+    return translation;
+  }, [translationMap, showInlineTranslations]);
 
   // Handle word hover with debouncing
   const handleWordMouseEnter = (word: string) => {
@@ -130,34 +191,48 @@ export function TranscriptPanel({
     };
   }, [videoRef]);
 
-  // Render text with individual word highlighting
+  // Render text with individual word highlighting and inline translations
   const renderTextWithWords = (text: string, opacity: string = "100") => {
     // Split text into words while preserving punctuation
     const words = text.split(/(\s+)/); // Preserve spaces
 
     return (
-      <span>
+      <span className="inline-flex flex-wrap items-start gap-x-1">
         {words.map((word, idx) => {
-          // Don't wrap whitespace
+          // Don't wrap whitespace - just render as space
           if (/^\s+$/.test(word)) {
-            return <span key={idx}>{word}</span>;
+            return <span key={idx} className="w-1" />;
           }
 
           const isHovered = hoveredWord === word && word.trim().length > 0;
+          const translation = getTranslationForWord(word);
+          const hasTranslation = !!translation;
 
           return (
             <span
               key={idx}
-              className={`inline-block transition-all duration-100 ${
+              className={`inline-flex flex-col items-center transition-all duration-100 ${
                 isHovered
-                  ? 'bg-yellow-200 dark:bg-yellow-500/30 px-0.5 -mx-0.5 rounded underline decoration-2 decoration-yellow-500 scale-105 font-semibold'
-                  : 'hover:bg-muted/50 px-0.5 -mx-0.5 rounded'
+                  ? 'bg-yellow-200 dark:bg-yellow-500/30 px-1 -mx-0.5 rounded scale-105'
+                  : hasTranslation
+                  ? 'hover:bg-blue-100 dark:hover:bg-blue-900/30 px-1 -mx-0.5 rounded'
+                  : 'hover:bg-muted/50 px-1 -mx-0.5 rounded'
               }`}
               onMouseEnter={() => word.trim() && handleWordMouseEnter(word)}
               onMouseLeave={handleWordMouseLeave}
-              style={{ cursor: word.trim() ? 'pointer' : 'default' }}
+              style={{
+                cursor: word.trim() ? 'pointer' : 'default',
+                minHeight: showInlineTranslations && hasTranslation ? '1.4em' : 'auto'
+              }}
             >
-              {word}
+              <span className={hasTranslation && !isHovered ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}>
+                {word}
+              </span>
+              {hasTranslation && showInlineTranslations && (
+                <span className="text-[7px] text-blue-500 dark:text-blue-400 leading-none whitespace-nowrap opacity-70">
+                  {translation.translatedText}
+                </span>
+              )}
             </span>
           );
         })}
@@ -371,7 +446,7 @@ export function TranscriptPanel({
           <div className="w-full text-center space-y-1 pb-4">
             {/* Show previous 2 lines in faded color for context */}
             {activeSegIndex !== null && activeSegIndex > 1 && segments[activeSegIndex - 2] && (
-              <p
+              <div
                 className="text-foreground/30 cursor-text px-4 transcript-text"
                 style={{
                   fontFamily:
@@ -381,15 +456,16 @@ export function TranscriptPanel({
                       ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
                       : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
                   fontSize: `${fontSize - 2}px`,
-                  lineHeight: '1.5',
+                  lineHeight: showInlineTranslations ? '1.5' : '1.5',
+                  minHeight: showInlineTranslations ? '1.5em' : 'auto',
                 }}
               >
                 {renderTextWithWords(segments[activeSegIndex - 2].text)}
-              </p>
+              </div>
             )}
             {/* Show previous line in lighter color */}
             {activeSegIndex !== null && activeSegIndex > 0 && segments[activeSegIndex - 1] && (
-              <p
+              <div
                 className="text-foreground/50 cursor-text px-4 transcript-text"
                 style={{
                   fontFamily:
@@ -399,16 +475,17 @@ export function TranscriptPanel({
                       ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
                       : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
                   fontSize: `${fontSize - 1}px`,
-                  lineHeight: '1.5',
+                  lineHeight: showInlineTranslations ? '1.5' : '1.5',
+                  minHeight: showInlineTranslations ? '1.5em' : 'auto',
                 }}
               >
                 {renderTextWithWords(segments[activeSegIndex - 1].text)}
-              </p>
+              </div>
             )}
             {/* Show current line (active) */}
             {activeSegIndex !== null && segments[activeSegIndex] && (
-              <p
-                ref={(el) => (segRefs.current[activeSegIndex] = el)}
+              <div
+                ref={(el) => (segRefs.current[activeSegIndex] = el as any)}
                 className="text-foreground font-semibold cursor-text px-4 leading-relaxed transcript-text"
                 style={{
                   fontFamily:
@@ -418,13 +495,14 @@ export function TranscriptPanel({
                       ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
                       : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
                   fontSize: `${fontSize}px`,
-                  lineHeight: '1.6',
+                  lineHeight: showInlineTranslations ? '1.6' : '1.6',
+                  minHeight: showInlineTranslations ? '1.6em' : 'auto',
                 }}
                 data-start={segments[activeSegIndex].start}
                 data-end={segments[activeSegIndex].end}
               >
                 {renderTextWithWords(segments[activeSegIndex].text)}
-              </p>
+              </div>
             )}
           </div>
         ) : (

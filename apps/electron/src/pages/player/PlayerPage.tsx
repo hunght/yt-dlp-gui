@@ -1,7 +1,6 @@
-import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { useAtom } from "jotai";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Rewind, FastForward } from "lucide-react";
@@ -13,13 +12,9 @@ import { VideoPlayer } from "./components/VideoPlayer";
 import { DownloadStatus } from "./components/DownloadStatus";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { AnnotationForm } from "./components/AnnotationForm";
-import { TranscriptSettingsDialog } from "./components/TranscriptSettingsDialog";
 import { PlaylistNavigation } from "./components/PlaylistNavigation";
-import { fontFamilyAtom, fontSizeAtom } from "@/context/transcriptSettings";
+import { currentTranscriptLangAtom } from "@/context/transcriptSettings";
 import { useRightSidebar } from "@/context/rightSidebar";
-import { trpcClient } from "@/utils/trpc";
-import { useToast } from "@/hooks/use-toast";
-import { filterLanguagesByPreference, isInCooldown, setCooldown, clearCooldown } from "./utils/transcriptUtils";
 
 export default function PlayerPage() {
   const search = useSearch({ from: "/player" });
@@ -29,8 +24,6 @@ export default function PlayerPage() {
 
   // Video reference for playback control
   const videoRef = useRef<HTMLVideoElement>(null);
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   // Hooks
   const playback = useVideoPlayback(videoId);
@@ -41,11 +34,11 @@ export default function PlayerPage() {
   // Right sidebar for annotations
   const { setContent, setAnnotationsData } = useRightSidebar();
 
-  // Transcript settings - using Jotai atoms with localStorage persistence
-  const [showTranscriptSettings, setShowTranscriptSettings] = useState(false);
+  // Transcript collapsed state
   const [isTranscriptCollapsed, setIsTranscriptCollapsed] = useState(false);
-  const [fontFamily] = useAtom(fontFamilyAtom);
-  const [fontSize] = useAtom(fontSizeAtom);
+
+  // Transcript language from atom (shared by TranscriptPanel)
+  const [currentTranscriptLang] = useAtom(currentTranscriptLangAtom);
 
   // Global scroll-to-seek indicator
   const [seekIndicator, setSeekIndicator] = useState<{ direction: 'forward' | 'backward'; amount: number } | null>(null);
@@ -53,204 +46,6 @@ export default function PlayerPage() {
 
   const filePath = playback.data?.filePath || null;
   const videoTitle = playback.data?.title || playback.data?.videoId || "Video";
-
-  // ============================================================================
-  // TRANSCRIPT QUERIES AND MUTATIONS (previously in useTranscript hook)
-  // ============================================================================
-
-  const [selectedLang, setSelectedLang] = useState<string | null>(null);
-  const hasAttemptedFetchRef = useRef(false);
-  const attemptedDownloadRef = useRef<Set<string>>(new Set());
-
-  // User preferences query
-  const userPrefsQuery = useQuery({
-    queryKey: ["user-preferences"],
-    queryFn: async () => {
-      return await trpcClient.preferences.getUserPreferences.query();
-    },
-  });
-
-  // Fetch video info mutation (when subtitle data is missing)
-  const fetchVideoInfoMutation = useMutation({
-    mutationFn: async () => {
-      if (!videoId) throw new Error("Missing videoId");
-      const url = `https://www.youtube.com/watch?v=${videoId}`;
-      return await trpcClient.ytdlp.fetchVideoInfo.mutate({ url });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["video-playback", videoId] });
-      queryClient.invalidateQueries({ queryKey: ["available-subs", videoId] });
-    },
-  });
-
-  // Auto-fetch video info when subtitle data is missing
-  useEffect(() => {
-    if (!videoId) return;
-    if (playback.data === undefined) return; // Still loading
-
-    if (
-      playback.data !== null &&
-      !('availableLanguages' in playback.data) &&
-      !fetchVideoInfoMutation.isPending &&
-      !fetchVideoInfoMutation.isSuccess &&
-      !hasAttemptedFetchRef.current
-    ) {
-      hasAttemptedFetchRef.current = true;
-      fetchVideoInfoMutation.mutate();
-    }
-  }, [videoId, playback.data, fetchVideoInfoMutation]);
-
-  // Reset attempt flag when videoId changes
-  useEffect(() => {
-    hasAttemptedFetchRef.current = false;
-  }, [videoId]);
-
-  // Available subtitles query
-  const availableSubsQuery = useQuery({
-    queryKey: ["available-subs", videoId],
-    queryFn: async () => {
-      if (!videoId) return { languages: [] as Array<{ lang: string; hasManual: boolean; hasAuto: boolean }> };
-
-      if (playback.data && 'availableLanguages' in playback.data) {
-        return { languages: playback.data.availableLanguages || [] };
-      }
-
-      return { languages: [] };
-    },
-    enabled: !!videoId && playback.data !== undefined,
-    initialData: playback.data?.availableLanguages !== undefined
-      ? { languages: playback.data.availableLanguages || [] }
-      : undefined,
-  });
-
-  // Filter languages by user preferences
-  const filteredLanguages = useMemo(
-    () => filterLanguagesByPreference(
-      availableSubsQuery.data?.languages || [],
-      userPrefsQuery.data?.preferredLanguages || []
-    ),
-    [availableSubsQuery.data, userPrefsQuery.data]
-  );
-
-  // Validate selected language is available
-  useEffect(() => {
-    const available = (availableSubsQuery.data?.languages || []).map((l: any) => l.lang);
-    if (selectedLang && !available.includes(selectedLang)) {
-      toast({
-        title: "Subtitle not available",
-        description: `No transcript available in ${selectedLang.toUpperCase()} for this video. Showing default transcript instead.`,
-        variant: "destructive",
-      });
-      setSelectedLang(null);
-    }
-  }, [availableSubsQuery.data, selectedLang, toast]);
-
-  // Transcript query
-  const transcriptQuery = useQuery({
-    queryKey: ["transcript", videoId, selectedLang ?? "__default__"],
-    queryFn: async () => {
-      if (!videoId) return null;
-      if (selectedLang) {
-        return await trpcClient.ytdlp.getTranscript.query({ videoId, lang: selectedLang });
-      }
-      return await trpcClient.ytdlp.getTranscript.query({ videoId });
-    },
-    enabled: !!videoId,
-    placeholderData: (prev) => prev as any,
-  });
-
-  const transcriptData = transcriptQuery.data as any;
-  const effectiveLang = selectedLang ?? (transcriptData?.language as string | undefined);
-
-  // Clear download attempt when transcript loads
-  useEffect(() => {
-    if (transcriptData) {
-      const key = `${videoId}|${selectedLang ?? "__default__"}`;
-      attemptedDownloadRef.current.delete(key);
-    }
-  }, [videoId, selectedLang, transcriptData]);
-
-  // Transcript segments query
-  const transcriptSegmentsQuery = useQuery({
-    queryKey: ["transcript-segments", videoId, effectiveLang ?? "__default__"],
-    queryFn: async () => {
-      if (!videoId) return { segments: [] as Array<{ start: number; end: number; text: string }> };
-      return await trpcClient.ytdlp.getTranscriptSegments.query({
-        videoId,
-        lang: effectiveLang
-      });
-    },
-    enabled: !!videoId,
-    placeholderData: (prev) => prev as any,
-  });
-
-  // Download transcript mutation
-  const downloadTranscriptMutation = useMutation({
-    mutationFn: async () => {
-      if (!videoId) throw new Error("Missing videoId");
-      return await trpcClient.ytdlp.downloadTranscript.mutate({
-        videoId,
-        lang: selectedLang ?? undefined
-      });
-    },
-    onSuccess: (res: any) => {
-      if (!videoId) return;
-
-      if (res?.success) {
-        queryClient.invalidateQueries({ queryKey: ["transcript", videoId, selectedLang ?? "__default__"] });
-        queryClient.invalidateQueries({ queryKey: ["transcript-segments", videoId] });
-        clearCooldown(videoId, selectedLang);
-        return;
-      }
-
-      // Handle rate limit
-      if (res?.code === "RATE_LIMITED") {
-        const retryAfterMs: number = res.retryAfterMs ?? 15 * 60 * 1000;
-        setCooldown(videoId, selectedLang, retryAfterMs);
-        toast({
-          title: "Rate limited by YouTube",
-          description: `Too many requests. Try again in about ${Math.ceil(retryAfterMs / 60000)} min`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Transcript download failed",
-        description: String(res?.message ?? "Unknown error"),
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Auto-download transcript when file becomes available
-  useEffect(() => {
-    if (!videoId || !filePath) return;
-    if (downloadTranscriptMutation.isPending) return;
-    if (transcriptQuery.isFetching || transcriptQuery.isLoading) return;
-    if (transcriptData) return; // Already have transcript
-
-    const key = `${videoId}|${selectedLang ?? "__default__"}`;
-    if (attemptedDownloadRef.current.has(key)) return;
-
-    const cooldownCheck = isInCooldown(videoId, selectedLang);
-    if (cooldownCheck.inCooldown) return;
-
-    // Only auto-download if query finished and returned null
-    if (transcriptQuery.isSuccess && transcriptData === null) {
-      attemptedDownloadRef.current.add(key);
-      downloadTranscriptMutation.mutate();
-    }
-  }, [
-    videoId,
-    filePath,
-    transcriptData,
-    transcriptQuery.isFetching,
-    transcriptQuery.isLoading,
-    transcriptQuery.isSuccess,
-    selectedLang,
-    downloadTranscriptMutation,
-  ]);
 
   // Set sidebar to show annotations when on PlayerPage
   useEffect(() => {
@@ -430,16 +225,7 @@ export default function PlayerPage() {
                 videoId={videoId}
                 currentTime={currentTime}
                 videoRef={videoRef}
-                transcriptQuery={transcriptQuery}
-                transcriptSegmentsQuery={transcriptSegmentsQuery}
-                downloadTranscriptMutation={downloadTranscriptMutation}
-                availableSubsQuery={availableSubsQuery}
-                filteredLanguages={filteredLanguages}
-                selectedLang={selectedLang}
-                setSelectedLang={setSelectedLang}
-                fontFamily={fontFamily}
-                fontSize={fontSize}
-                onSettingsClick={() => setShowTranscriptSettings(true)}
+                playbackData={playback.data}
                 onSelect={annotations.handleTranscriptSelect}
                 onEnterKey={() => annotations.setShowAnnotationForm(true)}
                 isCollapsed={isTranscriptCollapsed}
@@ -464,7 +250,7 @@ export default function PlayerPage() {
                 open={annotations.showAnnotationForm}
                 currentTime={currentTime}
                 selectedText={annotations.selectedText}
-                language={effectiveLang}
+                language={currentTranscriptLang}
                 videoId={videoId}
                 note={annotations.annotationNote}
                 emoji={annotations.selectedEmoji}
@@ -483,17 +269,6 @@ export default function PlayerPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Transcript Settings Dialog */}
-      <TranscriptSettingsDialog
-        open={showTranscriptSettings}
-        onOpenChange={setShowTranscriptSettings}
-        filteredLanguages={filteredLanguages}
-        selectedLang={selectedLang}
-        effectiveLang={effectiveLang}
-        onLanguageChange={setSelectedLang}
-      />
-
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
 // Transcript settings atoms with localStorage persistence
@@ -25,4 +26,8 @@ export const showInlineTranslationsAtom = atomWithStorage<boolean>(
   "transcript-show-inline-translations",
   false
 );
+
+// Current transcript language (shared with AnnotationForm)
+// This is the effective language of the currently displayed transcript
+export const currentTranscriptLangAtom = atom<string | undefined>(undefined);
 

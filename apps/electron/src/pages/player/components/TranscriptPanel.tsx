@@ -1,27 +1,27 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { useAtom } from "jotai";
-import { showInlineTranslationsAtom, translationTargetLangAtom } from "@/context/transcriptSettings";
+import {
+  showInlineTranslationsAtom,
+  translationTargetLangAtom,
+  currentTranscriptLangAtom,
+  fontFamilyAtom,
+  fontSizeAtom
+} from "@/context/transcriptSettings";
 import { toast } from "sonner";
 import { TranscriptContent } from "./TranscriptContent";
 import { TranslationTooltip } from "./TranslationTooltip";
 import { TranscriptControls } from "./TranscriptControls";
+import { TranscriptSettingsDialog } from "./TranscriptSettingsDialog";
+import { useToast } from "@/hooks/use-toast";
+import { filterLanguagesByPreference, isInCooldown, setCooldown, clearCooldown } from "../utils/transcriptUtils";
 
 interface TranscriptPanelProps {
   videoId: string;
   currentTime: number;
   videoRef: React.RefObject<HTMLVideoElement>;
-  transcriptQuery: UseQueryResult<any, any>;
-  transcriptSegmentsQuery: UseQueryResult<any, any>;
-  downloadTranscriptMutation: UseMutationResult<any, any, void, any>;
-  availableSubsQuery: UseQueryResult<any, any>;
-  filteredLanguages: Array<{ lang: string; hasManual: boolean; hasAuto: boolean }>;
-  selectedLang: string | null;
-  setSelectedLang: (lang: string) => void;
-  fontFamily: "system" | "serif" | "mono";
-  fontSize: number;
-  onSettingsClick: () => void;
+  playbackData?: any; // For accessing availableLanguages
   onSelect: () => void;
   onEnterKey?: () => void;
   isCollapsed?: boolean;
@@ -32,29 +32,233 @@ export function TranscriptPanel({
   videoId,
   currentTime,
   videoRef,
-  transcriptQuery,
-  transcriptSegmentsQuery,
-  downloadTranscriptMutation,
-  availableSubsQuery,
-  filteredLanguages,
-  selectedLang,
-  setSelectedLang,
-  fontFamily,
-  fontSize,
-  onSettingsClick,
+  playbackData,
   onSelect,
   onEnterKey,
   isCollapsed = false,
   onToggleCollapse,
 }: TranscriptPanelProps) {
+  const queryClient = useQueryClient();
+  const { toast: toastHook } = useToast();
+
+  // Atoms for settings and shared state
+  const [showInlineTranslations] = useAtom(showInlineTranslationsAtom);
+  const [translationTargetLang] = useAtom(translationTargetLangAtom);
+  const [fontFamily] = useAtom(fontFamilyAtom);
+  const [fontSize] = useAtom(fontSizeAtom);
+  const [, setCurrentTranscriptLang] = useAtom(currentTranscriptLangAtom);
+
+  // Local state
+  const [showTranscriptSettings, setShowTranscriptSettings] = useState(false);
+  const [selectedLang, setSelectedLang] = useState<string | null>(null);
+  const hasAttemptedFetchRef = useRef(false);
+  const attemptedDownloadRef = useRef<Set<string>>(new Set());
+
+  // ============================================================================
+  // TRANSCRIPT QUERIES (owned by this component)
+  // ============================================================================
+
+  // User preferences query
+  const userPrefsQuery = useQuery({
+    queryKey: ["user-preferences"],
+    queryFn: async () => {
+      return await trpcClient.preferences.getUserPreferences.query();
+    },
+  });
+
+  // Fetch video info mutation (when subtitle data is missing)
+  const fetchVideoInfoMutation = useMutation({
+    mutationFn: async () => {
+      if (!videoId) throw new Error("Missing videoId");
+      const url = `https://www.youtube.com/watch?v=${videoId}`;
+      return await trpcClient.ytdlp.fetchVideoInfo.mutate({ url });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["video-playback", videoId] });
+      queryClient.invalidateQueries({ queryKey: ["available-subs", videoId] });
+    },
+  });
+
+  // Auto-fetch video info when subtitle data is missing
+  useEffect(() => {
+    if (!videoId) return;
+    if (playbackData === undefined) return; // Still loading
+
+    if (
+      playbackData !== null &&
+      !('availableLanguages' in playbackData) &&
+      !fetchVideoInfoMutation.isPending &&
+      !fetchVideoInfoMutation.isSuccess &&
+      !hasAttemptedFetchRef.current
+    ) {
+      hasAttemptedFetchRef.current = true;
+      fetchVideoInfoMutation.mutate();
+    }
+  }, [videoId, playbackData, fetchVideoInfoMutation]);
+
+  // Reset attempt flag when videoId changes
+  useEffect(() => {
+    hasAttemptedFetchRef.current = false;
+  }, [videoId]);
+
+  // Available subtitles query
+  const availableSubsQuery = useQuery({
+    queryKey: ["available-subs", videoId],
+    queryFn: async () => {
+      if (!videoId) return { languages: [] as Array<{ lang: string; hasManual: boolean; hasAuto: boolean }> };
+
+      if (playbackData && 'availableLanguages' in playbackData) {
+        return { languages: playbackData.availableLanguages || [] };
+      }
+
+      return { languages: [] };
+    },
+    enabled: !!videoId && playbackData !== undefined,
+    initialData: playbackData?.availableLanguages !== undefined
+      ? { languages: playbackData.availableLanguages || [] }
+      : undefined,
+  });
+
+  // Filter languages by user preferences
+  const filteredLanguages = useMemo(
+    () => filterLanguagesByPreference(
+      availableSubsQuery.data?.languages || [],
+      userPrefsQuery.data?.preferredLanguages || []
+    ),
+    [availableSubsQuery.data, userPrefsQuery.data]
+  );
+
+  // Validate selected language is available
+  useEffect(() => {
+    const available = (availableSubsQuery.data?.languages || []).map((l: any) => l.lang);
+    if (selectedLang && !available.includes(selectedLang)) {
+      toastHook({
+        title: "Subtitle not available",
+        description: `No transcript available in ${selectedLang.toUpperCase()} for this video. Showing default transcript instead.`,
+        variant: "destructive",
+      });
+      setSelectedLang(null);
+    }
+  }, [availableSubsQuery.data, selectedLang, toastHook]);
+
+  // Transcript query
+  const transcriptQuery = useQuery({
+    queryKey: ["transcript", videoId, selectedLang ?? "__default__"],
+    queryFn: async () => {
+      if (!videoId) return null;
+      if (selectedLang) {
+        return await trpcClient.ytdlp.getTranscript.query({ videoId, lang: selectedLang });
+      }
+      return await trpcClient.ytdlp.getTranscript.query({ videoId });
+    },
+    enabled: !!videoId,
+    placeholderData: (prev) => prev as any,
+  });
+
+  const transcriptData = transcriptQuery.data as any;
+  const effectiveLang = selectedLang ?? (transcriptData?.language as string | undefined);
+
+  // Update shared atom when language changes (for AnnotationForm)
+  useEffect(() => {
+    setCurrentTranscriptLang(effectiveLang);
+  }, [effectiveLang, setCurrentTranscriptLang]);
+
+  // Clear download attempt when transcript loads
+  useEffect(() => {
+    if (transcriptData) {
+      const key = `${videoId}|${selectedLang ?? "__default__"}`;
+      attemptedDownloadRef.current.delete(key);
+    }
+  }, [videoId, selectedLang, transcriptData]);
+
+  // Transcript segments query
+  const transcriptSegmentsQuery = useQuery({
+    queryKey: ["transcript-segments", videoId, effectiveLang ?? "__default__"],
+    queryFn: async () => {
+      if (!videoId) return { segments: [] as Array<{ start: number; end: number; text: string }> };
+      return await trpcClient.ytdlp.getTranscriptSegments.query({
+        videoId,
+        lang: effectiveLang
+      });
+    },
+    enabled: !!videoId,
+    placeholderData: (prev) => prev as any,
+  });
+
   const segments = ((transcriptSegmentsQuery.data as any)?.segments ?? []) as Array<{
     start: number;
     end: number;
     text: string;
   }>;
 
-  const [showInlineTranslations] = useAtom(showInlineTranslationsAtom);
-  const [translationTargetLang] = useAtom(translationTargetLangAtom);
+  // Download transcript mutation
+  const downloadTranscriptMutation = useMutation({
+    mutationFn: async () => {
+      if (!videoId) throw new Error("Missing videoId");
+      return await trpcClient.ytdlp.downloadTranscript.mutate({
+        videoId,
+        lang: selectedLang ?? undefined
+      });
+    },
+    onSuccess: (res: any) => {
+      if (!videoId) return;
+
+      if (res?.success) {
+        queryClient.invalidateQueries({ queryKey: ["transcript", videoId, selectedLang ?? "__default__"] });
+        queryClient.invalidateQueries({ queryKey: ["transcript-segments", videoId] });
+        clearCooldown(videoId, selectedLang);
+        return;
+      }
+
+      // Handle rate limit
+      if (res?.code === "RATE_LIMITED") {
+        const retryAfterMs: number = res.retryAfterMs ?? 15 * 60 * 1000;
+        setCooldown(videoId, selectedLang, retryAfterMs);
+        toastHook({
+          title: "Rate limited by YouTube",
+          description: `Too many requests. Try again in about ${Math.ceil(retryAfterMs / 60000)} min`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toastHook({
+        title: "Transcript download failed",
+        description: String(res?.message ?? "Unknown error"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Auto-download transcript when file becomes available
+  const filePath = playbackData?.filePath;
+  useEffect(() => {
+    if (!videoId || !filePath) return;
+    if (downloadTranscriptMutation.isPending) return;
+    if (transcriptQuery.isFetching || transcriptQuery.isLoading) return;
+    if (transcriptData) return; // Already have transcript
+
+    const key = `${videoId}|${selectedLang ?? "__default__"}`;
+    if (attemptedDownloadRef.current.has(key)) return;
+
+    const cooldownCheck = isInCooldown(videoId, selectedLang);
+    if (cooldownCheck.inCooldown) return;
+
+    // Only auto-download if query finished and returned null
+    if (transcriptQuery.isSuccess && transcriptData === null) {
+      attemptedDownloadRef.current.add(key);
+      downloadTranscriptMutation.mutate();
+    }
+  }, [
+    videoId,
+    filePath,
+    transcriptData,
+    transcriptQuery.isFetching,
+    transcriptQuery.isLoading,
+    transcriptQuery.isSuccess,
+    selectedLang,
+    downloadTranscriptMutation,
+  ]);
   const [activeSegIndex, setActiveSegIndex] = useState<number | null>(null);
   const [followPlayback, setFollowPlayback] = useState<boolean>(true);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
@@ -67,8 +271,6 @@ export function TranscriptPanel({
   const isSnappingRef = useRef<boolean>(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const translateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const queryClient = useQueryClient();
 
   // Mutation for saving words to My Words
   const saveWordMutation = useMutation({
@@ -446,75 +648,84 @@ export function TranscriptPanel({
     }
   };
 
-  const transcriptData = transcriptQuery.data as any;
-  const effectiveLang = selectedLang ?? (transcriptData?.language as string | undefined);
-
   return (
-    <div className="lg:col-span-2 space-y-3">
-      {!isCollapsed && (
-        <div className="relative">
-          <TranscriptContent
-            segments={segments}
-            activeSegIndex={activeSegIndex}
-            fontFamily={fontFamily}
-            fontSize={fontSize}
-            showInlineTranslations={showInlineTranslations}
-            hoveredWord={hoveredWord}
-            translationMap={translationMap}
-            onMouseDown={handleMouseDown}
-            onMouseUp={(e) => { handleMouseUp(); onSelect(); }}
-            onKeyDown={handleTranscriptKeyDown}
-            onWordMouseEnter={handleWordMouseEnter}
-            onWordMouseLeave={handleWordMouseLeave}
-            isSelecting={isSelecting}
-            containerRef={transcriptContainerRef}
-            segRefs={segRefs}
-          />
-
-          {/* Translation Tooltip - appears on long hover */}
-          {hoverTranslation && (
-            <TranslationTooltip
-              word={hoverTranslation.word}
-              translation={hoverTranslation.translation}
-              translationId={hoverTranslation.translationId}
-              loading={hoverTranslation.loading}
-              saved={hoverTranslation.saved}
-              isSaving={saveWordMutation.isPending}
-              onSave={() => {
-                if (hoverTranslation.translationId) {
-                  saveWordMutation.mutate(hoverTranslation.translationId);
-                }
-              }}
-              onMouseEnter={handleTooltipMouseEnter}
-              onMouseLeave={handleTooltipMouseLeave}
+    <>
+      <div className="lg:col-span-2 space-y-3">
+        {!isCollapsed && (
+          <div className="relative">
+            <TranscriptContent
+              segments={segments}
+              activeSegIndex={activeSegIndex}
+              fontFamily={fontFamily}
+              fontSize={fontSize}
+              showInlineTranslations={showInlineTranslations}
+              hoveredWord={hoveredWord}
+              translationMap={translationMap}
+              onMouseDown={handleMouseDown}
+              onMouseUp={(e) => { handleMouseUp(); onSelect(); }}
+              onKeyDown={handleTranscriptKeyDown}
+              onWordMouseEnter={handleWordMouseEnter}
+              onWordMouseLeave={handleWordMouseLeave}
+              isSelecting={isSelecting}
+              containerRef={transcriptContainerRef}
+              segRefs={segRefs}
             />
-          )}
-        </div>
-      )}
 
-      {/* Controls at bottom for better focus */}
-      <TranscriptControls
-        isCollapsed={isCollapsed}
-        onToggleCollapse={onToggleCollapse}
-        hasSegments={segments.length > 0}
-        hasTranscriptData={!!transcriptData}
+            {/* Translation Tooltip - appears on long hover */}
+            {hoverTranslation && (
+              <TranslationTooltip
+                word={hoverTranslation.word}
+                translation={hoverTranslation.translation}
+                translationId={hoverTranslation.translationId}
+                loading={hoverTranslation.loading}
+                saved={hoverTranslation.saved}
+                isSaving={saveWordMutation.isPending}
+                onSave={() => {
+                  if (hoverTranslation.translationId) {
+                    saveWordMutation.mutate(hoverTranslation.translationId);
+                  }
+                }}
+                onMouseEnter={handleTooltipMouseEnter}
+                onMouseLeave={handleTooltipMouseLeave}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Controls at bottom for better focus */}
+        <TranscriptControls
+          isCollapsed={isCollapsed}
+          onToggleCollapse={onToggleCollapse}
+          hasSegments={segments.length > 0}
+          hasTranscriptData={!!transcriptData}
+          filteredLanguages={filteredLanguages}
+          selectedLang={selectedLang}
+          effectiveLang={effectiveLang}
+          onLanguageChange={setSelectedLang}
+          isLanguageDisabled={availableSubsQuery.isLoading || downloadTranscriptMutation.isPending}
+          followPlayback={followPlayback}
+          onFollowPlaybackChange={setFollowPlayback}
+          isSelecting={isSelecting}
+          isHovering={isHovering}
+          isHoveringTooltip={isHoveringTooltip}
+          hoveredWord={hoveredWord}
+          isFetching={transcriptQuery.isFetching || transcriptSegmentsQuery.isFetching || downloadTranscriptMutation.isPending}
+          isDownloading={downloadTranscriptMutation.isPending}
+          onDownloadTranscript={() => downloadTranscriptMutation.mutate()}
+          videoId={videoId}
+          onSettingsClick={() => setShowTranscriptSettings(true)}
+        />
+      </div>
+
+      {/* Transcript Settings Dialog (owned by TranscriptPanel) */}
+      <TranscriptSettingsDialog
+        open={showTranscriptSettings}
+        onOpenChange={setShowTranscriptSettings}
         filteredLanguages={filteredLanguages}
         selectedLang={selectedLang}
         effectiveLang={effectiveLang}
         onLanguageChange={setSelectedLang}
-        isLanguageDisabled={availableSubsQuery.isLoading || downloadTranscriptMutation.isPending}
-        followPlayback={followPlayback}
-        onFollowPlaybackChange={setFollowPlayback}
-        isSelecting={isSelecting}
-        isHovering={isHovering}
-        isHoveringTooltip={isHoveringTooltip}
-        hoveredWord={hoveredWord}
-        isFetching={transcriptQuery.isFetching || transcriptSegmentsQuery.isFetching || downloadTranscriptMutation.isPending}
-        isDownloading={downloadTranscriptMutation.isPending}
-        onDownloadTranscript={() => downloadTranscriptMutation.mutate()}
-        videoId={videoId}
-        onSettingsClick={onSettingsClick}
       />
-    </div>
+    </>
   );
 }

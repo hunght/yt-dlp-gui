@@ -1,21 +1,24 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { FileText, Settings as SettingsIcon, Loader2, ChevronDown, ChevronUp, BookmarkPlus, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { useTranscript } from "../hooks/useTranscript";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, UseQueryResult, UseMutationResult } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { useAtom } from "jotai";
 import { showInlineTranslationsAtom, translationTargetLangAtom } from "@/context/transcriptSettings";
 import { toast } from "sonner";
-
-type TranscriptHookReturn = ReturnType<typeof useTranscript>;
+import { TranscriptContent } from "./TranscriptContent";
+import { TranslationTooltip } from "./TranslationTooltip";
+import { TranscriptControls } from "./TranscriptControls";
 
 interface TranscriptPanelProps {
   videoId: string;
   currentTime: number;
   videoRef: React.RefObject<HTMLVideoElement>;
-  transcript: TranscriptHookReturn;
+  transcriptQuery: UseQueryResult<any, any>;
+  transcriptSegmentsQuery: UseQueryResult<any, any>;
+  downloadTranscriptMutation: UseMutationResult<any, any, void, any>;
+  availableSubsQuery: UseQueryResult<any, any>;
+  filteredLanguages: Array<{ lang: string; hasManual: boolean; hasAuto: boolean }>;
+  selectedLang: string | null;
+  setSelectedLang: (lang: string) => void;
   fontFamily: "system" | "serif" | "mono";
   fontSize: number;
   onSettingsClick: () => void;
@@ -29,7 +32,13 @@ export function TranscriptPanel({
   videoId,
   currentTime,
   videoRef,
-  transcript,
+  transcriptQuery,
+  transcriptSegmentsQuery,
+  downloadTranscriptMutation,
+  availableSubsQuery,
+  filteredLanguages,
+  selectedLang,
+  setSelectedLang,
   fontFamily,
   fontSize,
   onSettingsClick,
@@ -38,7 +47,7 @@ export function TranscriptPanel({
   isCollapsed = false,
   onToggleCollapse,
 }: TranscriptPanelProps) {
-  const segments = ((transcript.transcriptSegmentsQuery.data as any)?.segments ?? []) as Array<{
+  const segments = ((transcriptSegmentsQuery.data as any)?.segments ?? []) as Array<{
     start: number;
     end: number;
     text: string;
@@ -259,54 +268,7 @@ export function TranscriptPanel({
     };
   }, []);
 
-  // Render text with individual word highlighting and inline translations
-  const renderTextWithWords = (text: string, opacity: string = "100") => {
-    // Split text into words while preserving punctuation
-    const words = text.split(/(\s+)/); // Preserve spaces
-
-    return (
-      <span className="inline-flex flex-wrap items-start gap-x-1">
-        {words.map((word, idx) => {
-          // Don't wrap whitespace - just render as space
-          if (/^\s+$/.test(word)) {
-            return <span key={idx} className="w-1" />;
-          }
-
-          const isHovered = hoveredWord === word && word.trim().length > 0;
-          const translation = getTranslationForWord(word);
-          const hasTranslation = !!translation;
-
-          return (
-            <span
-              key={idx}
-              className={`inline-flex flex-col items-center transition-all duration-100 ${
-                isHovered
-                  ? 'bg-yellow-200 dark:bg-yellow-500/30 px-1 -mx-0.5 rounded scale-105'
-                  : hasTranslation
-                  ? 'hover:bg-blue-100 dark:hover:bg-blue-900/30 px-1 -mx-0.5 rounded'
-                  : 'hover:bg-muted/50 px-1 -mx-0.5 rounded'
-              }`}
-              onMouseEnter={() => word.trim() && handleWordMouseEnter(word)}
-              onMouseLeave={handleWordMouseLeave}
-              style={{
-                cursor: word.trim() ? 'pointer' : 'default',
-                minHeight: showInlineTranslations && hasTranslation ? '1.8em' : 'auto'
-              }}
-            >
-              <span className={hasTranslation && !isHovered ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}>
-                {word}
-              </span>
-              {hasTranslation && showInlineTranslations && (
-                <span className="text-[10px] text-blue-500 dark:text-blue-400 leading-none whitespace-nowrap opacity-90">
-                  {translation.translatedText}
-                </span>
-              )}
-            </span>
-          );
-        })}
-      </span>
-    );
-  };
+  // Handle word hover with translation
 
   // Snap selection to word boundaries
   const snapToWordBoundaries = useCallback(() => {
@@ -484,313 +446,75 @@ export function TranscriptPanel({
     }
   };
 
-  const transcriptData = transcript.transcriptQuery.data as any;
-  const effectiveLang = transcript.selectedLang ?? (transcriptData?.language as string | undefined);
+  const transcriptData = transcriptQuery.data as any;
+  const effectiveLang = selectedLang ?? (transcriptData?.language as string | undefined);
 
   return (
     <div className="lg:col-span-2 space-y-3">
-      <style>
-        {`
-          .transcript-text::selection {
-            background-color: rgba(59, 130, 246, 0.3);
-            color: inherit;
-          }
-        `}
-      </style>
-
       {!isCollapsed && (
-      <div className="relative">
-        <div
-          className="relative p-6 rounded-lg border bg-gradient-to-br from-background to-muted/20 h-[150px] flex items-end justify-center overflow-hidden shadow-sm"
-          ref={transcriptContainerRef}
-          onMouseDown={segments.length > 0 ? handleMouseDown : undefined}
-          onMouseUp={segments.length > 0 ? (e) => { handleMouseUp(); onSelect(); } : undefined}
-          onKeyDown={segments.length > 0 ? handleTranscriptKeyDown : undefined}
-          tabIndex={segments.length > 0 ? 0 : undefined}
-          style={{
-            userSelect: segments.length > 0 ? "text" : "none",
-            cursor: isSelecting ? "text" : "default",
-          }}
-        >
-          <div className="w-full text-center space-y-1 pb-4">
-            {/* Show previous 2 lines in faded color for context */}
-            {activeSegIndex !== null && activeSegIndex > 1 && segments[activeSegIndex - 2] && (
-              <div
-                className="text-foreground/30 cursor-text px-4 transcript-text"
-                style={{
-                  fontFamily:
-                    fontFamily === "serif"
-                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
-                      : fontFamily === "mono"
-                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
-                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-                  fontSize: `${fontSize - 2}px`,
-                  lineHeight: showInlineTranslations ? '1.8' : '1.5',
-                  minHeight: showInlineTranslations ? '2em' : 'auto',
-                }}
-              >
-                {renderTextWithWords(segments[activeSegIndex - 2].text)}
-              </div>
-            )}
-            {/* Show previous line in lighter color */}
-            {activeSegIndex !== null && activeSegIndex > 0 && segments[activeSegIndex - 1] && (
-              <div
-                className="text-foreground/50 cursor-text px-4 transcript-text"
-                style={{
-                  fontFamily:
-                    fontFamily === "serif"
-                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
-                      : fontFamily === "mono"
-                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
-                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-                  fontSize: `${fontSize - 1}px`,
-                  lineHeight: showInlineTranslations ? '1.8' : '1.5',
-                  minHeight: showInlineTranslations ? '2em' : 'auto',
-                }}
-              >
-                {renderTextWithWords(segments[activeSegIndex - 1].text)}
-              </div>
-            )}
-            {/* Show current line (active) */}
-            {activeSegIndex !== null && segments[activeSegIndex] && (
-              <div
-                ref={(el) => (segRefs.current[activeSegIndex] = el as any)}
-                className="text-foreground font-semibold cursor-text px-4 leading-relaxed transcript-text"
-                style={{
-                  fontFamily:
-                    fontFamily === "serif"
-                      ? "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif"
-                      : fontFamily === "mono"
-                      ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
-                      : "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-                  fontSize: `${fontSize}px`,
-                  lineHeight: showInlineTranslations ? '1.9' : '1.6',
-                  minHeight: showInlineTranslations ? '2.2em' : 'auto',
-                }}
-                data-start={segments[activeSegIndex].start}
-                data-end={segments[activeSegIndex].end}
-              >
-                {renderTextWithWords(segments[activeSegIndex].text)}
-              </div>
-            )}
-          </div>
-        <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background to-transparent pointer-events-none rounded-t-lg" />
-        <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none rounded-b-lg" />
-      </div>
+        <div className="relative">
+          <TranscriptContent
+            segments={segments}
+            activeSegIndex={activeSegIndex}
+            fontFamily={fontFamily}
+            fontSize={fontSize}
+            showInlineTranslations={showInlineTranslations}
+            hoveredWord={hoveredWord}
+            translationMap={translationMap}
+            onMouseDown={handleMouseDown}
+            onMouseUp={(e) => { handleMouseUp(); onSelect(); }}
+            onKeyDown={handleTranscriptKeyDown}
+            onWordMouseEnter={handleWordMouseEnter}
+            onWordMouseLeave={handleWordMouseLeave}
+            isSelecting={isSelecting}
+            containerRef={transcriptContainerRef}
+            segRefs={segRefs}
+          />
 
-      {/* Translation Tooltip - appears on long hover */}
-      {hoverTranslation && (
-        <div
-          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 pointer-events-auto z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
-        >
-          <div className="bg-blue-600 dark:bg-blue-500 text-white rounded-lg px-4 py-3 shadow-xl border border-blue-400 dark:border-blue-600 max-w-sm">
-            {hoverTranslation.loading ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <p className="text-sm">Translating "{hoverTranslation.word}"...</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="space-y-1">
-                  <p className="text-xs text-blue-100 dark:text-blue-200 font-medium uppercase tracking-wide">
-                    {hoverTranslation.word}
-                  </p>
-                  <p className="text-lg font-semibold">
-                    {hoverTranslation.translation}
-                  </p>
-                </div>
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-blue-400/30">
-                  {hoverTranslation.saved ? (
-                    <p className="text-xs text-blue-200 dark:text-blue-300 flex items-center gap-1">
-                      <Check className="w-3 h-3" />
-                      Saved to My Words
-                    </p>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        if (hoverTranslation.translationId) {
-                          saveWordMutation.mutate(hoverTranslation.translationId);
-                        }
-                      }}
-                      disabled={saveWordMutation.isPending}
-                      className="text-xs text-white bg-blue-700 dark:bg-blue-600 hover:bg-blue-800 dark:hover:bg-blue-700 px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                    >
-                      {saveWordMutation.isPending ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <BookmarkPlus className="w-3 h-3" />
-                          Save to My Words
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          {/* Tooltip arrow */}
-          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
-            <div className="w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-blue-600 dark:border-t-blue-500"></div>
-          </div>
+          {/* Translation Tooltip - appears on long hover */}
+          {hoverTranslation && (
+            <TranslationTooltip
+              word={hoverTranslation.word}
+              translation={hoverTranslation.translation}
+              translationId={hoverTranslation.translationId}
+              loading={hoverTranslation.loading}
+              saved={hoverTranslation.saved}
+              isSaving={saveWordMutation.isPending}
+              onSave={() => {
+                if (hoverTranslation.translationId) {
+                  saveWordMutation.mutate(hoverTranslation.translationId);
+                }
+              }}
+              onMouseEnter={handleTooltipMouseEnter}
+              onMouseLeave={handleTooltipMouseLeave}
+            />
+          )}
         </div>
-      )}
-      </div>
-
       )}
 
       {/* Controls at bottom for better focus */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t">
-        {/* Left side - hint text */}
-        {!isCollapsed && segments.length > 0 && (
-          <p className="text-xs text-muted-foreground italic">
-            💡 Hover words to translate • Saved words highlighted in blue
-          </p>
-        )}
-        {isCollapsed && (
-          <div className="flex items-center gap-2">
-            {segments.length === 0 ? (
-              <>
-                <p className="text-xs text-muted-foreground italic">
-                  No transcript available
-                </p>
-                {!transcriptData && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => transcript.downloadTranscriptMutation.mutate()}
-                    disabled={transcript.downloadTranscriptMutation.isPending}
-                    className="h-6 text-xs"
-                  >
-                    {transcript.downloadTranscriptMutation.isPending ? (
-                      <>
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                        Downloading...
-                      </>
-                    ) : (
-                      "Download Transcript"
-                    )}
-                  </Button>
-                )}
-              </>
-            ) : (
-          <p className="text-xs text-muted-foreground italic">
-            Transcript collapsed
-          </p>
-            )}
-          </div>
-        )}
-
-        {/* Right side - controls */}
-        <div className="flex flex-wrap items-center gap-2">
-        {/* Language selector - filtered to user's preferred languages */}
-        {!isCollapsed && transcript.filteredLanguages.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs text-muted-foreground">Language:</label>
-            <select
-              className="text-xs border rounded px-2 py-1 bg-background hover:bg-muted/30"
-              value={transcript.selectedLang ?? effectiveLang ?? ""}
-              onChange={(e) => transcript.setSelectedLang(e.target.value)}
-              disabled={transcript.availableSubsQuery.isLoading || transcript.downloadTranscriptMutation.isPending}
-            >
-              {transcript.filteredLanguages.map((l: any) => (
-                <option key={l.lang} value={l.lang}>
-                  {l.lang}{l.hasManual ? "" : " (auto)"}
-                </option>
-              ))}
-              {transcript.filteredLanguages.length === 0 && (
-                <option value={effectiveLang ?? "en"}>{effectiveLang ?? "en"}</option>
-              )}
-            </select>
-          </div>
-        )}
-
-        {/* Follow playback toggle */}
-        {!isCollapsed && (
-          <div className="flex items-center gap-1.5">
-            <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
-            <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Auto-scroll</label>
-            {(isSelecting || isHovering || isHoveringTooltip) && (
-              <span className="text-[10px] text-blue-500 font-medium">
-                {isSelecting
-                  ? "(selecting)"
-                  : isHoveringTooltip
-                  ? "(viewing translation)"
-                  : hoveredWord
-                  ? `(hovering: ${hoveredWord.trim().substring(0, 15)}...)`
-                  : "(hovering)"}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Collapse/Expand Toggle */}
-        {onToggleCollapse && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onToggleCollapse}
-            className="h-7"
-          >
-            {isCollapsed ? (
-              <>
-                <ChevronDown className="w-3.5 h-3.5 mr-1.5" />
-                <span className="text-xs">Show</span>
-              </>
-            ) : (
-              <>
-                <ChevronUp className="w-3.5 h-3.5 mr-1.5" />
-                <span className="text-xs">Hide</span>
-              </>
-            )}
-          </Button>
-        )}
-
-        {/* Transcript Settings Button */}
-        {!isCollapsed && (
-          <Button size="sm" variant="outline" onClick={onSettingsClick} className="h-7">
-            <SettingsIcon className="w-3.5 h-3.5 mr-1.5" />
-            <span className="text-xs">Settings</span>
-          </Button>
-        )}
-
-        {/* Status indicators */}
-        {!isCollapsed && (
-          <div className="flex items-center gap-3">
-            {/* Tiny loader (non-blocking) when fetching or downloading */}
-            {(transcript.transcriptQuery.isFetching || transcript.transcriptSegmentsQuery.isFetching || transcript.downloadTranscriptMutation.isPending) && (
-              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Updating…
-              </span>
-            )}
-
-            {/* Cooldown badge when rate-limited for this video/language */}
-            {(() => {
-              try {
-                const key = `${videoId}|${transcript.selectedLang ?? "__default__"}`;
-                const raw = localStorage.getItem("transcript-download-cooldowns");
-                const map = raw ? (JSON.parse(raw) as Record<string, number>) : {};
-                const until = map[key];
-                if (until && Date.now() < until) {
-                  const mins = Math.max(1, Math.ceil((until - Date.now()) / 60000));
-                  return <span className="text-[10px] text-amber-500">retry in ~{mins}m</span>;
-                }
-              } catch {}
-              return null;
-            })()}
-
-
-          </div>
-        )}
-        </div>
-      </div>
-
+      <TranscriptControls
+        isCollapsed={isCollapsed}
+        onToggleCollapse={onToggleCollapse}
+        hasSegments={segments.length > 0}
+        hasTranscriptData={!!transcriptData}
+        filteredLanguages={filteredLanguages}
+        selectedLang={selectedLang}
+        effectiveLang={effectiveLang}
+        onLanguageChange={setSelectedLang}
+        isLanguageDisabled={availableSubsQuery.isLoading || downloadTranscriptMutation.isPending}
+        followPlayback={followPlayback}
+        onFollowPlaybackChange={setFollowPlayback}
+        isSelecting={isSelecting}
+        isHovering={isHovering}
+        isHoveringTooltip={isHoveringTooltip}
+        hoveredWord={hoveredWord}
+        isFetching={transcriptQuery.isFetching || transcriptSegmentsQuery.isFetching || downloadTranscriptMutation.isPending}
+        isDownloading={downloadTranscriptMutation.isPending}
+        onDownloadTranscript={() => downloadTranscriptMutation.mutate()}
+        videoId={videoId}
+        onSettingsClick={onSettingsClick}
+      />
     </div>
   );
 }

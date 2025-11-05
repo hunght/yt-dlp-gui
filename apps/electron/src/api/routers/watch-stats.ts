@@ -67,18 +67,18 @@ export const watchStatsRouter = t.router({
         .orderBy(desc(videoWatchStats.lastWatchedAt))
         .limit(limit);
 
-      const videoIds = stats.map((s: any) => s.videoId);
-      if (videoIds.length === 0) return [] as any[];
+      const videoIds = stats.map((s) => s.videoId);
+      if (videoIds.length === 0) return [];
 
       const vids = await db
         .select()
         .from(youtubeVideos)
         .where(inArray(youtubeVideos.videoId, videoIds));
 
-      const map = new Map<string, any>();
-      vids.forEach((v: any) => map.set(v.videoId, v));
+      const map = new Map<string, typeof vids[0]>();
+      vids.forEach((v) => map.set(v.videoId, v));
       return stats
-        .map((s: any) => {
+        .map((s) => {
           const v = map.get(s.videoId);
           if (!v) return null;
           return {
@@ -98,7 +98,7 @@ export const watchStatsRouter = t.router({
             lastWatchedAt: s.lastWatchedAt,
           };
         })
-        .filter((v: any) => v !== null);
+        .filter((v) => v !== null);
     }),
 
   // List videos by most recently added (watch history fallback)
@@ -112,7 +112,7 @@ export const watchStatsRouter = t.router({
         .from(youtubeVideos)
         .orderBy(desc(sql`${youtubeVideos.createdAt}`))
         .limit(limit);
-      return rows.map((row: any) => ({
+      return rows.map((row) => ({
         id: row.id,
         videoId: row.videoId,
         title: row.title,

@@ -18,11 +18,6 @@ import defaultDb from "@/api/db";
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getBinaryFilePath = () => path.join(getBinDir(), getYtDlpAssetName(process.platform));
 
-async function ensureDir(p: string) {
-  try {
-    fs.mkdirSync(p, { recursive: true });
-  } catch {}
-}
 
 
 async function upsertVideoSearchFts(db: any, videoId: string, title: string | null | undefined, transcript: string | null | undefined) {

@@ -91,7 +91,8 @@ export default function MyWordsPage() {
       to: "/player",
       search: {
         videoId,
-        t: timestampSeconds
+        playlistId: undefined,
+        playlistIndex: undefined
       }
     });
   };
@@ -355,7 +356,7 @@ export default function MyWordsPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{translation.sourceText}</p>
-                              <BookmarkCheck className="h-4 w-4 text-blue-500 flex-shrink-0" title="Saved word" />
+                              <BookmarkCheck className="h-4 w-4 text-blue-500 flex-shrink-0" />
                             </div>
                           </div>
 

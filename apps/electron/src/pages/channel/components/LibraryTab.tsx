@@ -151,7 +151,7 @@ export const LibraryTab: React.FC<LibraryTabProps> = ({ channelId, isActive }) =
                     <>
                       <Link
                         to="/player"
-                        search={{ videoId: video.videoId as string }}
+                        search={{ videoId: video.videoId as string, playlistId: undefined, playlistIndex: undefined }}
                         className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90"
                       >
                         <Play className="h-3 w-3" />

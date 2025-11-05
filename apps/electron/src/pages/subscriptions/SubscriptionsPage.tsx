@@ -15,7 +15,7 @@ export default function SubscriptionsPage() {
   const query = useQuery({
     queryKey: ["subscriptions", { limit: 60 }],
     queryFn: async () => {
-      return await trpcClient.ytdlp.listRecentVideos.query({ limit: 60 });
+      return await trpcClient.watchStats.listRecentVideos.query({ limit: 60 });
     },
     staleTime: 60_000,
   });
@@ -79,7 +79,7 @@ export default function SubscriptionsPage() {
                     </div>
                     <div className="flex gap-2">
                       {v.downloadStatus === "completed" && v.downloadFilePath ? (
-                        <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId } })}>
+                        <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId, playlistId: undefined, playlistIndex: undefined } })}>
                           <Play className="mr-1 h-3 w-3" />
                           Play
                         </Button>

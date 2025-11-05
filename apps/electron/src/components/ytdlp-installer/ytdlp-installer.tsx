@@ -13,14 +13,14 @@ export const YtDlpInstaller = () => {
   // Query to check if yt-dlp is installed
   const { data: installInfo, isLoading: isCheckingInstall } = useQuery({
     queryKey: ["ytdlp", "installInfo"],
-    queryFn: () => trpcClient.ytdlp.getInstallInfo.query(),
+    queryFn: () => trpcClient.binary.getInstallInfo.query(),
     staleTime: Infinity, // Only check once per app session
     refetchOnWindowFocus: false,
   });
 
   // Mutation to download yt-dlp
   const downloadMutation = useMutation({
-    mutationFn: () => trpcClient.ytdlp.downloadLatest.mutate(),
+    mutationFn: () => trpcClient.binary.downloadLatest.mutate(),
     onSuccess: (result) => {
       if (result.success) {
         logger.info("[YtDlpInstaller] Successfully installed yt-dlp", {

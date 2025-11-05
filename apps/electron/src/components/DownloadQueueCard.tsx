@@ -206,7 +206,7 @@ export const DownloadQueueCard: React.FC = () => {
                   {download.status === "completed" && download.filePath && download.videoId && (
                     <Link
                       to="/player"
-                      search={{ videoId: download.videoId }}
+                      search={{ videoId: download.videoId, playlistId: undefined, playlistIndex: undefined }}
                       className="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
                     >
                       <PlayCircle className="mr-2 h-4 w-4" /> Play

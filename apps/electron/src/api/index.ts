@@ -9,6 +9,7 @@ import { annotationsRouter } from "@/api/routers/annotations";
 import { watchStatsRouter } from "@/api/routers/watch-stats";
 import { transcriptsRouter } from "@/api/routers/ytdlp/transcripts";
 import { playlistsRouter } from "@/api/routers/ytdlp/playlists";
+import { binaryRouter } from "@/api/routers/ytdlp/binary";
 
 // Create the root router
 export const router = t.router({
@@ -22,6 +23,7 @@ export const router = t.router({
   watchStats: watchStatsRouter,
   transcripts: transcriptsRouter,
   playlists: playlistsRouter,
+  binary: binaryRouter,
 });
 
 // Export type router type signature

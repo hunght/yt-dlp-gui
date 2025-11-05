@@ -307,7 +307,7 @@ export default function DashboardPage() {
                       {d.videoId && (
                         <Link
                           to="/player"
-                          search={{ videoId: d.videoId }}
+                          search={{ videoId: d.videoId, playlistId: undefined, playlistIndex: undefined }}
                           className="inline-flex h-8 items-center justify-center rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
                         >
                           Play

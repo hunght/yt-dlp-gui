@@ -10,11 +10,7 @@ import defaultDb from "@/api/db";
 import { spawnYtDlpWithLogging } from "./utils/ytdlp";
 import { downloadImageToCache } from "./utils/cache";
 
-async function ensureDir(p: string) {
-  try {
-    fs.mkdirSync(p, { recursive: true });
-  } catch {}
-}
+
 
 export const playlistsRouter = t.router({
   // Get detailed playlist information with videos

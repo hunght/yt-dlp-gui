@@ -23,7 +23,7 @@ export default function HistoryPage() {
   // Use DB-backed recent watched list
   const playedMeta = useQuery({
     queryKey: ["recent-watched"],
-    queryFn: async () => trpcClient.ytdlp.listRecentWatched.query({ limit: 30 }),
+    queryFn: async () => trpcClient.watchStats.listRecentWatched.query({ limit: 30 }),
   });
 
   const inProgress = queue.data?.data?.downloading || [];
@@ -66,7 +66,7 @@ export default function HistoryPage() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                    <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId } })}>
+                    <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId, playlistId: undefined, playlistIndex: undefined } })}>
                           <Play className="mr-1 h-3 w-3" />
                           Play
                         </Button>
@@ -123,7 +123,7 @@ export default function HistoryPage() {
               {completed.map((c: any) => (
                 <div key={c.id} className="flex items-center justify-between rounded border p-3">
                   <div className="min-w-0 truncate">{c.title}</div>
-                  <Button size="sm" onClick={() => navigate({ to: "/player", search: { videoId: c.videoId } })}>
+                  <Button size="sm" onClick={() => navigate({ to: "/player", search: { videoId: c.videoId, playlistId: undefined, playlistIndex: undefined } })}>
                     <Play className="mr-1 h-3 w-3" /> Play
                   </Button>
                 </div>

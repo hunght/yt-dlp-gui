@@ -5,6 +5,10 @@ import { ytdlpRouter } from "@/api/routers/ytdlp";
 import { queueRouter } from "@/api/routers/queue";
 import { preferencesRouter } from "@/api/routers/preferences";
 import { translationRouter } from "@/api/routers/translation";
+import { annotationsRouter } from "@/api/routers/annotations";
+import { watchStatsRouter } from "@/api/routers/watch-stats";
+import { transcriptsRouter } from "@/api/routers/ytdlp/transcripts";
+import { playlistsRouter } from "@/api/routers/ytdlp/playlists";
 
 // Create the root router
 export const router = t.router({
@@ -14,6 +18,10 @@ export const router = t.router({
   queue: queueRouter,
   preferences: preferencesRouter,
   translation: translationRouter,
+  annotations: annotationsRouter,
+  watchStats: watchStatsRouter,
+  transcripts: transcriptsRouter,
+  playlists: playlistsRouter,
 });
 
 // Export type router type signature

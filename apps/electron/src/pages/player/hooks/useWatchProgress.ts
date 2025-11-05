@@ -33,7 +33,7 @@ export function useWatchProgress(
     if (delta <= 0) return;
     accumulatedRef.current = 0;
     try {
-      await trpcClient.ytdlp.recordWatchProgress.mutate({
+      await trpcClient.watchStats.recordProgress.mutate({
         videoId,
         deltaSeconds: delta,
         positionSeconds: Math.floor(lastTimeRef.current || 0),

@@ -15,14 +15,14 @@ export default function PlaylistsPage() {
   const [limit, setLimit] = useState(100);
 
   const playlistsQuery = useQuery({
-    queryKey: ["ytdlp", "all-playlists", limit],
-    queryFn: () => trpcClient.ytdlp.listAllPlaylists.query({ limit }),
+    queryKey: ["playlists", "all", limit],
+    queryFn: () => trpcClient.playlists.listAll.query({ limit }),
     refetchOnWindowFocus: false,
   });
 
   const updatePlaylistViewMutation = useMutation({
     mutationFn: (playlistId: string) =>
-      trpcClient.ytdlp.updatePlaylistView.mutate({ playlistId }),
+      trpcClient.playlists.updateView.mutate({ playlistId }),
   });
 
   const filteredPlaylists = useMemo(() => {

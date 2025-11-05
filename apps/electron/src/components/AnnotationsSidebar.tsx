@@ -109,7 +109,7 @@ export function AnnotationsSidebar({
     queryKey: ["annotations", videoId],
     queryFn: async () => {
       if (!videoId) return [];
-      return await trpcClient.ytdlp.getAnnotations.query({ videoId });
+      return await trpcClient.annotations.list.query({ videoId });
     },
     enabled: !!videoId,
   });
@@ -117,7 +117,7 @@ export function AnnotationsSidebar({
   // Own delete mutation
   const deleteAnnotationMutation = useMutation({
     mutationFn: async (annotationId: string) => {
-      return await trpcClient.ytdlp.deleteAnnotation.mutate({ id: annotationId });
+      return await trpcClient.annotations.delete.mutate({ id: annotationId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["annotations", videoId] });

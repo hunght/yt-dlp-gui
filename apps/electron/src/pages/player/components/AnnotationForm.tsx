@@ -67,7 +67,7 @@ export function AnnotationForm({
   const createAnnotationMutation = useMutation({
     mutationFn: async () => {
       if (!videoId) throw new Error("Missing videoId");
-      return await trpcClient.ytdlp.createAnnotation.mutate({
+        return await trpcClient.annotations.create.mutate({
         videoId,
         timestampSeconds: timestampWhenOpened,
         selectedText: selectedText || undefined,

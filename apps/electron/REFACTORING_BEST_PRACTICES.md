@@ -1002,3 +1002,122 @@ Atoms for communication:
 
 **The Golden Rule:** If you can see all the logic in one file without hiding complexity, that's better than spreading it across multiple "clever" hooks.
 
+---
+
+## Backend Router Refactoring
+
+### Problem: Monolithic Router (2667 lines!)
+
+The `ytdlp/index.ts` router had **30 endpoints mixed together** in one massive file:
+- YT-DLP binary management (3 endpoints)
+- Video operations (6 endpoints)
+- Transcripts (3 endpoints)
+- Annotations (4 endpoints)
+- Channels (7 endpoints)
+- Playlists (4 endpoints)
+- Watch stats (3 endpoints)
+
+**Issues:**
+- 2667 lines in single file
+- Multiple domains mixed together
+- Hard to navigate and maintain
+- Violates single responsibility principle
+
+### Solution: Domain-Based Router Separation
+
+**Extract by business domain**, not arbitrary line counts:
+
+```
+api/routers/
+├── annotations.ts (110 lines, 4 endpoints)
+│   ├── create
+│   ├── list
+│   ├── update
+│   └── delete
+│
+├── watch-stats.ts (130 lines, 3 endpoints)
+│   ├── recordProgress
+│   ├── listRecentWatched
+│   └── listRecentVideos
+│
+└── ytdlp/
+    ├── binary.ts (210 lines, 3 endpoints)
+    │   ├── getInstallInfo
+    │   ├── resolveLatest
+    │   └── downloadLatest
+    │
+    ├── transcripts.ts (290 lines, 3 endpoints)
+    │   ├── get
+    │   ├── download
+    │   └── getSegments
+    │
+    ├── playlists.ts (270 lines, 4 endpoints)
+    │   ├── getDetails
+    │   ├── listAll
+    │   ├── updateView
+    │   └── updatePlayback
+    │
+    ├── channels.ts (~600 lines, 7 endpoints)
+    │   ├── list, getDetails, refresh
+    │   ├── listLatest, listPopular
+    │   └── listPlaylists, getVideosByChannel
+    │
+    ├── videos.ts (~400 lines, 6 endpoints)
+    │   ├── fetchInfo, getById, getByVideoId
+    │   ├── getPlayback, listCompleted
+    │   └── searchText
+    │
+    ├── utils/
+    │   ├── cache.ts (thumbnail downloads)
+    │   ├── metadata.ts (parsing helpers)
+    │   ├── database.ts (upsert helpers)
+    │   └── ytdlp.ts (spawn helpers)
+    │
+    └── index.ts (~50 lines)
+        └── Merges all routers, preserves API paths
+```
+
+### Backward Compatibility
+
+**tRPC router merging preserves all existing API paths:**
+
+```typescript
+// Old monolithic router
+export const ytdlpRouter = t.router({
+  createAnnotation: publicProcedure.mutation(...),
+  getTranscript: publicProcedure.query(...),
+  // ... 30 endpoints
+});
+
+// New modular approach
+export const ytdlpRouter = t.mergeRouters(
+  binaryRouter,
+  videosRouter,
+  transcriptsRouter,
+  channelsRouter,
+  playlistsRouter,
+  watchStatsRouter,
+  annotationsRouter
+);
+
+// API paths stay the same!
+// ytdlp.createAnnotation still works
+// ytdlp.getTranscript still works
+// Zero breaking changes for clients
+```
+
+### Benefits
+
+✅ **Clear domain separation** - Each router handles one business domain
+✅ **Easier to navigate** - 200-600 lines per domain vs 2667 mixed
+✅ **Better maintainability** - Changes are localized to domain
+✅ **Shared utilities** - Common code extracted to utils/
+✅ **Zero breaking changes** - All API paths preserved
+✅ **Easier testing** - Test each domain independently
+
+### The Rule
+
+**For backend routers: Split by business domain when >1000 lines or >15 endpoints**
+
+Don't split arbitrarily - group related operations together by domain.
+

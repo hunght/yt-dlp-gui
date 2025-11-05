@@ -145,9 +145,9 @@ export function TranscriptPanel({
     queryFn: async () => {
       if (!videoId) return null;
       if (selectedLang) {
-        return await trpcClient.ytdlp.getTranscript.query({ videoId, lang: selectedLang });
+        return await trpcClient.transcripts.get.query({ videoId, lang: selectedLang });
       }
-      return await trpcClient.ytdlp.getTranscript.query({ videoId });
+      return await trpcClient.transcripts.get.query({ videoId });
     },
     enabled: !!videoId,
     placeholderData: (prev) => prev as any,
@@ -174,7 +174,7 @@ export function TranscriptPanel({
     queryKey: ["transcript-segments", videoId, effectiveLang ?? "__default__"],
     queryFn: async () => {
       if (!videoId) return { segments: [] as Array<{ start: number; end: number; text: string }> };
-      return await trpcClient.ytdlp.getTranscriptSegments.query({
+      return await trpcClient.transcripts.getSegments.query({
         videoId,
         lang: effectiveLang
       });
@@ -193,7 +193,7 @@ export function TranscriptPanel({
   const downloadTranscriptMutation = useMutation({
     mutationFn: async () => {
       if (!videoId) throw new Error("Missing videoId");
-      return await trpcClient.ytdlp.downloadTranscript.mutate({
+      return await trpcClient.transcripts.download.mutate({
         videoId,
         lang: selectedLang ?? undefined
       });

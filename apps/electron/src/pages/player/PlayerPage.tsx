@@ -97,7 +97,7 @@ export default function PlayerPage() {
     queryKey: ["playlist-details", playlistId],
     queryFn: async () => {
       if (!playlistId) return null;
-      return await trpcClient.ytdlp.getPlaylistDetails.query({ playlistId });
+      return await trpcClient.playlists.getDetails.query({ playlistId });
     },
     enabled: !!playlistId,
     staleTime: Infinity,
@@ -110,7 +110,7 @@ export default function PlayerPage() {
   // Update playback position mutation
   const updatePlaybackMutation = useMutation({
     mutationFn: ({ videoIndex, watchTime }: { videoIndex: number; watchTime?: number }) =>
-      trpcClient.ytdlp.updatePlaylistPlayback.mutate({
+      trpcClient.playlists.updatePlayback.mutate({
         playlistId: playlistId!,
         currentVideoIndex: videoIndex,
         watchTimeSeconds: watchTime,

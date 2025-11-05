@@ -22,7 +22,7 @@ export default function PlaylistPage() {
     queryKey: ["playlist-details", playlistId],
     queryFn: async () => {
       if (!playlistId) return null;
-      return await trpcClient.ytdlp.getPlaylistDetails.query({ playlistId });
+      return await trpcClient.playlists.getDetails.query({ playlistId });
     },
     enabled: !!playlistId,
     staleTime: Infinity,
@@ -34,7 +34,7 @@ export default function PlaylistPage() {
 
   const updatePlaybackMutation = useMutation({
     mutationFn: ({ videoIndex, watchTime }: { videoIndex: number; watchTime?: number }) =>
-      trpcClient.ytdlp.updatePlaylistPlayback.mutate({
+      trpcClient.playlists.updatePlayback.mutate({
         playlistId: playlistId!,
         currentVideoIndex: videoIndex,
         watchTimeSeconds: watchTime,
@@ -50,7 +50,7 @@ export default function PlaylistPage() {
     if (!playlistId || isRefreshing) return;
     try {
       setIsRefreshing(true);
-      await trpcClient.ytdlp.getPlaylistDetails.query({ playlistId, forceRefresh: true });
+      await trpcClient.playlists.getDetails.query({ playlistId, forceRefresh: true });
       await query.refetch();
     } finally {
       setIsRefreshing(false);

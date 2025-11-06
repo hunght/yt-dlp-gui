@@ -275,8 +275,8 @@ export const utilsRouter = t.router({
                 sourceText: cleanText,
                 sourceLang: sl,
                 targetLang: tl,
-                translatedText: translatedText,
-                detectedLang: detectedLang,
+                translatedText,
+                detectedLang,
                 queryCount: 1, // First query for this translation
                 firstQueriedAt: now, // Record when user first encountered this
                 lastQueriedAt: now, // Same as first for initial entry

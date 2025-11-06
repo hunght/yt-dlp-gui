@@ -71,7 +71,7 @@ export function AnnotationForm({
         videoId,
         timestampSeconds: timestampWhenOpened,
         selectedText: selectedText || undefined,
-        note: note,
+        note,
         emoji: emoji || undefined,
       });
     },
@@ -178,10 +178,10 @@ export function AnnotationForm({
       if (!selectedText) return null;
       return await trpcClient.utils.translateText.query({
         text: selectedText,
-        sourceLang: sourceLang,
-        targetLang: targetLang,
+        sourceLang,
+        targetLang,
         // Video context is required for all translations
-        videoId: videoId,
+        videoId,
         timestampSeconds: Math.floor(timestampWhenOpened),
         contextText: selectedText, // Use the selected text as context
       });

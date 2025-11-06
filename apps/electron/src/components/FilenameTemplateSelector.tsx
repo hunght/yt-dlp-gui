@@ -117,7 +117,7 @@ export default function FilenameTemplateSelector({
     }
 
     const parsed: FilenameTemplate[] = [];
-    let currentText = "";
+    const currentText = "";
     let idCounter = 0;
 
     // Simple parser for existing templates

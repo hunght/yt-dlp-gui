@@ -32,7 +32,7 @@ const isMain = typeof process !== "undefined" && (process as any).type === "brow
 
 // Lazily load electron-log for the current context to avoid bundling the wrong entry
 const getMainLogger = () => {
-	// eslint-disable-next-line @typescript-eslint/no-var-requires
+	 
 	const mod = require("electron-log/main");
 	const log = mod.default ?? mod;
 
@@ -55,7 +55,7 @@ const getMainLogger = () => {
 const getRendererLogger = (): LogFunctions => {
 	// Prefer a direct renderer import to be able to configure transports (IPC in prod)
 	try {
-		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		 
 		const mod = require("electron-log/renderer");
 		const rlog = (mod.default ?? mod) as LogFunctions & { transports?: any };
 		// Ensure IPC transport is enabled in production so logs reach the main/file transport
@@ -89,7 +89,7 @@ export const logger: UniversalLogger = {
 	clearLogFile: async () => {
 		if (!isMain) return; // no-op in renderer
 		try {
-			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			 
 			const mod = require("electron-log/main");
 			const log = mod.default ?? mod;
 			if (log?.transports?.file?.getFile) {
@@ -105,7 +105,7 @@ export const logger: UniversalLogger = {
 				// userData is one level up from the logs dir.
 				// We'll attempt to compute a reasonable fallback if available via app.getPath
 				// Delay requiring electron only here to avoid renderer usage
-				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				 
 				const { app } = require("electron");
 				const userData = app?.getPath?.("userData");
 				if (userData) {
@@ -120,7 +120,7 @@ export const logger: UniversalLogger = {
 	getFileContent: async () => {
 		if (!isMain) return ""; // not available in renderer
 		try {
-			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			 
 			const mod = require("electron-log/main");
 			const log = mod.default ?? mod;
 			if (log?.transports?.file?.getFile) {
@@ -132,7 +132,7 @@ export const logger: UniversalLogger = {
 		} catch (_) {
 			// Fallback to default path if needed
 			try {
-				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				 
 				const { app } = require("electron");
 				const userData = app?.getPath?.("userData");
 				if (userData) {

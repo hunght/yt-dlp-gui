@@ -71,7 +71,7 @@ export default function PlaylistPage() {
         to: "/player",
         search: {
           videoId: video.videoId,
-          playlistId: playlistId,
+          playlistId,
           playlistIndex: startIndex
         }
       });
@@ -87,7 +87,7 @@ export default function PlaylistPage() {
         to: "/player",
         search: {
           videoId: video.videoId,
-          playlistId: playlistId,
+          playlistId,
           playlistIndex: videoIndex
         }
       });

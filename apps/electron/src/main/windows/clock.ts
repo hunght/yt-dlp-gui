@@ -49,7 +49,7 @@ export function createClockWindow(): BrowserWindow {
     show: false,
     hasShadow: false, // Disable shadow for cleaner transparent look
     webPreferences: {
-      preload: preload,
+      preload,
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false, // Prevent throttling for smooth animations

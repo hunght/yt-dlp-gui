@@ -279,7 +279,7 @@ export function TranscriptPanel({
         setOpenAnnotationForm({
           trigger: Date.now(),
           selectedText: cleaned,
-          currentTime: currentTime,
+          currentTime,
         });
       }
     }
@@ -289,7 +289,7 @@ export function TranscriptPanel({
   const handleEnterKey = () => {
     setOpenAnnotationForm({
       trigger: Date.now(),
-      currentTime: currentTime,
+      currentTime,
     });
   };
 

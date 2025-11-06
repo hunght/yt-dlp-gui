@@ -39,7 +39,7 @@ export function createBlockingNotificationWindow(): BrowserWindow {
     focusable: true,
     show: false,
     webPreferences: {
-      preload: preload,
+      preload,
       contextIsolation: true,
       nodeIntegration: false,
     },

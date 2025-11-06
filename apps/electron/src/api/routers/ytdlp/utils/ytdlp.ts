@@ -32,7 +32,7 @@ export function spawnYtDlpWithLogging(
   logger.info("[yt-dlp] CALL_START", {
     operation: context.operation,
     command: fullCommand,
-    args: args,
+    args,
     url: context.url,
     videoId: context.videoId,
     channelId: context.channelId,

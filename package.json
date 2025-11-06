@@ -32,18 +32,5 @@
     "node": ">=18.0.0 <=23.x",
     "npm": ">=9.0.0"
   },
-  "packageManager": "npm@10.9.2",
-  "lint-staged": {
-    "**/*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "**/*.{js,jsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "**/*.{json,md,yml,yaml}": [
-      "prettier --write"
-    ]
-  }
+  "packageManager": "npm@10.9.2"
 }

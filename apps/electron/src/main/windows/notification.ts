@@ -37,7 +37,7 @@ export function createNotificationWindow(): BrowserWindow {
     resizable: true,
     transparent: true,
     webPreferences: {
-      preload: preload,
+      preload,
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,

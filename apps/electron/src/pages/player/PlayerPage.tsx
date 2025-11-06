@@ -141,7 +141,7 @@ export default function PlayerPage() {
         to: "/player",
         search: {
           videoId: nextVideo.videoId,
-          playlistId: playlistId,
+          playlistId,
           playlistIndex: nextIndex,
         },
       });
@@ -161,7 +161,7 @@ export default function PlayerPage() {
         to: "/player",
         search: {
           videoId: previousVideo.videoId,
-          playlistId: playlistId,
+          playlistId,
           playlistIndex: previousIndex,
         },
       });

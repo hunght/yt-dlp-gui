@@ -199,7 +199,7 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: true,
       nodeIntegrationInSubFrames: false,
-      preload: preload,
+      preload,
     },
     // Apply different title bar styles based on the OS
     ...(process.platform === "darwin"

@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run lint-staged (lint and format staged files)
+npx lint-staged
+
+# Run type-check on affected workspaces
+echo "🔍 Running type-check..."
+npm run type-check
+

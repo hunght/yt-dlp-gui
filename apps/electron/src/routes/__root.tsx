@@ -30,10 +30,10 @@ export const RootRoute = createRootRoute({
       logger.error("Failed to log beforeLoad navigation params", e as Error);
     }
   },
-  errorComponent: ({ error }) => {
+  errorComponent: function ErrorComponent({ error }) {
     const { toast } = useToast();
     const err = error as Error;
-    console.error("[errorComponent]", err);
+    console.error("[ErrorComponent]", err);
 
     // Track error events using the safer analytics helper
     analytics.track("navigation_error", {

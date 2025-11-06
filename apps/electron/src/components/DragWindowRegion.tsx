@@ -1,4 +1,3 @@
-import { closeWindow, maximizeWindow, minimizeWindow } from "@/helpers/window_helpers";
 import React, { type ReactNode } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";

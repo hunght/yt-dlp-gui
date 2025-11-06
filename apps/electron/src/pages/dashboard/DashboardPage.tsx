@@ -188,7 +188,7 @@ export default function DashboardPage() {
                   src={thumbnailUrl}
                   alt="Thumbnail"
                   className="h-24 w-40 rounded object-cover"
-                  onError={(e) => {
+                  onError={() => {
                     logger.warn("Dashboard thumbnail failed to load, trying fallback", {
                       original: thumbnailUrl,
                     });

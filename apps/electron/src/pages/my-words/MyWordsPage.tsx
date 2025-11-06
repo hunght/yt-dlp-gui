@@ -4,7 +4,6 @@ import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   Search,
@@ -14,7 +13,6 @@ import {
   Languages,
   BarChart3,
   Loader2,
-  ArrowUpDown,
   Play,
   ChevronDown,
   ChevronUp,
@@ -86,7 +84,7 @@ export default function MyWordsPage() {
     });
   };
 
-  const handlePlayFromContext = (videoId: string, timestampSeconds: number) => {
+  const handlePlayFromContext = (videoId: string, _timestampSeconds: number) => {
     navigate({
       to: "/player",
       search: {

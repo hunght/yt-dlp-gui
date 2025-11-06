@@ -12,7 +12,6 @@ import { logger } from "@/helpers/logger";
 import path from "path";
 import fs from "fs";
 import os from "os";
-import { EventEmitter } from "events";
 import { extractZipWithYauzl } from "./service";
 import { getDatabasePath } from "@/utils/paths";
 import { translationCache, translationContexts } from "@yt-dlp-gui/database";
@@ -523,7 +522,7 @@ export const utilsRouter = t.router({
         downloadUrl: z.string().url(),
       })
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       const { downloadUrl } = input;
 
       try {

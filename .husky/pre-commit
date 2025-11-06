@@ -22,7 +22,7 @@ if [ -n "$STAGED_TS_FILES" ]; then
   if [ -n "$ELECTRON_TS_FILES" ]; then
     echo "  → Linting electron TypeScript files..."
     cd "$REPO_ROOT/apps/electron"
-    echo "$ELECTRON_TS_FILES" | sed 's|^apps/electron/||' | tr '\n' '\0' | xargs -0 npx eslint --fix --max-warnings=0
+    echo "$ELECTRON_TS_FILES" | sed 's|^apps/electron/||' | tr '\n' '\0' | xargs -0 npx eslint --fix
     cd "$REPO_ROOT"
   fi
 

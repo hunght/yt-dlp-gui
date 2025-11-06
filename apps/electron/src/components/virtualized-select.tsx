@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState, useRef, useEffect } from "react";
 import { FixedSizeList as List } from "react-window";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 

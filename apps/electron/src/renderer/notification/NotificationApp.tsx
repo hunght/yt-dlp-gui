@@ -1,6 +1,5 @@
 import {
   NotificationData,
-  NotificationAction,
 } from "@/helpers/notification/notification-window-utils";
 import React, { useState, useEffect } from "react";
 
@@ -96,15 +95,6 @@ const NotificationApp: React.FC = () => {
       }
     } else {
       console.error("electronNotification API not available");
-    }
-  };
-
-  const handleAction = async (action: () => Promise<void>) => {
-    try {
-      await action();
-      closeNotification();
-    } catch (error) {
-      console.error("Failed to execute notification action:", error);
     }
   };
 

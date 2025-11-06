@@ -15,8 +15,7 @@ export default function PlaylistPage() {
   const search = useSearch({ from: "/playlist" });
   const playlistId = search.playlistId as string | undefined;
   const queryClient = useQueryClient();
-
-  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [_currentVideoIndex, setCurrentVideoIndex] = useState(0);
 
   const query = useQuery({
     queryKey: ["playlist-details", playlistId],

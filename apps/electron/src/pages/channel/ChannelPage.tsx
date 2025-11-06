@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,6 @@ import { LatestTab, PopularTab, LibraryTab, PlaylistsTab } from "./components";
 import { RefreshCw } from "lucide-react";
 
 export default function ChannelPage() {
-  const navigate = useNavigate();
   const search = useSearch({ from: "/channel" });
   const channelId = search.channelId;
   const queryClient = useQueryClient();
@@ -20,7 +19,7 @@ export default function ChannelPage() {
   // Track active tab for lazy loading
   const [activeTab, setActiveTab] = useState("latest");
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["channel", channelId],
     queryFn: async () => {
       if (!channelId) return null;

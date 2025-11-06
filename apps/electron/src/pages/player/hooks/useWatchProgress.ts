@@ -55,7 +55,7 @@ export function useWatchProgress(
         setCurrentTime(lastPositionSeconds);
         lastTimeRef.current = lastPositionSeconds;
         positionRestoredRef.current = true;
-      } catch (e) {
+      } catch {
         // Video might not be ready yet
       }
     };

@@ -1,9 +1,7 @@
 import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { logger } from "@/helpers/logger";
-import { app } from "electron";
 import fs from "fs";
-import path from "path";
 import { eq, desc, inArray, and } from "drizzle-orm";
 import { channelPlaylists, playlistItems, youtubeVideos, channels } from "@/api/db/schema";
 import defaultDb from "@/api/db";
@@ -87,7 +85,7 @@ export const playlistsRouter = t.router({
               videos,
             };
           }
-        } catch (err) {
+        } catch {
           logger.error("[playlists] Failed to load cached items", { playlistId: input.playlistId });
         }
       }
@@ -170,7 +168,7 @@ export const playlistsRouter = t.router({
         } else {
           await db.update(channelPlaylists).set(metaUpdate).where(eq(channelPlaylists.playlistId, input.playlistId));
         }
-      } catch (err) {
+      } catch {
         logger.warn("[playlists] failed to upsert meta", { playlistId: input.playlistId });
       }
 
@@ -236,10 +234,10 @@ export const playlistsRouter = t.router({
                 .set({ position: idx, updatedAt: now })
                 .where(eq(playlistItems.id, existingItem[0].id));
             }
-          } catch (err) {
+          } catch {
             logger.error("[playlists] Failed to upsert item", { playlistId: input.playlistId, videoId: vid });
           }
-        } catch (e) {
+        } catch {
           logger.error("[playlists] Failed to upsert video", { videoId: vid });
         }
       }

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink as ExternalLinkIcon, Play, Loader2 } from "lucide-react";
+import { Play, Loader2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import Thumbnail from "@/components/Thumbnail";
 

@@ -168,7 +168,7 @@ export function parseVttToSegments(content: string): Array<{ start: number; end:
 async function upsertVideoSearchFts(db: any, videoId: string, title: string | null | undefined, transcript: string | null | undefined) {
   try {
     await db.run(sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`);
-  } catch (err) {
+  } catch {
     logger.debug("[fts] insert skipped", { videoId, reason: "already exists or error" });
   }
 }
@@ -304,7 +304,7 @@ export const transcriptsRouter = t.router({
                   .limit(1);
                 const title = vid[0]?.title ?? null;
                 await upsertVideoSearchFts(db, input.videoId, title, derived);
-              } catch (e) {
+              } catch {
                 logger.warn("[fts] update failed", { videoId: input.videoId });
               }
 
@@ -315,12 +315,12 @@ export const transcriptsRouter = t.router({
                 length: derived.length,
                 fromCache: true as const
               } as const;
-            } catch (e) {
+            } catch {
               logger.warn("[transcript] derive from rawVtt failed", { videoId: input.videoId });
             }
           }
         }
-      } catch (e) {
+      } catch {
         logger.error("[transcript] DB check failed", { videoId: input.videoId });
       }
 
@@ -463,7 +463,7 @@ export const transcriptsRouter = t.router({
           .limit(1);
         const title = vid[0]?.title ?? null;
         await upsertVideoSearchFts(db, input.videoId, title, text);
-      } catch (e) {
+      } catch {
         logger.warn("[fts] update failed", { videoId: input.videoId });
       }
 

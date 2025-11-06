@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import fs from "fs";
-import path from "path";
 import { getDatabasePath } from "../../utils/paths";
 import db from ".";
 import { logger } from "../../helpers/logger";

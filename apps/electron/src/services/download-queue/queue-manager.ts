@@ -7,7 +7,6 @@ import { spawnDownload, killDownload } from "./download-worker";
 import { logger } from "@/helpers/logger";
 import { app } from "electron";
 import path from "path";
-import url from "url";
 
 /**
  * In-memory queue item

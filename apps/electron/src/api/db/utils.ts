@@ -1,7 +1,6 @@
 import { sql, and, or, eq, ne, lt, lte, gt, gte, like, inArray } from "drizzle-orm";
 import { logger } from "../../helpers/logger";
 import db from ".";
-import type { Database } from ".";
 
 /**
  * Database utility functions for common operations

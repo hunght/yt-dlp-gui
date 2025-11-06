@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { logger } from "@/helpers/logger";
@@ -8,8 +8,6 @@ import { logger } from "@/helpers/logger";
  * Checks for installation status and automatically downloads if needed.
  */
 export const YtDlpInstaller = () => {
-  const [isChecking, setIsChecking] = useState(true);
-
   // Query to check if yt-dlp is installed
   const { data: installInfo, isLoading: isCheckingInstall } = useQuery({
     queryKey: ["ytdlp", "installInfo"],
@@ -33,11 +31,9 @@ export const YtDlpInstaller = () => {
           message: result.message,
         });
       }
-      setIsChecking(false);
     },
     onError: (error) => {
       logger.error("[YtDlpInstaller] Download mutation failed", error as Error);
-      setIsChecking(false);
     },
   });
 
@@ -53,7 +49,6 @@ export const YtDlpInstaller = () => {
         version: installInfo.version,
         path: installInfo.path,
       });
-      setIsChecking(false);
     }
   }, [installInfo, isCheckingInstall]);
 

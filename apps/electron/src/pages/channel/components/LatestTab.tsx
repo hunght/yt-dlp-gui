@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Button } from "@/components/ui/button";
 import { ExternalLink as ExternalLinkIcon, Download, Play, Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import Thumbnail from "@/components/Thumbnail";
 
 interface LatestTabProps {

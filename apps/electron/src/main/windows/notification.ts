@@ -1,6 +1,6 @@
 /// <reference path="../../../forge.env.d.ts" />
 import { logger } from "@/helpers/logger";
-import { BrowserWindow, screen } from "electron";
+import { BrowserWindow } from "electron";
 import path from "path";
 
 let notificationWindow: BrowserWindow | null = null;
@@ -20,7 +20,7 @@ export function createNotificationWindow(): BrowserWindow {
   // Get the primary display to position the notification
   const { screen } = require("electron");
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const { width: screenWidth } = primaryDisplay.workAreaSize;
 
   notificationWindow = new BrowserWindow({
     width: 500,

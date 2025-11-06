@@ -124,7 +124,7 @@ export function extractDomainWindows(url: string | null | undefined): string | n
     }
 
     return domain;
-  } catch (error) {
+  } catch {
     // If URL parsing fails, try a simple regex approach
     const match = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)(?:\/|$)/i);
     if (match && match[1]) {

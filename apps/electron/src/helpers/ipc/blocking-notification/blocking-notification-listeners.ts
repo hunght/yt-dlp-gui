@@ -6,7 +6,6 @@ import {
 
 import { safelyRegisterListener } from "../safelyRegisterListener";
 import {
-  getBlockingNotificationWindow,
   closeBlockingNotificationWindow,
 } from "../../../main/windows/blocking-notification";
 import { sendBlockingNotificationToWindow } from "../../blocking-notification/blocking-notification-utils";

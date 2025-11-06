@@ -2,7 +2,6 @@ import {
   NOTIFICATION_SEND_CHANNEL,
   NOTIFICATION_CLOSE_CHANNEL,
   NOTIFICATION_ACTION_CHANNEL,
-  NOTIFICATION_EXTEND_SESSION_CHANNEL,
 } from "./notification-channels";
 
 import { safelyRegisterListener } from "../safelyRegisterListener";

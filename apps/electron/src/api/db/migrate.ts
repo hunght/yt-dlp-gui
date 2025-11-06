@@ -270,7 +270,7 @@ if (require.main === module) {
   main().catch((err) => {
     try {
       logger.error("Migration runner error:", err);
-    } catch (e) {
+    } catch {
       console.error("Migration runner error:", err);
     }
     process.exit(1);

@@ -5,35 +5,17 @@ import { setTheme, getCurrentTheme } from "../../helpers/theme_helpers";
 import { ThemeMode } from "@/lib/types/theme-mode";
 import { Button } from "@/components/ui/button";
 
-import { Switch } from "@/components/ui/switch";
 import { AboutSection } from "@/pages/settings-page/components/AboutSection";
 import { LanguagePreferencesSection } from "@/pages/settings-page/components/LanguagePreferencesSection";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { trpcClient } from "@/utils/trpc";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { Label } from "@/components/ui/label";
 
 export default function SettingsPage() {
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>("light");
-  const queryClient = useQueryClient();
-  const [newDomain, setNewDomain] = useState("");
-  const [newApp, setNewApp] = useState("");
-  const [itemToDelete, setItemToDelete] = useState<{
-    type: "domain" | "app";
-    index: number;
-  } | null>(null);
 
   // Get database path
   const { data: dbInfo } = useQuery({
@@ -50,12 +32,6 @@ export default function SettingsPage() {
   const handleThemeChange = async (theme: ThemeMode) => {
     await setTheme(theme);
     setCurrentTheme(theme);
-  };
-
-  const handleOpenDatabaseFolder = async () => {
-    if (dbInfo?.directory) {
-      await trpcClient.utils.openFolder.mutate({ folderPath: dbInfo.directory });
-    }
   };
 
   const handleRevealDatabase = async () => {

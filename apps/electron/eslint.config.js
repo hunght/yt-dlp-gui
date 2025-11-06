@@ -4,6 +4,8 @@ import tsparser from '@typescript-eslint/parser';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
+import unusedImports from 'eslint-plugin-unused-imports';
+import importPlugin from 'eslint-plugin-import';
 import prettierConfig from 'eslint-config-prettier';
 
 export default [
@@ -97,10 +99,19 @@ export default [
       react,
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
+      'unused-imports': unusedImports,
+      import: importPlugin,
     },
     settings: {
       react: {
         version: 'detect',
+      },
+      'import/resolver': {
+        typescript: {
+          alwaysTryTypes: true,
+          project: './tsconfig.json',
+        },
+        node: true,
       },
     },
     rules: {
@@ -109,12 +120,28 @@ export default [
 
       // TypeScript specific rules - adapted to your codebase
       '@typescript-eslint/no-explicit-any': 'off', // You use 'any' intentionally in many places
-      '@typescript-eslint/no-unused-vars': [
-        'warn',
+      '@typescript-eslint/no-unused-vars': 'off', // Replaced by unused-imports/no-unused-vars
+
+      // Unused imports and exports detection
+      'unused-imports/no-unused-imports': 'error', // Detect unused imports
+      'unused-imports/no-unused-vars': [
+        'error',
         {
-          argsIgnorePattern: '^_',
+          vars: 'all',
           varsIgnorePattern: '^_',
-          caughtErrorsIgnorePattern: '^_|^e$|^err$|^error$', // Allow common error variable names
+          args: 'after-used',
+          argsIgnorePattern: '^_',
+          caughtErrors: 'all',
+          caughtErrorsIgnorePattern: '^_|^e$|^err$|^error$',
+        },
+      ],
+      'import/no-unused-modules': [
+        'error',
+        {
+          unusedExports: true,
+          missingExports: false,
+          src: ['src/**/*.ts', 'src/**/*.tsx'],
+          ignoreExports: ['src/main.ts', 'src/preload/**', 'src/**/*.d.ts'],
         },
       ],
       '@typescript-eslint/no-require-imports': 'off', // Allow require() for dynamic imports

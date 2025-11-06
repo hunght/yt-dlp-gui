@@ -1,18 +1,16 @@
 import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { logger } from "@/helpers/logger";
-import { app, net } from "electron";
+import { app } from "electron";
 import fs from "fs";
 import path from "path";
-import os from "os";
-import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
+import { getYtDlpAssetName } from "./utils";
 import { mapYtDlpMetadata, extractChannelData, extractSubtitleLanguages } from "./utils/metadata";
-import { upsertVideoFromMeta, upsertChannelData } from "./utils/database";
+import { upsertChannelData } from "./utils/database";
 import { spawnYtDlpWithLogging, extractVideoId, runYtDlpJson } from "./utils/ytdlp";
 import { downloadImageToCache } from "./utils/cache";
-import { spawn } from "child_process";
-import { eq, desc, inArray, sql, and } from "drizzle-orm";
-import { youtubeVideos, channels, channelPlaylists, playlistItems, videoWatchStats, videoTranscripts, videoAnnotations } from "@/api/db/schema";
+import { eq, desc, inArray, sql } from "drizzle-orm";
+import { youtubeVideos, channels, channelPlaylists, videoWatchStats } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
@@ -27,7 +25,7 @@ async function upsertVideoSearchFts(db: any, videoId: string, title: string | nu
     // The strategy: just INSERT and let FTS5 handle it (duplicates are acceptable for search)
     // We'll deduplicate results in search queries using GROUP BY
     await db.run(sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`);
-  } catch (err) {
+  } catch {
     // Silently ignore errors - FTS is a nice-to-have feature for search
     // If it fails, video metadata will still be accessible through regular queries
     logger.debug("[fts] insert skipped", { videoId, reason: "already exists or error" });
@@ -492,7 +490,7 @@ export const ytdlpRouter = t.router({
         try {
           const meta = JSON.parse(v.raw);
           availableLanguages = extractSubtitleLanguages(meta);
-        } catch (e) {
+        } catch {
           // Silently fail - raw JSON might not exist or be malformed
         }
       }
@@ -508,7 +506,7 @@ export const ytdlpRouter = t.router({
         if (watchStats.length > 0 && watchStats[0].lastPositionSeconds !== null) {
           lastPositionSeconds = watchStats[0].lastPositionSeconds;
         }
-      } catch (e) {
+      } catch {
         // Silently fail - watch stats might not exist
       }
 

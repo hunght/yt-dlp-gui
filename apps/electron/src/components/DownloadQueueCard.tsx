@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Pause, Play, X, RotateCw, PlayCircle } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import type { QueueStatus } from "@/services/download-queue/types";
 
 const statusColors = {
   pending: "bg-gray-500",

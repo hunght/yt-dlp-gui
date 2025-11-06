@@ -1,13 +1,11 @@
 import {
   CLOCK_SHOW_CHANNEL,
   CLOCK_HIDE_CHANNEL,
-  CLOCK_UPDATE_CHANNEL,
-  CLOCK_CONTROL_CHANNEL,
   CLOCK_SHOW_MAIN_CHANNEL,
 } from "./clock-channels";
 
 import { safelyRegisterListener } from "../safelyRegisterListener";
-import { showClockWindow, hideClockWindow, getClockWindow } from "../../../main/windows/clock";
+import { showClockWindow, hideClockWindow } from "../../../main/windows/clock";
 import { showMainWindow } from "../../../main";
 import { logger } from "../../logger";
 

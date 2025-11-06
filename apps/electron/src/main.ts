@@ -8,8 +8,6 @@ import {
   nativeImage,
   Notification,
   session,
-  ipcMain,
-  dialog,
   protocol,
 } from "electron";
 import { createIPCHandler } from "electron-trpc/main";
@@ -250,7 +248,7 @@ if (!gotTheLock) {
   app.quit();
 } else {
   // This is the first instance, handle second instance events
-  app.on("second-instance", (event, commandLine, workingDirectory) => {
+  app.on("second-instance", () => {
     // Someone tried to run a second instance, focus our window instead
     if (mainWindow) {
       if (mainWindow.isMinimized()) {

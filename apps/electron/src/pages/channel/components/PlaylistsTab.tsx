@@ -11,7 +11,7 @@ interface PlaylistsTabProps {
   isActive: boolean;
 }
 
-export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive }) => {
+export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive: _isActive }) => {
   const navigate = useNavigate();
   const query = useQuery({
     queryKey: ["channel-playlists", channelId],

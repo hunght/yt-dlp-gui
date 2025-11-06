@@ -138,13 +138,6 @@ export function VideoPlayer({ filePath, videoRef, onTimeUpdate }: VideoPlayerPro
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [videoRef]);
 
-  // Format time for display
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div className="space-y-4" ref={containerRef}>
       <div className="relative group">

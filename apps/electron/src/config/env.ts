@@ -1,19 +1,3 @@
-interface ImportMetaEnv {
-  // Add other env variables here as needed
-
-  VITE_AXIOM_TOKEN: string | undefined;
-  VITE_AXIOM_ORG_ID: string | undefined;
-  VITE_AXIOM_DATASET: string | undefined;
-
-  // PostHog variables
-  VITE_PUBLIC_POSTHOG_KEY: string | undefined;
-  VITE_PUBLIC_POSTHOG_HOST: string | undefined;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
-
 function validateEnvVar(value: string | undefined, name: string): string {
   if (!value) {
     throw new Error(`Missing environment variable: ${name}`);
@@ -23,7 +7,7 @@ function validateEnvVar(value: string | undefined, name: string): string {
   if (name.includes("URL")) {
     try {
       new URL(value); // Validate URL format
-    } catch (e) {
+    } catch {
       throw new Error(`Invalid URL in environment variable ${name}: ${value}`);
     }
   }

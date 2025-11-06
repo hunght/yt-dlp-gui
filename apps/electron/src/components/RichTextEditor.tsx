@@ -19,7 +19,7 @@ import {
   CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 

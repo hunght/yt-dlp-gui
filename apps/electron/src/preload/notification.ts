@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
-  NOTIFICATION_SEND_CHANNEL,
   NOTIFICATION_CLOSE_CHANNEL,
   NOTIFICATION_ACTION_CHANNEL,
   NOTIFICATION_SHOW_CHANNEL,

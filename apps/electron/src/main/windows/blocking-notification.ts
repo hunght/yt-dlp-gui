@@ -76,7 +76,7 @@ export function createBlockingNotificationWindow(): BrowserWindow {
   });
 
   // Handle close event to ensure proper cleanup
-  blockingNotificationWindow.on("close", (event) => {
+  blockingNotificationWindow.on("close", () => {
     logger.info("Blocking notification window close event triggered");
     // Trigger close channel to handle response if needed
     blockingNotificationWindow?.webContents.send("trigger-close");

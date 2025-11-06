@@ -20,7 +20,7 @@ export function createClockWindow(): BrowserWindow {
 
   // Get the primary display
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const { width: screenWidth } = primaryDisplay.workAreaSize;
 
   // Clock window dimensions - consistent for both idle and active states
   const windowWidth = 96;

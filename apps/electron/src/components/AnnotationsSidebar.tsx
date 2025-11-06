@@ -6,16 +6,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Trash2, Clock } from "lucide-react";
 import { trpcClient } from "@/utils/trpc";
 
-interface Annotation {
-  id: string;
-  videoId: string;
-  timestampSeconds: number;
-  selectedText?: string | null;
-  note: string;
-  emoji?: string | null;
-  createdAt: number;
-}
-
 interface AnnotationsSidebarProps {
   videoId: string;
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -97,7 +87,7 @@ function renderDescriptionWithTimestamps(
 export function AnnotationsSidebar({
   videoId,
   videoRef,
-  videoTitle,
+  videoTitle: _videoTitle,
   videoDescription,
   currentTime = 0,
 }: AnnotationsSidebarProps) {

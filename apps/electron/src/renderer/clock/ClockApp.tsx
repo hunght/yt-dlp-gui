@@ -152,19 +152,6 @@ const ClockApp: React.FC = () => {
     return Math.min((elapsed / target) * 100, 100);
   };
 
-  const isOvertime = (): boolean => {
-    if (!clockState.activeEntry) return false;
-
-    // Unlimited sessions are never overtime
-    if (clockState.activeEntry.targetDuration === 0) {
-      return false;
-    }
-
-    const elapsed = Math.floor((clockState.currentTime - clockState.activeEntry.startTime) / 1000);
-    const target = clockState.activeEntry.targetDuration * 60;
-    return elapsed > target;
-  };
-
   const isUnlimitedSession = (): boolean => {
     return clockState.activeEntry?.targetDuration === 0;
   };
@@ -177,7 +164,7 @@ const ClockApp: React.FC = () => {
     return `${hours}h${mins}m`;
   };
 
-  const { activeEntry, isRunning, focusTarget, dailyProgress } = clockState;
+  const { activeEntry, focusTarget, dailyProgress } = clockState;
   const remainingTime = getRemainingTime();
   const progress = getProgress();
 

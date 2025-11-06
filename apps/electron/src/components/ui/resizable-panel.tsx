@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } from "react";
+import React, { useState, useRef, useCallback, useEffect, useImperativeHandle } from "react";
 import { cn } from "@/lib/utils";
 
 interface ResizablePanelProps extends React.ComponentProps<"div"> {

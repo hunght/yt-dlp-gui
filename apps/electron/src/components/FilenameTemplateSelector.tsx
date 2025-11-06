@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -117,7 +116,6 @@ export default function FilenameTemplateSelector({
     }
 
     const parsed: FilenameTemplate[] = [];
-    const currentText = "";
     let idCounter = 0;
 
     // Simple parser for existing templates

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { logger } from "@/helpers/logger";
 import { getBinDir, getVersionFilePath, getBinaryFilePath } from "./paths";
-import { ensureDir, setExecutableIfNeeded, fileExists, readTextFile, writeTextFile } from "./filesystem";
+import { setExecutableIfNeeded, fileExists, readTextFile, writeTextFile } from "./filesystem";
 
 const getYtDlpAssetName = (platform: NodeJS.Platform) => {
   switch (platform) {

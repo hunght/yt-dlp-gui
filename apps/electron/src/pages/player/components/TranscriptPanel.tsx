@@ -547,7 +547,7 @@ export function TranscriptPanel({
       // Apply new range
       selection.removeAllRanges();
       selection.addRange(newRange);
-    } catch (e) {
+    } catch {
       // Ignore errors
     } finally {
       isSnappingRef.current = false;
@@ -681,7 +681,7 @@ export function TranscriptPanel({
               hoveredWord={hoveredWord}
               translationMap={translationMap}
               onMouseDown={handleMouseDown}
-              onMouseUp={(e) => { handleMouseUp(); handleTranscriptSelect(); }}
+              onMouseUp={() => { handleMouseUp(); handleTranscriptSelect(); }}
               onKeyDown={handleTranscriptKeyDown}
               onWordMouseEnter={handleWordMouseEnter}
               onWordMouseLeave={handleWordMouseLeave}

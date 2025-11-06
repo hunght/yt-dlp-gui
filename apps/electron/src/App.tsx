@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { useTranslation } from "react-i18next";
 import posthog from "posthog-js";
@@ -47,7 +47,7 @@ posthog.init(getConfig("posthogKey"), {
       // Common localStorage flags that can enable PostHog debug mode
       window.localStorage.removeItem("posthog_debug");
       window.localStorage.removeItem("ph_debug");
-    } catch (_) {
+    } catch {
       // no-op
     }
   },

@@ -24,7 +24,7 @@ export default function SubscriptionsPage() {
 
   const addToQueueMutation = useMutation({
     mutationFn: (url: string) => trpcClient.queue.addToQueue.mutate({ urls: [url], priority: 0 }),
-    onSuccess: (result, variables) => {
+    onSuccess: (result) => {
       if ((result as any)?.success) {
         toast.success("Added to queue");
         // Refresh recent list to reflect status changes

@@ -1,4 +1,4 @@
-import { getYtDlpAssetName, getDirectLatestDownloadUrl } from "../utils";
+import { getYtDlpAssetName, getDirectLatestDownloadUrl } from "./ytdlp-utils";
 
 describe("ytdlp utils", () => {
   test("asset name by platform", () => {

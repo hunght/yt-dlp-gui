@@ -1,4 +1,4 @@
-import { parseVttToText } from "../transcripts";
+import { parseVttToText } from ".";
 
 describe("parseVttToText", () => {
   test("removes VTT tags and timing information", () => {

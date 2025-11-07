@@ -114,7 +114,9 @@ export const spawnDownload = async (
               const files = fs.readdirSync(w.outputDir);
               const match = files.find((f) => f.includes(`[${w.videoId}]`));
               if (match) finalPath = path.join(w.outputDir, match);
-            } catch {}
+            } catch {
+              // Ignore file system errors when searching for video file
+            }
           }
           await queueManager.markCompleted(downloadId, finalPath || outputPath);
         logger.info("[download-worker] Download completed successfully", { downloadId, finalPath: finalPath || outputPath });

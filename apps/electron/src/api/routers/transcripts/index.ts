@@ -7,7 +7,7 @@ import path from "path";
 import { eq, sql } from "drizzle-orm";
 import { videoTranscripts, youtubeVideos } from "@/api/db/schema";
 import defaultDb from "@/api/db";
-import { spawnYtDlpWithLogging } from "./utils/ytdlp";
+import { spawnYtDlpWithLogging } from "@/api/utils/ytdlp-utils/ytdlp";
 
 const getTranscriptsDir = () => path.join(app.getPath("userData"), "cache", "transcripts");
 
@@ -326,7 +326,7 @@ export const transcriptsRouter = t.router({
 
       // Download from yt-dlp
       const lang = input.lang ?? "en";
-      const { getBinaryFilePath } = await import("./binary");
+      const { getBinaryFilePath } = await import("../binary");
       const binPath = getBinaryFilePath();
 
       if (!fs.existsSync(binPath)) {

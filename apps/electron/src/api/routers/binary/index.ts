@@ -5,7 +5,7 @@ import { app, net } from "electron";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "./utils";
+import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "@/api/utils/ytdlp-utils/ytdlp-utils";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getVersionFilePath = () => path.join(getBinDir(), "yt-dlp-version.txt");

@@ -4,14 +4,15 @@ import { logger } from "@/helpers/logger";
 import { app } from "electron";
 import fs from "fs";
 import path from "path";
-import { getYtDlpAssetName } from "./utils";
-import { mapYtDlpMetadata, extractChannelData, extractSubtitleLanguages } from "./utils/metadata";
-import { upsertChannelData } from "./utils/database";
-import { spawnYtDlpWithLogging, extractVideoId, runYtDlpJson } from "./utils/ytdlp";
-import { downloadImageToCache } from "./utils/cache";
+
+import { mapYtDlpMetadata, extractChannelData, extractSubtitleLanguages } from "@/api/utils/ytdlp-utils/metadata";
+import { upsertChannelData } from "@/api/utils/ytdlp-utils/database";
+import { spawnYtDlpWithLogging, extractVideoId, runYtDlpJson } from "@/api/utils/ytdlp-utils/ytdlp";
+import { downloadImageToCache } from "@/api/utils/ytdlp-utils/cache";
 import { eq, desc, inArray, sql } from "drizzle-orm";
 import { youtubeVideos, channels, channelPlaylists, videoWatchStats } from "@/api/db/schema";
 import defaultDb from "@/api/db";
+import { getYtDlpAssetName } from "@/api/utils/ytdlp-utils/ytdlp-utils";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getBinaryFilePath = () => path.join(getBinDir(), getYtDlpAssetName(process.platform));

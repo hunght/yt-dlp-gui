@@ -189,7 +189,7 @@ export default [
       'react-refresh/only-export-components': 'off', // Too strict for your architecture
 
       // General rules - adapted to your patterns
-      'no-console': 'error', // Allow console in Electron app
+      'no-console': 'error', // Ban console - use logger instead
       'no-empty': 'off', // Allow empty catch blocks (common pattern)
       'no-useless-escape': 'off', // Turn off - regex escapes are fine
       'no-unreachable': 'off', // Turn off - might be intentional dead code for future use
@@ -200,7 +200,6 @@ export default [
       'prefer-const': 'off',
       'no-var': 'error',
       'object-shorthand': 'off', // Allow both styles
-      'quote-props': 'off', // Allow flexibility
       eqeqeq: 'off',
       'no-debugger': 'off',
       '@typescript-eslint/triple-slash-reference': 'off', // Allow triple-slash for Electron Forge types

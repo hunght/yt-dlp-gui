@@ -58,7 +58,7 @@ export const utilsRouter = t.router({
     .query(async ({ input }) => {
       try {
         // Extract the first word and clean it
-        const cleanWord = input.word.split(/\s+/)[0].replace(/[.,!?;:()\[\]'"\-–—]/g, "").toLowerCase();
+        const cleanWord = input.word.split(/\s+/)[0].replace(/[.,!?;:()[\]'"\-–—]/g, "").toLowerCase();
         const langCode = input.language ? input.language.split("-")[0] : "en";
 
         // For now, use a simple approach: call a free dictionary API and enhance with a fun explanation
@@ -546,7 +546,7 @@ export const utilsRouter = t.router({
           message: string;
           filePath?: string;
           filename?: string;
-        }>(async (resolve, reject) => {
+        }>((resolve, reject) => {
           // Helper to perform download and follow redirects up to maxRedirects
           const maxRedirects = 5;
 

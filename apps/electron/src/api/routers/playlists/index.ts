@@ -5,8 +5,8 @@ import fs from "fs";
 import { eq, desc, inArray, and } from "drizzle-orm";
 import { channelPlaylists, playlistItems, youtubeVideos, channels } from "@/api/db/schema";
 import defaultDb from "@/api/db";
-import { spawnYtDlpWithLogging } from "./utils/ytdlp";
-import { downloadImageToCache } from "./utils/cache";
+import { spawnYtDlpWithLogging } from "../../utils/ytdlp-utils/ytdlp";
+import { downloadImageToCache } from "../../utils/ytdlp-utils/cache";
 
 
 
@@ -24,7 +24,7 @@ export const playlistsRouter = t.router({
       const db = ctx.db ?? defaultDb;
       const limit = input.limit ?? 200;
 
-      const { getBinaryFilePath } = await import("./binary");
+      const { getBinaryFilePath } = await import("../binary");
       const binPath = getBinaryFilePath();
 
       // Try to read basic playlist metadata from DB first

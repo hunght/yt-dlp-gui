@@ -7,9 +7,9 @@ import { preferencesRouter } from "@/api/routers/preferences";
 import { translationRouter } from "@/api/routers/translation";
 import { annotationsRouter } from "@/api/routers/annotations";
 import { watchStatsRouter } from "@/api/routers/watch-stats";
-import { transcriptsRouter } from "@/api/routers/ytdlp/transcripts";
-import { playlistsRouter } from "@/api/routers/ytdlp/playlists";
-import { binaryRouter } from "@/api/routers/ytdlp/binary";
+import { transcriptsRouter } from "@/api/routers/transcripts";
+import { playlistsRouter } from "@/api/routers/playlists";
+import { binaryRouter } from "@/api/routers/binary";
 
 // Create the root router
 export const router = t.router({

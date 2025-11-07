@@ -602,7 +602,7 @@ export function TranscriptPanel({
 
   // Scroll active segment into view (freeze when selecting or hovering)
   useEffect(() => {
-    if (activeSegIndex == null || !followPlayback) return;
+    if (activeSegIndex === null || !followPlayback) return;
     // Don't auto-scroll while user is selecting text or hovering over word/tooltip
     if (isSelecting || isHovering || isHoveringTooltip) return;
 
@@ -631,7 +631,7 @@ export function TranscriptPanel({
     if (!segments.length) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      const next = activeSegIndex == null ? 0 : Math.min(segments.length - 1, activeSegIndex + 1);
+      const next = activeSegIndex === null ? 0 : Math.min(segments.length - 1, activeSegIndex + 1);
       const t = segments[next].start + 0.05;
       if (videoRef.current) {
         videoRef.current.currentTime = t;
@@ -643,7 +643,7 @@ export function TranscriptPanel({
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      const prev = activeSegIndex == null ? 0 : Math.max(0, activeSegIndex - 1);
+      const prev = activeSegIndex === null ? 0 : Math.max(0, activeSegIndex - 1);
       const t = segments[prev].start + 0.05;
       if (videoRef.current) {
         videoRef.current.currentTime = t;

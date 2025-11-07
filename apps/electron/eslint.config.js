@@ -161,12 +161,6 @@ export default [
             'src/**/*.d.ts',
             'src/components/ui/**',
             'src/stories/**',
-            'src/api/trpc.ts', // Context needed for router inference
-            'src/hooks/use-toast.ts', // toast used in multiple files
-            'src/api/routers/ytdlp/utils/**', // Utility functions
-            'src/services/download-queue/**', // Queue service utilities
-            'src/utils/**', // General utility functions
-            'src/localization/**', // Localization files
           ],
         },
       ],

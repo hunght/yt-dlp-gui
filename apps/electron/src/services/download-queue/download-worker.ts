@@ -201,27 +201,3 @@ export const killDownload = (downloadId: string): boolean => {
   }
   return false;
 };
-
-/**
- * Check if a download is currently active
- */
-export const isDownloadActive = (downloadId: string): boolean => {
-  return activeWorkers.has(downloadId);
-};
-
-/**
- * Get all active download IDs
- */
-export const getActiveDownloadIds = (): string[] => {
-  return Array.from(activeWorkers.keys());
-};
-
-/**
- * Kill all active downloads
- */
-export const killAllDownloads = (): void => {
-  for (const worker of activeWorkers.values()) {
-    worker.process?.kill("SIGTERM");
-  }
-  activeWorkers.clear();
-};

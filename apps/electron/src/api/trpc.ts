@@ -2,19 +2,14 @@ import { initTRPC } from "@trpc/server";
 import { logger } from "../helpers/logger";
 import db from "./db";
 
-// Define context type
-export interface Context {
-  db?: typeof db;
-}
-
 // Create context for each request
-export const createContext = async (): Promise<Context> => {
+export const createContext = async () => {
   return {
     db,
   };
 };
 
-const t = initTRPC.context<Context>().create();
+const t = initTRPC.context<Awaited<ReturnType<typeof createContext>>>().create();
 
 // Create middleware
 const loggerMiddleware = t.middleware(async ({ path, type, next }) => {

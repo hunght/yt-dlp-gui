@@ -35,12 +35,6 @@ async function upsertVideoSearchFts(db: any, videoId: string, title: string | nu
 
 
 
-// mapYtDlpMetadata and extractChannelData are imported from utils/metadata.ts
-
-// runYtDlpJson, extractVideoId, and spawnYtDlpWithLogging are imported from utils/ytdlp.ts
-
-// upsertVideoFromMeta and upsertChannelData are imported from utils/database.ts
-
 export const ytdlpRouter = t.router({
   // Fetch video metadata from URL (always stores in DB for caching)
   fetchVideoInfo: publicProcedure

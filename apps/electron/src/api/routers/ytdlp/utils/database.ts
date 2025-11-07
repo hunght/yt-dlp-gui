@@ -1,62 +1,10 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
-import { youtubeVideos, channels } from "@yt-dlp-gui/database";
+import { channels } from "@yt-dlp-gui/database";
 import { logger } from "@/helpers/logger";
-import { mapYtDlpMetadata, extractChannelData } from "./metadata";
+import { extractChannelData } from "./metadata";
 import { downloadImageToCache } from "./thumbnail";
 
-export const upsertVideoFromMeta = async (
-  db: any,
-  mapped: ReturnType<typeof mapYtDlpMetadata>
-) => {
-  if (!mapped.videoId) return;
-
-  const now = Date.now();
-  const existing = await db
-    .select()
-    .from(youtubeVideos)
-    .where(eq(youtubeVideos.videoId, mapped.videoId))
-    .limit(1);
-
-  if (existing.length === 0) {
-    await db.insert(youtubeVideos).values({
-      id: crypto.randomUUID(),
-      videoId: mapped.videoId,
-      title: mapped.title,
-      description: mapped.description,
-      channelId: mapped.channelId,
-      channelTitle: mapped.channelTitle,
-      durationSeconds: mapped.durationSeconds,
-      viewCount: mapped.viewCount,
-      likeCount: mapped.likeCount,
-      thumbnailUrl: mapped.thumbnailUrl,
-      thumbnailPath: null,
-      publishedAt: mapped.publishedAt,
-      tags: mapped.tags,
-      raw: mapped.raw,
-      createdAt: now,
-      updatedAt: now,
-    });
-  } else {
-    await db
-      .update(youtubeVideos)
-      .set({
-        title: mapped.title,
-        description: mapped.description,
-        channelId: mapped.channelId,
-        channelTitle: mapped.channelTitle,
-        durationSeconds: mapped.durationSeconds,
-        viewCount: mapped.viewCount,
-        likeCount: mapped.likeCount,
-        thumbnailUrl: mapped.thumbnailUrl,
-        publishedAt: mapped.publishedAt,
-        tags: mapped.tags,
-        raw: mapped.raw,
-        updatedAt: now,
-      })
-      .where(eq(youtubeVideos.videoId, mapped.videoId));
-  }
-};
 
 export const upsertChannelData = async (
   db: any,

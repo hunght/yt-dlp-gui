@@ -3,7 +3,7 @@ import type { ChildProcess } from "child_process";
 /**
  * Status of a download in the queue
  */
-export type DownloadStatus =
+type DownloadStatus =
   | "pending" // Initial state before queued
   | "queued" // Waiting in queue
   | "downloading" // Currently downloading

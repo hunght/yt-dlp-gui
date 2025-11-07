@@ -184,6 +184,10 @@ export const binaryRouter = t.router({
         request.end();
       });
 
+
+
+
+
       if (!result.ok) {
         logger.error("[ytdlp] Download failed", { error: result.error });
         return { success: false as const, message: result.error ?? "Download failed" } as const;

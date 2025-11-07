@@ -29,7 +29,7 @@ export function isInCooldown(videoId: string, lang: string | null): { inCooldown
       return { inCooldown: true, minutesRemaining };
     }
   } catch (e) {
-    console.error('Error checking cooldown:', e);
+    // Silently handle localStorage errors
   }
 
   return { inCooldown: false, minutesRemaining: 0 };
@@ -47,7 +47,7 @@ export function setCooldown(videoId: string, lang: string | null, retryAfterMs: 
     map[key] = until;
     localStorage.setItem("transcript-download-cooldowns", JSON.stringify(map));
   } catch (e) {
-    console.error('Error setting cooldown:', e);
+    // Silently handle localStorage errors
   }
 }
 
@@ -64,7 +64,7 @@ export function clearCooldown(videoId: string, lang: string | null): void {
       localStorage.setItem("transcript-download-cooldowns", JSON.stringify(map));
     }
   } catch (e) {
-    console.error('Error clearing cooldown:', e);
+    // Silently handle localStorage errors
   }
 }
 

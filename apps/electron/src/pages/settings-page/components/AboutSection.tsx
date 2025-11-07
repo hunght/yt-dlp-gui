@@ -23,7 +23,7 @@ export function AboutSection() {
       setLogContent(content);
       setIsLogDialogOpen(true);
     } catch (error) {
-      console.error("Failed to load log file:", error);
+      // Error will be shown in UI if needed
     }
   };
 

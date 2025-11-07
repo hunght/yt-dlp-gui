@@ -459,7 +459,7 @@ export const utilsRouter = t.router({
 
         return { success: !!window };
       } catch (error) {
-        console.error("Failed to open notification window:", error);
+        logger.error("Failed to open notification window", error as Error);
         return { success: false, error: String(error) };
       }
     }),
@@ -656,7 +656,7 @@ export const utilsRouter = t.router({
       closeWindow();
       return { success: true };
     } catch (error) {
-      console.error("Failed to close notification window:", error);
+      logger.error("Failed to close notification window", error as Error);
       return { success: false, error: String(error) };
     }
   }),
@@ -719,7 +719,7 @@ export const utilsRouter = t.router({
 
         return { success };
       } catch (error) {
-        console.error("Failed to send notification:", error);
+        logger.error("Failed to send notification", error as Error);
         return { success: false, error: String(error) };
       }
     }),

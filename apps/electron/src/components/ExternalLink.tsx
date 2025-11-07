@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { trpcClient } from "@/utils/trpc";
 import { ExternalLinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { logger } from "@/helpers/logger";
 
 interface ExternalLinkProps {
   href: string;
@@ -37,7 +38,7 @@ export function ExternalLink({
     try {
       await trpcClient.utils.openExternalUrl.mutate({ url: href });
     } catch (error) {
-      console.error("Failed to open external link:", error);
+      logger.error("Failed to open external link", error as Error, { href });
       // Fallback to standard link behavior if tRPC fails
       window.open(href, "_blank", "noopener,noreferrer");
     }

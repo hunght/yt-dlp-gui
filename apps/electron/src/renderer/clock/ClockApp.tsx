@@ -85,7 +85,7 @@ const ClockApp: React.FC = () => {
       try {
         await (window as any).electronClock.hide();
       } catch (error) {
-        console.error("Failed to hide clock:", error);
+        // Silently handle hide errors
       }
     }
   }, []);
@@ -103,7 +103,7 @@ const ClockApp: React.FC = () => {
       try {
         await (window as any).electronClock.showMain();
       } catch (error) {
-        console.error("Failed to show main window:", error);
+        // Silently handle show main window errors
       }
     }
   }, []);

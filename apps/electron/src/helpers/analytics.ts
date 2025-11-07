@@ -1,4 +1,5 @@
 import posthog from "posthog-js";
+import { logger } from "./logger";
 
 /**
  * Safe analytics interface that gracefully handles any PostHog errors
@@ -13,7 +14,8 @@ export const analytics = {
     try {
       posthog.identify(userId, properties);
     } catch (error) {
-      console.error("Analytics identify error:", error);
+      // Silently log analytics errors to avoid disrupting user experience
+      logger.debug("[analytics] Identify error", { error });
     }
   },
 
@@ -26,7 +28,8 @@ export const analytics = {
     try {
       posthog.capture(eventName, properties);
     } catch (error) {
-      console.error(`Analytics track error for event "${eventName}":`, error);
+      // Silently log analytics errors to avoid disrupting user experience
+      logger.debug("[analytics] Track error", { eventName, error });
     }
   },
 
@@ -43,7 +46,8 @@ export const analytics = {
         ...properties,
       });
     } catch (error) {
-      console.error(`Analytics pageView error for path "${path}":`, error);
+      // Silently log analytics errors to avoid disrupting user experience
+      logger.debug("[analytics] PageView error", { path, error });
     }
   },
 
@@ -55,7 +59,8 @@ export const analytics = {
     try {
       posthog.people.set(properties);
     } catch (error) {
-      console.error("Analytics updateUserProperties error:", error);
+      // Silently log analytics errors to avoid disrupting user experience
+      logger.debug("[analytics] UpdateUserProperties error", { error });
     }
   },
 
@@ -67,7 +72,8 @@ export const analytics = {
     try {
       posthog.register(properties);
     } catch (error) {
-      console.error("Analytics registerGlobalProperties error:", error);
+      // Silently log analytics errors to avoid disrupting user experience
+      logger.debug("[analytics] RegisterGlobalProperties error", { error });
     }
   },
 };

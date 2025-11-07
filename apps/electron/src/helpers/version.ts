@@ -1,4 +1,5 @@
 import { trpcClient } from "@/utils/trpc";
+import { logger } from "./logger";
 
 /**
  * Gets the current application version using tRPC
@@ -8,7 +9,7 @@ export async function getAppVersion(): Promise<string> {
   try {
     return await trpcClient.utils.getAppVersion.query();
   } catch (error) {
-    console.error("Failed to get app version:", error);
+    logger.error("Failed to get app version via tRPC", error as Error);
   }
 
   // Fallbacks if tRPC fails or isn't available

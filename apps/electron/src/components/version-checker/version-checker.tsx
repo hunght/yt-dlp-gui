@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { DownloadIcon, ExternalLinkIcon, RefreshCwIcon, PackageIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
+import { logger } from "@/helpers/logger";
 
 export interface VersionInfo {
   currentVersion: string;
@@ -51,7 +52,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
   // Update state when existing file is found
   useEffect(() => {
     if (existingUpdate?.exists && existingUpdate.filePath) {
-      console.log("Found existing download for version:", latestVersion);
+      logger.info("[version-checker] Found existing download", { latestVersion });
       setDownloadedFilePath(existingUpdate.filePath);
       setAutoDownloadComplete(true);
     }
@@ -61,7 +62,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
   useEffect(() => {
     // Only auto-download if we haven't attempted it yet for this version
     if (downloadUrl && latestVersion && !autoDownloadAttempted.current) {
-      console.log("Auto-downloading latest version:", latestVersion);
+      logger.info("[version-checker] Auto-downloading latest version", { latestVersion });
       autoDownloadAttempted.current = true;
 
       // Use setTimeout to avoid render loop
@@ -83,7 +84,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
             });
           }
         } catch (error) {
-          console.error("Auto-download failed:", error);
+          logger.error("[version-checker] Auto-download failed", error as Error);
           toast({
             title: "Auto-download Failed",
             description: "Failed to download update automatically. You can download manually.",
@@ -199,7 +200,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
                 try {
                   await trpcClient.utils.openExternalUrl.mutate({ url: downloadUrl });
                 } catch (err) {
-                  console.error("Failed to open download URL:", err);
+                  logger.error("[version-checker] Failed to open download URL", err as Error);
                 }
               }}
             >
@@ -209,7 +210,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
         });
       }
     } catch (error) {
-      console.error("Failed to download update:", error);
+      logger.error("[version-checker] Failed to download update", error as Error);
       stopProgressTimer();
       toast({
         title: "Download Failed",
@@ -225,7 +226,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
               try {
                 await trpcClient.utils.openExternalUrl.mutate({ url: downloadUrl });
               } catch (err) {
-                console.error("Failed to open download URL:", err);
+                logger.error("[version-checker] Failed to open download URL", err as Error);
               }
             }}
           >
@@ -244,14 +245,14 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
 
   const handleInstallUpdate = useCallback(async () => {
     if (!downloadedFilePath || !latestVersion) {
-      console.error("Install update failed: missing file path or version", {
+      logger.error("[version-checker] Install update failed: missing file path or version", {
         downloadedFilePath,
         latestVersion,
       });
       return;
     }
 
-    console.log("Starting update installation...", {
+    logger.info("[version-checker] Starting update installation", {
       zipFilePath: downloadedFilePath,
       version: latestVersion,
     });
@@ -263,10 +264,10 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
         version: latestVersion,
       });
 
-      console.log("Install update result:", result);
+      logger.info("[version-checker] Install update result", { result });
 
       if (result && result.status === "success") {
-        console.log("Update installation successful!");
+        logger.info("[version-checker] Update installation successful");
         toast({
           title: "Update Installed Successfully",
           description: result.message,
@@ -285,7 +286,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
           ),
         });
       } else if (result) {
-        console.error("Update installation failed:", result);
+        logger.error("[version-checker] Update installation failed", { result });
 
         // Check if we have fallback options
         if (result.fallbackUrl) {
@@ -329,10 +330,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
         }
       }
     } catch (error) {
-      console.error("Failed to install update:", error);
-      console.error("Error details:", {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
+      logger.error("[version-checker] Failed to install update", error as Error, {
         zipFilePath: downloadedFilePath,
         version: latestVersion,
       });
@@ -371,7 +369,7 @@ function DownloadButtons({ downloadUrl, latestVersion, onOpenDownloadLink }: Dow
         ),
       });
     } finally {
-      console.log("Install update process completed, setting isInstalling to false");
+      logger.debug("[version-checker] Install update process completed");
       setIsInstalling(false);
     }
   }, [downloadedFilePath, latestVersion, toast, downloadUrl]);
@@ -499,7 +497,7 @@ export function VersionChecker({
     try {
       await trpcClient.utils.openExternalUrl.mutate({ url: "https://yt-dlp-gui.com/download" });
     } catch (error) {
-      console.error("Failed to open download URL:", error);
+      logger.error("[version-checker] Failed to open download URL", error as Error);
     }
   };
 
@@ -552,7 +550,7 @@ export function VersionChecker({
 
       return result.data;
     } catch (error) {
-      console.error("Failed to check for updates:", error);
+      logger.error("[version-checker] Failed to check for updates", error as Error);
       return { status: "error", message: "Failed to check for updates", hasUpdate: false };
     } finally {
       setIsCheckingUpdate(false);

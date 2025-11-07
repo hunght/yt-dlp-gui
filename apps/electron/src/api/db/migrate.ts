@@ -269,9 +269,10 @@ export { runMigrations, validateDatabaseIntegrity };
 if (require.main === module) {
   main().catch((err) => {
     try {
-      logger.error("Migration runner error:", err);
+      logger.error("Migration runner error", err);
     } catch {
-      console.error("Migration runner error:", err);
+      // If logger fails, write directly to stderr as last resort
+      process.stderr.write(`Migration runner error: ${err}\n`);
     }
     process.exit(1);
   });

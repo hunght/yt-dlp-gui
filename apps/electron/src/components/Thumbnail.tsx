@@ -20,10 +20,7 @@ export default function Thumbnail({
   className = "aspect-video w-full rounded-t-lg object-cover",
   fallbackIcon = <Play className="h-12 w-12 text-gray-400" />,
 }: ThumbnailProps) {
-  // Use small, useful logs only in development
-  if (process.env.NODE_ENV !== "production") {
-    console.debug("<Thumbnail>", { thumbnailPath, thumbnailUrl, alt });
-  }
+  // Debug logging removed - use logger.debug if needed for specific troubleshooting
 
   // Use tRPC to convert local image to data URL with caching and loading states
   const {

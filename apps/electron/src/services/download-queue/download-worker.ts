@@ -5,6 +5,7 @@ import { requireQueueManager } from "./queue-manager";
 import type { Database } from "@/api/db";
 import type { WorkerState } from "./types";
 import fs from "fs";
+import { logger } from "@/helpers/logger";
 
 /**
  * Active download workers
@@ -48,7 +49,7 @@ export const spawnDownload = async (
   try {
     // Check if already downloading
     if (activeWorkers.has(downloadId)) {
-      console.warn(`Download ${downloadId} is already active`);
+      logger.warn(`Download already active`, { downloadId });
       return;
     }
 
@@ -94,7 +95,8 @@ export const spawnDownload = async (
 
     // Handle stderr - log errors
     process.stderr?.on("data", (data: Buffer) => {
-      console.error(`[${downloadId}] yt-dlp error:`, data.toString());
+      const errorOutput = data.toString();
+      logger.debug("[download-worker] yt-dlp stderr output", { downloadId, output: errorOutput });
     });
 
     // Handle process completion
@@ -115,7 +117,7 @@ export const spawnDownload = async (
             } catch {}
           }
           await queueManager.markCompleted(downloadId, finalPath || outputPath);
-        console.log(`Download ${downloadId} completed successfully`);
+        logger.info("[download-worker] Download completed successfully", { downloadId, finalPath: finalPath || outputPath });
       } else {
         // Failed
           const queueManager = requireQueueManager();
@@ -124,7 +126,7 @@ export const spawnDownload = async (
             `yt-dlp exited with code ${code}`,
             "process_error"
           );
-        console.error(`Download ${downloadId} failed with code ${code}`);
+        logger.error("[download-worker] Download failed", { downloadId, exitCode: code });
       }
     });
 
@@ -133,7 +135,7 @@ export const spawnDownload = async (
       activeWorkers.delete(downloadId);
         const queueManager = requireQueueManager();
         await queueManager.markFailed(downloadId, error.message, "spawn_error");
-      console.error(`Download ${downloadId} error:`, error);
+      logger.error("[download-worker] Download process error", error as Error, { downloadId });
     });
   } catch (error) {
     activeWorkers.delete(downloadId);
@@ -143,7 +145,7 @@ export const spawnDownload = async (
         error instanceof Error ? error.message : "Unknown error",
         "spawn_error"
       );
-    console.error(`Failed to spawn download ${downloadId}:`, error);
+    logger.error("[download-worker] Failed to spawn download", error as Error, { downloadId });
   }
 };
 
@@ -166,7 +168,7 @@ const parseProgressAndMetadata = (db: Database, downloadId: string, output: stri
         worker.lastProgressUpdate = now;
         const queueManager = requireQueueManager();
         queueManager.updateProgress(downloadId, Math.round(progress)).catch((err: Error) =>
-          console.error(`Failed to update progress for ${downloadId}:`, err)
+          logger.error("[download-worker] Failed to update progress", err, { downloadId })
         );
       }
     }

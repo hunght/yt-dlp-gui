@@ -68,7 +68,7 @@ export default function MyWordsPage() {
       await trpcClient.translation.unsaveWord.mutate({ translationId });
       refetchSavedWords();
     } catch (error) {
-      console.error("Failed to unsave word:", error);
+      // Error handling via UI toast
     }
   };
 

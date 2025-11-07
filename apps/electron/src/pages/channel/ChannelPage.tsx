@@ -61,9 +61,9 @@ export default function ChannelPage() {
         toast.error((result as any).error || "Failed to refresh channel information");
       }
     },
-    onError: (error: any) => {
+    onError: () => {
       toast.error("Failed to refresh channel information");
-      console.error(error);
+      // Error already shown to user via toast
     },
   });
 
@@ -78,7 +78,7 @@ export default function ChannelPage() {
       }
     } catch (err) {
       toast.error("Failed to add video to queue");
-      console.error(err);
+      // Error already shown to user via toast
     }
   };
 
@@ -127,15 +127,6 @@ export default function ChannelPage() {
     ? `local-file://${channel.thumbnailPath}`
     : (isAllowedImageSrc(channel.thumbnailUrl) ? channel.thumbnailUrl : undefined);
 
-  // Debug logging
-  console.log("[ChannelPage] Channel logo debug:", {
-    channelId: channel.channelId,
-    thumbnailPath: channel.thumbnailPath,
-    thumbnailUrl: channel.thumbnailUrl,
-    computedThumbnailSrc: thumbnailSrc,
-    isAllowed: thumbnailSrc ? isAllowedImageSrc(thumbnailSrc) : false,
-  });
-
   return (
     <div className="container mx-auto space-y-6 p-6">
 
@@ -150,7 +141,7 @@ export default function ChannelPage() {
                 alt={channel.channelTitle}
                 className="h-24 w-24 rounded-full object-cover"
                 onError={(e) => {
-                  console.error("[ChannelPage] Failed to load channel logo:", thumbnailSrc);
+                  // Hide broken image
                   e.currentTarget.style.display = "none";
                 }}
               />

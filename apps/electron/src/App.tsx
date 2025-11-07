@@ -15,6 +15,7 @@ import { getConfig } from "./config/env";
 import { VersionChecker } from "@/components/version-checker";
 import { YtDlpInstaller } from "@/components/ytdlp-installer";
 import { getAppVersion } from "./helpers/version";
+import { logger } from "./helpers/logger";
 
 // Initialize PostHog with enhanced CSP compatibility
 posthog.init(getConfig("posthogKey"), {
@@ -68,14 +69,14 @@ posthog.register({
     // Update the global property with the correct version
     posthog.register({ app_version: appVersion });
   } catch (error) {
-    console.error("Failed to get app version:", error);
+    logger.error("Failed to get app version", error as Error);
   }
 })();
 
 const queryClient = new QueryClient({});
 
 // Initialize theme based on saved preference
-syncThemeWithLocal().catch(console.error);
+syncThemeWithLocal().catch((error) => logger.error("Failed to sync theme", error as Error));
 
 function MainApp() {
   const { i18n } = useTranslation();

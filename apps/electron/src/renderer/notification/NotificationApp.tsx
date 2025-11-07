@@ -9,17 +9,9 @@ const NotificationApp: React.FC = () => {
   const [sessionTimeLeft, setSessionTimeLeft] = useState<number | null>(null); // Session countdown
 
   useEffect(() => {
-    console.log("NotificationApp: Component mounted");
-    console.log(
-      "NotificationApp: window.electronNotification available:",
-      !!window.electronNotification
-    );
-    console.log("NotificationApp: window object keys:", Object.keys(window));
-
     // Listen for notification data from main process via the preload API
     if (window.electronNotification) {
       const handleNotification = (data: NotificationData) => {
-        console.log("Notification received in component:", data);
         setNotificationData(data);
         // Reset timer when new notification arrives (only if autoDismiss is enabled)
         if (data.autoDismiss) {
@@ -35,13 +27,6 @@ const NotificationApp: React.FC = () => {
       };
 
       window.electronNotification.onNotification(handleNotification);
-
-      // Only return cleanup function when component is truly unmounting
-      return () => {
-        console.log("NotificationApp: Component unmounting, cleaning up listeners");
-      };
-    } else {
-      console.error("electronNotification not available in notification window");
     }
   }, []);
 
@@ -85,21 +70,16 @@ const NotificationApp: React.FC = () => {
   }, []);
 
   const closeNotification = async () => {
-    console.log("Closing notification via electronNotification");
     if (window.electronNotification) {
       try {
         await window.electronNotification.close();
-        console.log("Notification window close request completed");
       } catch (error) {
-        console.error("Failed to close notification window:", error);
+        // Silently handle close errors
       }
-    } else {
-      console.error("electronNotification API not available");
     }
   };
 
   if (!notificationData) {
-    console.log("NotificationApp: No notification data, rendering placeholder");
     return null;
   }
   return (

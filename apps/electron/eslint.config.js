@@ -6,7 +6,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import unusedImports from 'eslint-plugin-unused-imports';
 import importPlugin from 'eslint-plugin-import';
-import prettierConfig from 'eslint-config-prettier';
+import testConfig from './eslint.test.config.js';
 
 export default [
   // Ignore patterns
@@ -21,7 +21,7 @@ export default [
       'test-results/**',
       '**/*.gen.ts',
       'routeTree.gen.ts',
-      '*.config.js',
+      '*.config.js', // Includes eslint.test.config.js
       '*.config.ts',
       'forge.config.ts',
       'forge.env.d.ts',
@@ -189,7 +189,7 @@ export default [
       'react-refresh/only-export-components': 'off', // Too strict for your architecture
 
       // General rules - adapted to your patterns
-      'no-console': 'off', // Allow console in Electron app
+      'no-console': 'error', // Allow console in Electron app
       'no-empty': 'off', // Allow empty catch blocks (common pattern)
       'no-useless-escape': 'off', // Turn off - regex escapes are fine
       'no-unreachable': 'off', // Turn off - might be intentional dead code for future use
@@ -208,35 +208,13 @@ export default [
   },
 
   // Test files configuration
-  {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/__tests__/**', '**/tests/**/*.ts'],
-    languageOptions: {
-      globals: {
-        // Jest globals
-        describe: 'readonly',
-        it: 'readonly',
-        test: 'readonly',
-        expect: 'readonly',
-        beforeEach: 'readonly',
-        afterEach: 'readonly',
-        beforeAll: 'readonly',
-        afterAll: 'readonly',
-        jest: 'readonly',
-      },
-    },
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-      'no-console': 'off',
-      'no-undef': 'off',
-    },
-  },
+  testConfig,
 
   // Preload scripts - bridge between main and renderer
   {
     files: ['**/preload/**/*.ts', '**/preload.ts'],
     rules: {
-      'no-console': 'off', // Console is useful for debugging preload
+      'no-console': 'error', // Console is useful for debugging preload
     },
   },
 
@@ -244,7 +222,7 @@ export default [
   {
     files: ['src/main/**/*.ts', 'src/main.ts', 'src/api/**/*.ts'],
     rules: {
-      'no-console': 'off', // Server-side logging is fine
+      'no-console': 'error', // Server-side logging is fine
     },
   },
 
@@ -255,8 +233,5 @@ export default [
       // Renderer-specific rules can go here
     },
   },
-
-  // Prettier config (must be last to override other configs)
-  prettierConfig,
 ];
 

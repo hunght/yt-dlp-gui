@@ -430,7 +430,7 @@ export function TranscriptPanel({
           setHoverTranslation(null);
         }
       } catch (error) {
-        console.error('Translation failed:', error);
+        // Translation failed, silently reset
         setHoverTranslation(null);
       }
     }, 800); // 800ms hover delay before translation

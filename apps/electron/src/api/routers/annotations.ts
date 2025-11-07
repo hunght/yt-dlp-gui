@@ -107,6 +107,3 @@ export const annotationsRouter = t.router({
     }),
 });
 
-export type AnnotationsRouter = typeof annotationsRouter;
-
-

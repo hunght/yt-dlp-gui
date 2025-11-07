@@ -3,7 +3,7 @@ import { BLOCKING_NOTIFICATION_SHOW_CHANNEL } from "../ipc/blocking-notification
 import { setCurrentResponseResolver } from "../ipc/blocking-notification/blocking-notification-listeners";
 import { logger } from "../logger";
 
-export interface BlockingNotificationData {
+interface BlockingNotificationData {
   title: string;
   detail: string;
   userId: string;

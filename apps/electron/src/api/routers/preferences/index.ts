@@ -129,4 +129,4 @@ export const preferencesRouter = t.router({
   }),
 });
 
-export type PreferencesRouter = typeof preferencesRouter;
+// Router type not exported (unused)

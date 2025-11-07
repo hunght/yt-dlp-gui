@@ -258,4 +258,4 @@ export const queueRouter = t.router({
   }),
 });
 
-export type QueueRouter = typeof queueRouter;
+// Router type not exported (unused)

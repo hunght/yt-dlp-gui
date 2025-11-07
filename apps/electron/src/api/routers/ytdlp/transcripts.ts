@@ -99,7 +99,7 @@ export function parseVttToText(content: string): string {
 }
 
 // VTT -> segments with timestamps
-export function parseVttToSegments(content: string): Array<{ start: number; end: number; text: string }> {
+function parseVttToSegments(content: string): Array<{ start: number; end: number; text: string }> {
   const lines = content.split(/\r?\n/);
   const segs: Array<{ start: number; end: number; text: string }> = [];
   let i = 0;
@@ -542,5 +542,5 @@ export const transcriptsRouter = t.router({
     }),
 });
 
-export type TranscriptsRouter = typeof transcriptsRouter;
+// Router type not exported (unused)
 

@@ -263,7 +263,7 @@ async function main() {
 }
 
 // Export for use in other modules
-export { runMigrations, validateDatabaseIntegrity, getCurrentMigrationState };
+export { runMigrations, validateDatabaseIntegrity };
 
 // Run if called directly
 if (require.main === module) {

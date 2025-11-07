@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+// date-fns import removed - unused after formatDate/formatTimestamp deletion
 
 /**
  * Formats a duration in seconds to a human-readable string in the format HH:MM:SS or MM:SS
@@ -71,17 +71,4 @@ export function formatMinutesToDisplay(minutes: number): string {
   return `${remainingMinutes}m`;
 }
 
-export function formatDate(timestamp: number) {
-  return format(new Date(timestamp), "MMM d, yyyy HH:mm");
-}
-
-/**
- * Formats a timestamp to a human-readable date string
- *
- * @param timestamp - Timestamp in milliseconds
- * @returns Formatted date string
- */
-export function formatTimestamp(timestamp: number): string {
-  const date = new Date(timestamp);
-  return date.toLocaleString();
-}
+// Unused formatDate and formatTimestamp removed

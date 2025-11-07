@@ -1143,4 +1143,4 @@ export const ytdlpRouter = t.router({
     }),
 });
 
-export type YtDlpRouter = typeof ytdlpRouter;
+// Router type not exported (unused)

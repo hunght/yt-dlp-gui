@@ -131,6 +131,6 @@ export const watchStatsRouter = t.router({
     }),
 });
 
-export type WatchStatsRouter = typeof watchStatsRouter;
+// Router type not exported (unused)
 
 

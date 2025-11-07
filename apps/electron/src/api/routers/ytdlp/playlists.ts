@@ -429,5 +429,5 @@ export const playlistsRouter = t.router({
     }),
 });
 
-export type PlaylistsRouter = typeof playlistsRouter;
+// Router type not exported (unused)
 

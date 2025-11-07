@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -75,13 +75,3 @@ export function ConfirmationDialogProvider({ children }: { children: React.React
     </ConfirmationDialogContext.Provider>
   );
 }
-
-export const useConfirmationDialog = () => {
-  const context = useContext(ConfirmationDialogContext);
-  if (!context) {
-    throw new Error(
-      "useConfirmationDialog must be used within a ConfirmationDialogProvider"
-    );
-  }
-  return context;
-};

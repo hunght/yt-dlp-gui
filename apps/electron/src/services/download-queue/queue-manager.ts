@@ -818,15 +818,6 @@ export const getQueueManager = (db: Database, config?: Partial<QueueConfig>): Qu
   return queueManagerInstance;
 };
 
-/**
- * Get existing queue manager instance (throws if not initialized)
- */
-export const requireQueueManager = (): QueueManager => {
-  if (!queueManagerInstance) {
-    throw new Error("QueueManager not initialized. Call initializeQueueManager first.");
-  }
-  return queueManagerInstance;
-};
 
 /**
  * Initialize and start queue manager
@@ -837,4 +828,14 @@ export const initializeQueueManager = (db: Database, config?: Partial<QueueConfi
     manager.start();
   }
   return manager;
+};
+
+/**
+ * Get existing queue manager instance (throws if not initialized)
+ */
+export const requireQueueManager = (): QueueManager => {
+  if (!queueManagerInstance) {
+    throw new Error("QueueManager not initialized. Call initializeQueueManager first.");
+  }
+  return queueManagerInstance;
 };

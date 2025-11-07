@@ -455,5 +455,5 @@ export const translationRouter = t.router({
     }),
 });
 
-export type TranslationRouter = typeof translationRouter;
+// Router type not exported (unused)
 

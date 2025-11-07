@@ -85,20 +85,8 @@ export interface WorkerState {
   process: ChildProcess | null;
   startTime: number;
   lastProgressUpdate: number;
-  // Enhanced metadata for resolving final file path
   lastKnownFilePath?: string;
   outputDir?: string;
   videoId?: string | null;
-}
-
-/**
- * Add to queue request
- */
-export interface AddToQueueRequest {
-  urls: string[];
-  priority?: number;
-  format?: string;
-  quality?: string;
-  autoStart?: boolean;
 }
 

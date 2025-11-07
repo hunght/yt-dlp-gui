@@ -2,7 +2,7 @@ import { createNotificationWindow } from "../../main/windows/notification";
 import { NOTIFICATION_SHOW_CHANNEL } from "../ipc/notification/notification-channels";
 import { logger } from "../logger";
 
-export interface NotificationAction {
+interface NotificationAction {
   label: string;
   action: () => Promise<void>;
   variant?: "primary" | "secondary" | "success" | "warning"; // For styling

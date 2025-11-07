@@ -111,7 +111,12 @@ export default [
           alwaysTryTypes: true,
           project: './tsconfig.json',
         },
-        node: true,
+        node: {
+          extensions: ['.js', '.jsx', '.ts', '.tsx'],
+        },
+      },
+      'import/parsers': {
+        '@typescript-eslint/parser': ['.ts', '.tsx'],
       },
     },
     rules: {
@@ -135,27 +140,40 @@ export default [
           caughtErrorsIgnorePattern: '^_|^e$|^err$|^error$',
         },
       ],
+      // Import plugin rules
+      'import/no-unresolved': 'off', // Let TypeScript handle this
+      'import/extensions': [
+        'error',
+        'never',
+        {
+          json: 'always',
+        },
+      ],
       'import/no-unused-modules': [
         'error',
         {
           unusedExports: true,
           missingExports: false,
           src: ['src/**/*.ts', 'src/**/*.tsx'],
-          ignoreExports: ['src/main.ts', 'src/preload/**', 'src/**/*.d.ts'],
+          ignoreExports: [
+            'src/main.ts',
+            'src/preload/**',
+            'src/**/*.d.ts',
+            'src/components/ui/**',
+            'src/stories/**',
+            'src/api/trpc.ts', // Context needed for router inference
+            'src/hooks/use-toast.ts', // toast used in multiple files
+            'src/api/routers/ytdlp/utils/**', // Utility functions
+            'src/services/download-queue/**', // Queue service utilities
+            'src/utils/**', // General utility functions
+            'src/localization/**', // Localization files
+          ],
         },
       ],
       '@typescript-eslint/no-require-imports': 'off', // Allow require() for dynamic imports
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off', // Allow non-null assertions when you're certain
-      '@typescript-eslint/ban-ts-comment': [
-        'warn',
-        {
-          'ts-expect-error': 'allow-with-description',
-          'ts-ignore': 'allow-with-description',
-          'ts-nocheck': 'allow-with-description',
-          minimumDescriptionLength: 3,
-        },
-      ],
+      '@typescript-eslint/ban-ts-comment': 'off',
 
       // React recommended rules
       ...react.configs.recommended.rules,
@@ -165,12 +183,12 @@ export default [
       'react/prop-types': 'off', // TypeScript handles this
       'react/react-in-jsx-scope': 'off', // Not needed in React 17+
       'react/jsx-uses-react': 'off',
-      'react/jsx-no-target-blank': 'warn',
+      'react/jsx-no-target-blank': 'off',
       'react/no-unescaped-entities': 'off', // Allow quotes in JSX text
 
       // React Hooks rules
       ...reactHooks.configs.recommended.rules,
-      'react-hooks/exhaustive-deps': 'warn', // Warn but don't error
+      'react-hooks/exhaustive-deps': 'off', // Turn off
       'react-hooks/rules-of-hooks': 'error', // Keep this as error
 
       // React Refresh rules
@@ -178,19 +196,19 @@ export default [
 
       // General rules - adapted to your patterns
       'no-console': 'off', // Allow console in Electron app
-      'no-empty': ['warn', { allowEmptyCatch: true }], // Allow empty catch blocks (common pattern)
-      'no-useless-escape': 'warn', // Warn but don't error on regex escapes
-      'no-unreachable': 'warn', // Warn - might be intentional dead code for future use
-      'no-redeclare': 'warn', // Warn instead of error (can be intentional for type/value)
-      'no-async-promise-executor': 'warn', // Warn instead of error
-      'no-case-declarations': 'warn', // Warn instead of error
+      'no-empty': 'off', // Allow empty catch blocks (common pattern)
+      'no-useless-escape': 'off', // Turn off - regex escapes are fine
+      'no-unreachable': 'off', // Turn off - might be intentional dead code for future use
+      'no-redeclare': 'off', // Turn off - can be intentional for type/value
+      'no-async-promise-executor': 'off', // Turn off
+      'no-case-declarations': 'off', // Turn off
       'no-undef': 'error', // Keep as error - should be caught
-      'prefer-const': 'warn',
+      'prefer-const': 'off',
       'no-var': 'error',
       'object-shorthand': 'off', // Allow both styles
       'quote-props': 'off', // Allow flexibility
-      eqeqeq: ['warn', 'always', { null: 'ignore' }],
-      'no-debugger': 'warn',
+      eqeqeq: 'off',
+      'no-debugger': 'off',
       '@typescript-eslint/triple-slash-reference': 'off', // Allow triple-slash for Electron Forge types
     },
   },

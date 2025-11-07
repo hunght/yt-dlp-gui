@@ -68,13 +68,5 @@ export function clearCooldown(videoId: string, lang: string | null): void {
   }
 }
 
-/**
- * Get effective language (selected or from transcript data)
- */
-export function getEffectiveLanguage(
-  selectedLang: string | null,
-  transcriptData: any
-): string | undefined {
-  return selectedLang ?? transcriptData?.language;
-}
+// Unused getEffectiveLanguage removed
 

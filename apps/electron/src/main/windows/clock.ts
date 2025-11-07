@@ -6,7 +6,7 @@ import path from "path";
 let clockWindow: BrowserWindow | null = null;
 let isClockVisible = false;
 
-export function createClockWindow(): BrowserWindow {
+function createClockWindow(): BrowserWindow {
   logger.info("Creating clock window");
 
   // Don't create multiple clock windows
@@ -93,10 +93,7 @@ export function createClockWindow(): BrowserWindow {
   return clockWindow;
 }
 
-export function getClockWindow(): BrowserWindow | null {
-  logger.info("Getting clock window reference");
-  return clockWindow;
-}
+// getClockWindow removed - unused
 
 export function showClockWindow(): void {
   if (!clockWindow || clockWindow.isDestroyed()) {
@@ -119,16 +116,9 @@ export function hideClockWindow(): void {
   }
 }
 
-export function closeClockWindow(): void {
-  if (clockWindow && !clockWindow.isDestroyed()) {
-    logger.info("Closing clock window");
-    clockWindow.close();
-    clockWindow = null;
-    isClockVisible = false;
-  }
-}
+// closeClockWindow removed - unused
 
-export function isClockWindowVisible(): boolean {
+function isClockWindowVisible(): boolean {
   return isClockVisible && clockWindow !== null && !clockWindow.isDestroyed();
 }
 

@@ -14,7 +14,7 @@ function validateEnvVar(value: string | undefined, name: string): string {
   return value;
 }
 
-export const config = {
+const config = {
   // @ts-ignore
   axiomToken: validateEnvVar(import.meta.env.VITE_AXIOM_TOKEN, "VITE_AXIOM_TOKEN"),
   // @ts-ignore

@@ -2,7 +2,7 @@ import { ThemeMode } from "@/lib/types/theme-mode";
 
 const THEME_KEY = "theme";
 
-export interface ThemePreferences {
+interface ThemePreferences {
   system: ThemeMode;
   local: ThemeMode | null;
 }

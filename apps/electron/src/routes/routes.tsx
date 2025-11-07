@@ -12,25 +12,25 @@ import SubscriptionsPage from "@/pages/subscriptions/SubscriptionsPage";
 import HistoryPage from "@/pages/history/HistoryPage";
 import MyWordsPage from "@/pages/my-words/MyWordsPage";
 
-export const DashboardRoute = createRoute({
+const DashboardRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/",
   component: DashboardPage,
 });
 
-export const LogsRoute = createRoute({
+const LogsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/logs",
   component: LogsPage,
 });
 
-export const SettingsRoute = createRoute({
+const SettingsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/settings",
   component: SettingsPage,
 });
 
-export const PlayerRoute = createRoute({
+const PlayerRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/player",
   component: PlayerPage,
@@ -43,7 +43,7 @@ export const PlayerRoute = createRoute({
   },
 });
 
-export const ChannelRoute = createRoute({
+const ChannelRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/channel",
   component: ChannelPage,
@@ -54,13 +54,13 @@ export const ChannelRoute = createRoute({
   },
 });
 
-export const ChannelsRoute = createRoute({
+const ChannelsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/channels",
   component: ChannelsPage,
 });
 
-export const PlaylistRoute = createRoute({
+const PlaylistRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/playlist",
   component: PlaylistPage,
@@ -71,25 +71,25 @@ export const PlaylistRoute = createRoute({
   },
 });
 
-export const PlaylistsRoute = createRoute({
+const PlaylistsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/playlists",
   component: PlaylistsPage,
 });
 
-export const SubscriptionsRoute = createRoute({
+const SubscriptionsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/subscriptions",
   component: SubscriptionsPage,
 });
 
-export const HistoryRoute = createRoute({
+const HistoryRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/history",
   component: HistoryPage,
 });
 
-export const MyWordsRoute = createRoute({
+const MyWordsRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/my-words",
   component: MyWordsPage,

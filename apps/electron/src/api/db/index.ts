@@ -1,6 +1,5 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient, type Client } from "@libsql/client";
-import { sql } from "drizzle-orm";
 import { getDatabasePath } from "../../utils/paths";
 import { logger } from "../../helpers/logger";
 import * as schema from "./schema";
@@ -73,34 +72,9 @@ function getConnection(): DatabaseConnection {
 }
 
 /**
- * Performs a health check on the database connection
- */
-export async function healthCheck(): Promise<boolean> {
-  try {
-    const conn = getConnection();
-
-    // Simple query to test connection
-    await conn.db.run(sql`SELECT 1`);
-
-    conn.isConnected = true;
-    conn.lastHealthCheck = new Date();
-
-    return true;
-  } catch (error) {
-    logger.warn("Database health check failed:", error);
-
-    if (connection) {
-      connection.isConnected = false;
-    }
-
-    return false;
-  }
-}
-
-/**
  * Closes the database connection gracefully
  */
-export async function closeConnection(): Promise<void> {
+async function closeConnection(): Promise<void> {
   if (connection?.client) {
     try {
       logger.info("Closing database connection...");
@@ -112,29 +86,6 @@ export async function closeConnection(): Promise<void> {
       logger.error("Error closing database connection:", error);
     }
   }
-}
-
-/**
- * Reconnects to the database
- */
-export async function reconnect(): Promise<void> {
-  await closeConnection();
-  connection = initializeConnection();
-}
-
-/**
- * Gets connection statistics for monitoring
- */
-export function getConnectionStats(): {
-  isConnected: boolean;
-  lastHealthCheck: Date | null;
-  dbPath: string;
-} {
-  return {
-    isConnected: connection?.isConnected ?? false,
-    lastHealthCheck: connection?.lastHealthCheck ?? null,
-    dbPath: getDatabasePath(),
-  };
 }
 
 // Main database export - gets connection lazily

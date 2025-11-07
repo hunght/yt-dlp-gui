@@ -96,10 +96,7 @@ export function createBlockingNotificationWindow(): BrowserWindow {
   return blockingNotificationWindow;
 }
 
-export function getBlockingNotificationWindow(): BrowserWindow | null {
-  logger.info("Getting blocking notification window reference");
-  return blockingNotificationWindow;
-}
+// getBlockingNotificationWindow removed - unused
 
 export function closeBlockingNotificationWindow(): void {
   if (blockingNotificationWindow && !blockingNotificationWindow.isDestroyed()) {

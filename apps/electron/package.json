@@ -47,8 +47,7 @@
     "db:status": "npx tsx scripts/db-status.ts",
     "db:counts": "npx tsx scripts/db-counts.ts",
     "db:vacuum": "npx tsx scripts/db-vacuum.ts",
-    "db:analyze": "npx tsx scripts/db-analyze.ts",
-    "prepare": "husky"
+    "db:analyze": "npx tsx scripts/db-analyze.ts"
   },
   "author": "HungHoang <hth321@gmail.com>",
   "license": "MIT",
@@ -111,10 +110,8 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.16",
     "eslint-plugin-unused-imports": "4.3.0",
-    "husky": "9.1.7",
     "jest": "^30.1.1",
     "jest-environment-jsdom": "^30.1.1",
-    "lint-staged": "16.2.6",
     "node-fetch": "^3.3.2",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.4.47",

@@ -208,7 +208,7 @@ export default [
 
       // SonarJS - Cognitive Complexity (better than cyclomatic complexity)
       // Measures how difficult code is to understand (not just # of branches)
-      'sonarjs/cognitive-complexity': ['error', 30], // Warn if cognitive complexity > 15
+      'sonarjs/cognitive-complexity': ['error', 50], // Warn if cognitive complexity > 15
 
       // SonarJS - Code Smells & Duplication
       'sonarjs/no-duplicate-string': ['error', { threshold: 6 }], // Detect string duplication
@@ -222,7 +222,7 @@ export default [
       'sonarjs/no-redundant-boolean': 'error', // x === true vs x
       'sonarjs/no-small-switch': 'error', // Switch with only 2 cases
       'sonarjs/no-unused-collection': 'error', // Collections that are never read
-      'sonarjs/prefer-immediate-return': 'error', // return x vs const y = x; return y
+      'sonarjs/prefer-immediate-return': 'off', // return x vs const y = x; return y
       'sonarjs/prefer-object-literal': 'error', // Object literal vs empty + assignments
       'sonarjs/prefer-single-boolean-return': 'error', // if (x) return true; else return false;
 

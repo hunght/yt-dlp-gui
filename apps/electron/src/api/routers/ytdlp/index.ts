@@ -5,7 +5,11 @@ import { app } from "electron";
 import fs from "fs";
 import path from "path";
 
-import { mapYtDlpMetadata, extractChannelData, extractSubtitleLanguages } from "@/api/utils/ytdlp-utils/metadata";
+import {
+  mapYtDlpMetadata,
+  extractChannelData,
+  extractSubtitleLanguages,
+} from "@/api/utils/ytdlp-utils/metadata";
 import { upsertChannelData } from "@/api/utils/ytdlp-utils/database";
 import { spawnYtDlpWithLogging, extractVideoId, runYtDlpJson } from "@/api/utils/ytdlp-utils/ytdlp";
 import { downloadImageToCache } from "@/api/utils/ytdlp-utils/cache";
@@ -17,24 +21,26 @@ import { getYtDlpAssetName } from "@/api/utils/ytdlp-utils/ytdlp-utils";
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getBinaryFilePath = () => path.join(getBinDir(), getYtDlpAssetName(process.platform));
 
-
-
-async function upsertVideoSearchFts(db: any, videoId: string, title: string | null | undefined, transcript: string | null | undefined) {
+async function upsertVideoSearchFts(
+  db: any,
+  videoId: string,
+  title: string | null | undefined,
+  transcript: string | null | undefined
+) {
   try {
     // FTS5 virtual tables with UNINDEXED columns don't support WHERE clauses on those columns
     // Since video_id is UNINDEXED (to save index space), we use INSERT OR REPLACE with rowid
     // The strategy: just INSERT and let FTS5 handle it (duplicates are acceptable for search)
     // We'll deduplicate results in search queries using GROUP BY
-    await db.run(sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`);
+    await db.run(
+      sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`
+    );
   } catch {
     // Silently ignore errors - FTS is a nice-to-have feature for search
     // If it fails, video metadata will still be accessible through regular queries
     logger.debug("[fts] insert skipped", { videoId, reason: "already exists or error" });
   }
 }
-
-
-
 
 export const ytdlpRouter = t.router({
   // Fetch video metadata from URL (always stores in DB for caching)
@@ -66,7 +72,9 @@ export const ytdlpRouter = t.router({
 
         if (existingVideo.length > 0) {
           // Use cached metadata from DB
-          logger.info("[ytdlp] fetchVideoInfo using cached metadata from DB", { videoId: urlVideoId });
+          logger.info("[ytdlp] fetchVideoInfo using cached metadata from DB", {
+            videoId: urlVideoId,
+          });
           const existing = existingVideo[0];
           const mapped = {
             videoId: existing.videoId,
@@ -84,14 +92,23 @@ export const ytdlpRouter = t.router({
           };
 
           // Extract subtitle languages from cached raw JSON
-          let availableLanguages: Array<{ lang: string; hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }> = [];
+          let availableLanguages: Array<{
+            lang: string;
+            hasManual: boolean;
+            hasAuto: boolean;
+            manualFormats: string[];
+            autoFormats: string[];
+          }> = [];
           try {
             if (existing.raw) {
               const rawMeta = JSON.parse(existing.raw);
               availableLanguages = extractSubtitleLanguages(rawMeta);
             }
           } catch (e) {
-            logger.warn("[ytdlp] Failed to parse cached raw JSON for subtitles", { videoId: urlVideoId, error: String(e) });
+            logger.warn("[ytdlp] Failed to parse cached raw JSON for subtitles", {
+              videoId: urlVideoId,
+              error: String(e),
+            });
           }
 
           return {
@@ -148,7 +165,9 @@ export const ytdlpRouter = t.router({
         hasChannelData: !!channelData,
         channelId: channelData?.channelId,
         channelTitle: channelData?.channelTitle,
-        metaKeys: Object.keys(meta || {}).filter(k => k.includes('channel') || k.includes('uploader'))
+        metaKeys: Object.keys(meta || {}).filter(
+          (k) => k.includes("channel") || k.includes("uploader")
+        ),
       });
       if (channelData) {
         await upsertChannelData(db, channelData);
@@ -405,7 +424,10 @@ export const ytdlpRouter = t.router({
         .limit(1);
 
       if (channelRows.length === 0) {
-        logger.warn("[getChannelDetails] channel not found", { channelId: input.channelId, durationMs: Date.now() - t0 });
+        logger.warn("[getChannelDetails] channel not found", {
+          channelId: input.channelId,
+          durationMs: Date.now() - t0,
+        });
         return null;
       }
 
@@ -462,7 +484,11 @@ export const ytdlpRouter = t.router({
       });
 
       const durationMs = Date.now() - t0;
-      logger.info("[getChannelDetails] done", { channelId: input.channelId, totalVideos: videos.length, durationMs });
+      logger.info("[getChannelDetails] done", {
+        channelId: input.channelId,
+        totalVideos: videos.length,
+        durationMs,
+      });
       return { channel, videos, totalVideos: videos.length };
     }),
 
@@ -480,7 +506,13 @@ export const ytdlpRouter = t.router({
       if (!v) return null;
 
       // Extract subtitle languages from cached raw JSON
-      let availableLanguages: Array<{ lang: string; hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }> = [];
+      let availableLanguages: Array<{
+        lang: string;
+        hasManual: boolean;
+        hasAuto: boolean;
+        manualFormats: string[];
+        autoFormats: string[];
+      }> = [];
       if (v.raw) {
         try {
           const meta = JSON.parse(v.raw);
@@ -523,7 +555,9 @@ export const ytdlpRouter = t.router({
       const db = ctx.db ?? defaultDb;
       const limit = input.limit ?? 20;
       try {
-        const rows = await db.all(sql`SELECT video_id, title FROM video_search_fts WHERE video_search_fts MATCH ${input.q} LIMIT ${limit * 2}`);
+        const rows = await db.all(
+          sql`SELECT video_id, title FROM video_search_fts WHERE video_search_fts MATCH ${input.q} LIMIT ${limit * 2}`
+        );
         // Deduplicate video_ids (FTS may contain duplicates since video_id is UNINDEXED)
         const uniqueIds = [...new Set(rows.map((r: any) => r.video_id))].slice(0, limit);
         if (uniqueIds.length === 0) return [] as any[];
@@ -534,9 +568,7 @@ export const ytdlpRouter = t.router({
           .from(youtubeVideos)
           .where(inArray(youtubeVideos.videoId, uniqueIds));
         const map = new Map(vids.map((v: any) => [v.videoId, v]));
-        return uniqueIds
-          .map((id) => map.get(id))
-          .filter(Boolean);
+        return uniqueIds.map((id) => map.get(id)).filter(Boolean);
       } catch (e) {
         logger.error("[fts] search failed", e as Error);
         return [] as any[];
@@ -570,7 +602,7 @@ export const ytdlpRouter = t.router({
         logger.info("[ytdlp] Successfully refreshed channel info", {
           channelId: channelData.channelId,
           channelTitle: channelData.channelTitle,
-          hasThumbnail: !!channelData.thumbnailUrl
+          hasThumbnail: !!channelData.thumbnailUrl,
         });
 
         // Fetch and return updated channel from DB
@@ -587,7 +619,7 @@ export const ytdlpRouter = t.router({
       } catch (error: any) {
         logger.error("[ytdlp] Failed to refresh channel info", {
           channelId: input.channelId,
-          error: error.message
+          error: error.message,
         });
         return {
           success: false,
@@ -599,7 +631,13 @@ export const ytdlpRouter = t.router({
 
   // List latest videos from a channel via yt-dlp (metadata-only, fast)
   listChannelLatest: publicProcedure
-    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(100).optional(), forceRefresh: z.boolean().optional() }))
+    .input(
+      z.object({
+        channelId: z.string(),
+        limit: z.number().min(1).max(100).optional(),
+        forceRefresh: z.boolean().optional(),
+      })
+    )
     .query(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
       const limit = input.limit ?? 24;
@@ -629,7 +667,12 @@ export const ytdlpRouter = t.router({
             downloadFilePath: v.downloadFilePath,
           }));
         }
-      } catch {}
+      } catch (e) {
+        logger.error("[ytdlp] Failed to get cached videos (latest)", {
+          channelId: input.channelId,
+          error: String(e),
+        });
+      }
 
       const binPath = getBinaryFilePath();
       if (!fs.existsSync(binPath)) {
@@ -670,11 +713,14 @@ export const ytdlpRouter = t.router({
             other: { flatPlaylist: true, sort: "dd" },
           }
         );
-        let out = ""; let err = "";
+        let out = "";
+        let err = "";
         proc.stdout?.on("data", (d) => (out += d.toString()));
         proc.stderr?.on("data", (d) => (err += d.toString()));
         proc.on("error", reject);
-        proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
+        proc.on("close", (code) =>
+          code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))
+        );
       });
       const listData = JSON.parse(listing);
 
@@ -682,13 +728,39 @@ export const ytdlpRouter = t.router({
       if (listData?.entries?.[0]) {
         logger.info("[ytdlp] listChannelLatest flat-playlist entry fields", {
           sampleEntry: listData.entries[0],
-          availableFields: Object.keys(listData.entries[0])
+          availableFields: Object.keys(listData.entries[0]),
         });
       }
 
-      const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter((e: any) => e?.id);
+      const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter(
+        (e: any) => e?.id
+      );
       // limit already computed above
       const now = Date.now();
+
+      // Ensure channel exists in DB before linking videos to it
+      try {
+        const channelData = extractChannelData({
+          ...listData,
+          channel_id: listData?.channel_id || input.channelId,
+          channel: listData?.channel || listData?.uploader,
+          channel_url:
+            listData?.channel_url || `https://www.youtube.com/channel/${input.channelId}`,
+        });
+
+        if (channelData) {
+          await upsertChannelData(db, channelData);
+          logger.info("[ytdlp] Upserted channel before linking videos", {
+            channelId: channelData.channelId,
+            channelTitle: channelData.channelTitle,
+          });
+        }
+      } catch (e) {
+        logger.error("[ytdlp] Failed to upsert channel data", {
+          channelId: input.channelId,
+          error: String(e),
+        });
+      }
 
       // Upsert lightweight metadata to DB for caching (avoid expensive individual fetches)
       const videoIds: string[] = [];
@@ -704,9 +776,13 @@ export const ytdlpRouter = t.router({
             .where(eq(youtubeVideos.videoId, entry.id))
             .limit(1);
 
-          const thumbPath = (entry.thumbnails?.[0]?.url || entry.thumbnail)
-            ? await downloadImageToCache(entry.thumbnails?.[0]?.url || entry.thumbnail, `video_${entry.id}`)
-            : null;
+          const thumbPath =
+            entry.thumbnails?.[0]?.url || entry.thumbnail
+              ? await downloadImageToCache(
+                  entry.thumbnails?.[0]?.url || entry.thumbnail,
+                  `video_${entry.id}`
+                )
+              : null;
           const videoData = {
             videoId: entry.id,
             title: entry.title || "Untitled",
@@ -739,7 +815,10 @@ export const ytdlpRouter = t.router({
               .where(eq(youtubeVideos.videoId, entry.id));
           }
         } catch (e) {
-          logger.error("[ytdlp] Failed to upsert video from flat-playlist", { videoId: entry.id, error: String(e) });
+          logger.error("[ytdlp] Failed to upsert video from flat-playlist", {
+            videoId: entry.id,
+            error: String(e),
+          });
         }
       }
 
@@ -771,7 +850,13 @@ export const ytdlpRouter = t.router({
 
   // List popular videos from a channel via yt-dlp (metadata-only, fast)
   listChannelPopular: publicProcedure
-    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(100).optional(), forceRefresh: z.boolean().optional() }))
+    .input(
+      z.object({
+        channelId: z.string(),
+        limit: z.number().min(1).max(100).optional(),
+        forceRefresh: z.boolean().optional(),
+      })
+    )
     .query(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
       const limit = input.limit ?? 24;
@@ -785,7 +870,9 @@ export const ytdlpRouter = t.router({
           .limit(limit);
         if (cached.length > 0 && !input.forceRefresh) {
           // Sort by viewCount desc locally, fallback by updatedAt
-          const sorted = [...cached].sort((a: any, b: any) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
+          const sorted = [...cached].sort(
+            (a: any, b: any) => (b.viewCount ?? 0) - (a.viewCount ?? 0)
+          );
           return sorted.map((v: any) => ({
             id: v.id,
             videoId: v.videoId,
@@ -802,7 +889,12 @@ export const ytdlpRouter = t.router({
             downloadFilePath: v.downloadFilePath,
           }));
         }
-      } catch {}
+      } catch (e) {
+        logger.error("[ytdlp] Failed to get cached videos (popular)", {
+          channelId: input.channelId,
+          error: String(e),
+        });
+      }
 
       const binPath = getBinaryFilePath();
       if (!fs.existsSync(binPath)) {
@@ -811,7 +903,9 @@ export const ytdlpRouter = t.router({
           .from(youtubeVideos)
           .where(eq(youtubeVideos.channelId, input.channelId))
           .limit(limit);
-        const sorted = [...fallback].sort((a: any, b: any) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
+        const sorted = [...fallback].sort(
+          (a: any, b: any) => (b.viewCount ?? 0) - (a.viewCount ?? 0)
+        );
         return sorted.map((v: any) => ({
           id: v.id,
           videoId: v.videoId,
@@ -842,11 +936,14 @@ export const ytdlpRouter = t.router({
             other: { flatPlaylist: true },
           }
         );
-        let out = ""; let err = "";
+        let out = "";
+        let err = "";
         proc.stdout?.on("data", (d) => (out += d.toString()));
         proc.stderr?.on("data", (d) => (err += d.toString()));
         proc.on("error", reject);
-        proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
+        proc.on("close", (code) =>
+          code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))
+        );
       });
       const listData = JSON.parse(listing);
 
@@ -854,13 +951,39 @@ export const ytdlpRouter = t.router({
       if (listData?.entries?.[0]) {
         logger.info("[ytdlp] listChannelPopular flat-playlist entry fields", {
           sampleEntry: listData.entries[0],
-          availableFields: Object.keys(listData.entries[0])
+          availableFields: Object.keys(listData.entries[0]),
         });
       }
 
-      const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter((e: any) => e?.id);
+      const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter(
+        (e: any) => e?.id
+      );
       // limit already computed above
       const now = Date.now();
+
+      // Ensure channel exists in DB before linking videos to it
+      try {
+        const channelData = extractChannelData({
+          ...listData,
+          channel_id: listData?.channel_id || input.channelId,
+          channel: listData?.channel || listData?.uploader,
+          channel_url:
+            listData?.channel_url || `https://www.youtube.com/channel/${input.channelId}`,
+        });
+
+        if (channelData) {
+          await upsertChannelData(db, channelData);
+          logger.info("[ytdlp] Upserted channel before linking videos (popular)", {
+            channelId: channelData.channelId,
+            channelTitle: channelData.channelTitle,
+          });
+        }
+      } catch (e) {
+        logger.error("[ytdlp] Failed to upsert channel data (popular)", {
+          channelId: input.channelId,
+          error: String(e),
+        });
+      }
 
       // Upsert lightweight metadata to DB for caching (avoid expensive individual fetches)
       const videoIds: string[] = [];
@@ -876,9 +999,13 @@ export const ytdlpRouter = t.router({
             .where(eq(youtubeVideos.videoId, entry.id))
             .limit(1);
 
-          const thumbPath = (entry.thumbnails?.[0]?.url || entry.thumbnail)
-            ? await downloadImageToCache(entry.thumbnails?.[0]?.url || entry.thumbnail, `video_${entry.id}`)
-            : null;
+          const thumbPath =
+            entry.thumbnails?.[0]?.url || entry.thumbnail
+              ? await downloadImageToCache(
+                  entry.thumbnails?.[0]?.url || entry.thumbnail,
+                  `video_${entry.id}`
+                )
+              : null;
           const videoData = {
             videoId: entry.id,
             title: entry.title || "Untitled",
@@ -911,7 +1038,10 @@ export const ytdlpRouter = t.router({
               .where(eq(youtubeVideos.videoId, entry.id));
           }
         } catch (e) {
-          logger.error("[ytdlp] Failed to upsert video from flat-playlist", { videoId: entry.id, error: String(e) });
+          logger.error("[ytdlp] Failed to upsert video from flat-playlist", {
+            videoId: entry.id,
+            error: String(e),
+          });
         }
       }
 
@@ -943,7 +1073,13 @@ export const ytdlpRouter = t.router({
 
   // List playlists of a channel via yt-dlp (offline-first, cached in DB)
   listChannelPlaylists: publicProcedure
-    .input(z.object({ channelId: z.string(), limit: z.number().min(1).max(200).optional(), forceRefresh: z.boolean().optional() }))
+    .input(
+      z.object({
+        channelId: z.string(),
+        limit: z.number().min(1).max(200).optional(),
+        forceRefresh: z.boolean().optional(),
+      })
+    )
     .query(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
       const limit = input.limit ?? 30;
@@ -968,7 +1104,12 @@ export const ytdlpRouter = t.router({
             lastFetchedAt: p.lastFetchedAt,
           }));
         }
-      } catch {}
+      } catch (e) {
+        logger.error("[ytdlp] Failed to get cached playlists (playlists)", {
+          channelId: input.channelId,
+          error: String(e),
+        });
+      }
 
       const binPath = getBinaryFilePath();
       if (!fs.existsSync(binPath)) {
@@ -1005,11 +1146,14 @@ export const ytdlpRouter = t.router({
             other: { flatPlaylist: true },
           }
         );
-        let out = ""; let err = "";
+        let out = "";
+        let err = "";
         proc.stdout?.on("data", (d) => (out += d.toString()));
         proc.stderr?.on("data", (d) => (err += d.toString()));
         proc.on("error", reject);
-        proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
+        proc.on("close", (code) =>
+          code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))
+        );
       });
       const data = JSON.parse(json);
       const entries = (Array.isArray(data?.entries) ? data.entries : []).slice(0, limit);
@@ -1049,18 +1193,27 @@ export const ytdlpRouter = t.router({
                   other: { itemIndex: idx },
                 }
               );
-              let out = ""; let err = "";
+              let out = "";
+              let err = "";
               proc.stdout?.on("data", (d) => (out += d.toString()));
               proc.stderr?.on("data", (d) => (err += d.toString()));
               proc.on("error", reject);
-              proc.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))));
+              proc.on("close", (code) =>
+                code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))
+              );
             });
             const detail = JSON.parse(detailJson);
             if (Array.isArray(detail?.thumbnails) && detail.thumbnails.length > 0) {
-              thumb = detail.thumbnails[detail.thumbnails.length - 1]?.url || detail.thumbnails[0]?.url || null;
+              thumb =
+                detail.thumbnails[detail.thumbnails.length - 1]?.url ||
+                detail.thumbnails[0]?.url ||
+                null;
               logger.debug("[ytdlp] playlist thumbnail enriched", { playlistId: pid, thumb });
             } else {
-              logger.warn("[ytdlp] playlist detail has no thumbnails", { playlistId: pid, detailKeys: Object.keys(detail || {}) });
+              logger.warn("[ytdlp] playlist detail has no thumbnails", {
+                playlistId: pid,
+                detailKeys: Object.keys(detail || {}),
+              });
             }
           } catch (err) {
             logger.warn("[ytdlp] playlist enrich failed", { playlistId: pid, error: String(err) });

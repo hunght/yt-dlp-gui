@@ -32,6 +32,11 @@ interface QueueItem {
   addedAt: number;
   startedAt: number | null;
   pausedAt: number | null;
+  // Download progress details
+  downloadSpeed: string | null;
+  downloadedSize: string | null;
+  totalSize: string | null;
+  eta: string | null;
 }
 
 /**
@@ -58,7 +63,14 @@ class QueueManager {
   async updateProgress(
     downloadId: string,
     progress: number,
-    metadata?: { title?: string; videoId?: string }
+    metadata?: {
+      title?: string;
+      videoId?: string;
+      downloadSpeed?: string | null;
+      downloadedSize?: string | null;
+      totalSize?: string | null;
+      eta?: string | null;
+    }
   ): Promise<void> {
     const item = this.queue.get(downloadId);
     if (!item) return;
@@ -71,6 +83,21 @@ class QueueManager {
     }
     if (metadata?.videoId) {
       item.videoId = metadata.videoId;
+    }
+
+    // Update download progress details
+    // Only update with non-null values to prevent flickering when yt-dlp outputs "Unknown"
+    if (metadata?.downloadSpeed !== undefined && metadata.downloadSpeed !== null) {
+      item.downloadSpeed = metadata.downloadSpeed;
+    }
+    if (metadata?.downloadedSize !== undefined && metadata.downloadedSize !== null) {
+      item.downloadedSize = metadata.downloadedSize;
+    }
+    if (metadata?.totalSize !== undefined && metadata.totalSize !== null) {
+      item.totalSize = metadata.totalSize;
+    }
+    if (metadata?.eta !== undefined && metadata.eta !== null) {
+      item.eta = metadata.eta;
     }
 
     // Sync progress to youtube_videos using known videoId (from metadata or existing item)
@@ -91,11 +118,7 @@ class QueueManager {
   /**
    * Mark download as completed (called by download-worker)
    */
-  async markCompleted(
-    downloadId: string,
-    filePath: string,
-    fileSize?: number
-  ): Promise<void> {
+  async markCompleted(downloadId: string, filePath: string, fileSize?: number): Promise<void> {
     const item = this.queue.get(downloadId);
     if (!item) return;
 
@@ -124,11 +147,7 @@ class QueueManager {
   /**
    * Mark download as failed (called by download-worker)
    */
-  async markFailed(
-    downloadId: string,
-    errorMessage: string,
-    errorType?: string
-  ): Promise<void> {
+  async markFailed(downloadId: string, errorMessage: string, errorType?: string): Promise<void> {
     const item = this.queue.get(downloadId);
     if (!item) return;
 
@@ -159,9 +178,99 @@ class QueueManager {
   }
 
   /**
+   * Restore interrupted downloads from database
+   */
+  async restoreInterruptedDownloads(): Promise<void> {
+    try {
+      logger.info("[queue-manager] Restoring interrupted downloads from database");
+
+      // Find all videos that were downloading or queued
+      const interruptedDownloads = await this.db
+        .select({
+          videoId: youtubeVideos.videoId,
+          title: youtubeVideos.title,
+          channelTitle: youtubeVideos.channelTitle,
+          thumbnailUrl: youtubeVideos.thumbnailUrl,
+          downloadProgress: youtubeVideos.downloadProgress,
+          downloadStatus: youtubeVideos.downloadStatus,
+          updatedAt: youtubeVideos.updatedAt,
+        })
+        .from(youtubeVideos)
+        .where(eq(youtubeVideos.downloadStatus, "downloading"))
+        .execute();
+
+      logger.info("[queue-manager] Found interrupted downloads", {
+        count: interruptedDownloads.length,
+      });
+
+      // Get current max queue position
+      const positions = Array.from(this.queue.values()).map((item) => item.queuePosition);
+      let position = positions.length > 0 ? Math.max(...positions) + 1 : 1;
+
+      // Add each interrupted download back to the queue
+      for (const video of interruptedDownloads) {
+        const downloadId = `download-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const url = `https://www.youtube.com/watch?v=${video.videoId}`;
+
+        const queueItem: QueueItem = {
+          id: downloadId,
+          url,
+          videoId: video.videoId,
+          title: video.title || url,
+          channelTitle: video.channelTitle,
+          thumbnailUrl: video.thumbnailUrl,
+          status: "queued",
+          progress: video.downloadProgress || 0,
+          priority: 1, // Higher priority for interrupted downloads
+          queuePosition: position++,
+          format: null,
+          quality: null,
+          errorMessage: null,
+          errorType: null,
+          isRetryable: true,
+          retryCount: 0,
+          maxRetries: this.config.maxRetries,
+          addedAt: video.updatedAt || Date.now(),
+          startedAt: null,
+          pausedAt: null,
+          downloadSpeed: null,
+          downloadedSize: null,
+          totalSize: null,
+          eta: null,
+        };
+
+        this.queue.set(downloadId, queueItem);
+
+        // Reset status to queued in database
+        await this.db
+          .update(youtubeVideos)
+          .set({
+            downloadStatus: "queued",
+            downloadProgress: 0,
+            updatedAt: Date.now(),
+          })
+          .where(eq(youtubeVideos.videoId, video.videoId))
+          .execute();
+
+        logger.debug("[queue-manager] Restored interrupted download", {
+          downloadId,
+          videoId: video.videoId,
+          title: video.title,
+        });
+      }
+
+      logger.info("[queue-manager] Restored downloads to queue", {
+        count: interruptedDownloads.length,
+      });
+    } catch (error) {
+      logger.error("[queue-manager] Failed to restore interrupted downloads", error as Error);
+    }
+  }
+
+  /**
    * Start the queue processor
    */
-  start(): void {
+  async start(): Promise<void> {
     if (this.isProcessing) {
       logger.warn("[queue-manager] Queue already running");
       return;
@@ -171,6 +280,9 @@ class QueueManager {
     logger.info("[queue-manager] Starting queue processor", {
       maxConcurrent: this.config.maxConcurrent,
     });
+
+    // Restore interrupted downloads first
+    await this.restoreInterruptedDownloads();
 
     // Process queue every 2 seconds
     this.processingInterval = setInterval(() => {
@@ -233,6 +345,32 @@ class QueueManager {
       // Start each download
       for (const item of queuedDownloads) {
         try {
+          // Fetch video metadata from database if we have videoId
+          if (item.videoId) {
+            const videoData = await this.db
+              .select({
+                title: youtubeVideos.title,
+                channelTitle: youtubeVideos.channelTitle,
+                thumbnailUrl: youtubeVideos.thumbnailUrl,
+              })
+              .from(youtubeVideos)
+              .where(eq(youtubeVideos.videoId, item.videoId))
+              .limit(1);
+
+            if (videoData.length > 0) {
+              const video = videoData[0];
+              item.title = video.title || item.title;
+              item.channelTitle = video.channelTitle || item.channelTitle;
+              item.thumbnailUrl = video.thumbnailUrl || item.thumbnailUrl;
+
+              logger.debug("[queue-manager] Loaded video metadata from DB", {
+                downloadId: item.id,
+                videoId: item.videoId,
+                title: item.title,
+              });
+            }
+          }
+
           // Get output path
           const downloadsRoot = path.join(app.getPath("downloads"), "yt-dlp-gui");
           const outputPath = path.join(downloadsRoot, "%(fulltitle)s [%(id)s].%(ext)s");
@@ -255,24 +393,16 @@ class QueueManager {
           }
 
           // Spawn download
-          await spawnDownload(
-            this.db,
-            item.id,
-            item.videoId,
-            item.url,
-            item.format,
-            outputPath,
-          );
+          await spawnDownload(this.db, item.id, item.videoId, item.url, item.format, outputPath);
 
           logger.info("[queue-manager] Started download", {
             id: item.id,
+            videoId: item.videoId,
+            title: item.title,
             url: item.url,
           });
         } catch (error) {
-          logger.error(
-            "[queue-manager] Failed to start download",
-            error as Error,
-          );
+          logger.error("[queue-manager] Failed to start download", error as Error);
           // Mark as failed
           item.status = "paused";
           item.errorMessage = (error as Error).message;
@@ -292,7 +422,7 @@ class QueueManager {
       priority?: number;
       format?: string;
       quality?: string;
-    } = {},
+    } = {}
   ): Promise<string[]> {
     const downloadIds: string[] = [];
     const skippedUrls: Array<{ url: string; reason: string; videoId: string | null }> = [];
@@ -390,7 +520,7 @@ class QueueManager {
 
         // Check for duplicates in current in-memory queue
         const inQueue = Array.from(this.queue.values()).find(
-          (item) => item.videoId === videoId && videoId !== null,
+          (item) => item.videoId === videoId && videoId !== null
         );
         if (inQueue) {
           logger.info("[queue-manager] Skipping duplicate - already in queue", {
@@ -430,6 +560,11 @@ class QueueManager {
           addedAt: now,
           startedAt: null,
           pausedAt: null,
+          // Initialize download progress details
+          downloadSpeed: null,
+          downloadedSize: null,
+          totalSize: null,
+          eta: null,
         };
 
         this.queue.set(id, queueItem);
@@ -460,7 +595,7 @@ class QueueManager {
         const error: any = new Error(
           skippedUrls.length === urls.length
             ? "All videos already downloaded or in queue"
-            : `${skippedUrls.length} of ${urls.length} videos skipped (already downloaded or in queue)`,
+            : `${skippedUrls.length} of ${urls.length} videos skipped (already downloaded or in queue)`
         );
         error.skippedUrls = skippedUrls;
         error.addedIds = downloadIds;
@@ -544,10 +679,7 @@ class QueueManager {
 
       logger.info("[queue-manager] Resumed download", { downloadId });
     } catch (error) {
-      logger.error(
-        "[queue-manager] Failed to resume download",
-        error as Error,
-      );
+      logger.error("[queue-manager] Failed to resume download", error as Error);
       throw error;
     }
   }
@@ -584,10 +716,7 @@ class QueueManager {
         wasActive,
       });
     } catch (error) {
-      logger.error(
-        "[queue-manager] Failed to cancel download",
-        error as Error,
-      );
+      logger.error("[queue-manager] Failed to cancel download", error as Error);
       throw error;
     }
   }
@@ -708,6 +837,10 @@ class QueueManager {
         completedAt: null,
         cancelledAt: null,
         updatedAt: null,
+        downloadSpeed: item.downloadSpeed,
+        downloadedSize: item.downloadedSize,
+        totalSize: item.totalSize,
+        eta: item.eta,
       });
 
       return {
@@ -740,6 +873,10 @@ class QueueManager {
           completedAt: v.lastDownloadedAt,
           cancelledAt: null,
           updatedAt: v.lastDownloadedAt,
+          downloadSpeed: null,
+          downloadedSize: null,
+          totalSize: null,
+          eta: null,
         })),
         failed: failed.map((v) => ({
           id: `failed-${v.videoId}`,
@@ -767,6 +904,10 @@ class QueueManager {
           completedAt: null,
           cancelledAt: null,
           updatedAt: v.updatedAt,
+          downloadSpeed: null,
+          downloadedSize: null,
+          totalSize: null,
+          eta: null,
         })),
         stats,
       };
@@ -796,10 +937,7 @@ class QueueManager {
 
       logger.info("[queue-manager] Cleared completed downloads");
     } catch (error) {
-      logger.error(
-        "[queue-manager] Failed to clear completed",
-        error as Error,
-      );
+      logger.error("[queue-manager] Failed to clear completed", error as Error);
       throw error;
     }
   }
@@ -818,14 +956,16 @@ export const getQueueManager = (db: Database, config?: Partial<QueueConfig>): Qu
   return queueManagerInstance;
 };
 
-
 /**
  * Initialize and start queue manager
  */
-export const initializeQueueManager = (db: Database, config?: Partial<QueueConfig>): QueueManager => {
+export const initializeQueueManager = async (
+  db: Database,
+  config?: Partial<QueueConfig>
+): Promise<QueueManager> => {
   const manager = getQueueManager(db, config);
   if (config?.autoStart !== false) {
-    manager.start();
+    await manager.start();
   }
   return manager;
 };

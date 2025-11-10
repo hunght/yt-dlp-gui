@@ -45,8 +45,7 @@ export const DownloadQueueSidebar: React.FC = () => {
 
   // Pause mutation
   const pauseMutation = useMutation({
-    mutationFn: (downloadId: string) =>
-      trpcClient.queue.pauseDownload.mutate({ downloadId }),
+    mutationFn: (downloadId: string) => trpcClient.queue.pauseDownload.mutate({ downloadId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       toast.success("Download paused");
@@ -58,8 +57,7 @@ export const DownloadQueueSidebar: React.FC = () => {
 
   // Resume mutation
   const resumeMutation = useMutation({
-    mutationFn: (downloadId: string) =>
-      trpcClient.queue.resumeDownload.mutate({ downloadId }),
+    mutationFn: (downloadId: string) => trpcClient.queue.resumeDownload.mutate({ downloadId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       toast.success("Download resumed");
@@ -71,8 +69,7 @@ export const DownloadQueueSidebar: React.FC = () => {
 
   // Cancel mutation
   const cancelMutation = useMutation({
-    mutationFn: (downloadId: string) =>
-      trpcClient.queue.cancelDownload.mutate({ downloadId }),
+    mutationFn: (downloadId: string) => trpcClient.queue.cancelDownload.mutate({ downloadId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       toast.success("Download cancelled");
@@ -84,8 +81,7 @@ export const DownloadQueueSidebar: React.FC = () => {
 
   // Retry mutation
   const retryMutation = useMutation({
-    mutationFn: (downloadId: string) =>
-      trpcClient.queue.retryDownload.mutate({ downloadId }),
+    mutationFn: (downloadId: string) => trpcClient.queue.retryDownload.mutate({ downloadId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       toast.success("Download queued for retry");
@@ -94,7 +90,6 @@ export const DownloadQueueSidebar: React.FC = () => {
       toast.error(error?.message ?? "Failed to retry download");
     },
   });
-
 
   if (isLoading) {
     return (
@@ -112,13 +107,33 @@ export const DownloadQueueSidebar: React.FC = () => {
     );
   }
 
+  // Combine all downloads and sort by most recent activity
   const allDownloads = [
     ...queueData.downloading,
     ...queueData.queued,
     ...queueData.paused,
     ...queueData.failed,
     ...queueData.completed,
-  ];
+  ].sort((a, b) => {
+    // Get the most recent timestamp for each download
+    const getRecentTime = (download: typeof a) => {
+      const times = [
+        download.startedAt,
+        download.updatedAt,
+        download.completedAt,
+        download.pausedAt,
+        download.addedAt,
+      ].filter((t): t is number => t !== null);
+
+      return times.length > 0 ? Math.max(...times) : 0;
+    };
+
+    const timeA = getRecentTime(a);
+    const timeB = getRecentTime(b);
+
+    // Sort by most recent first (descending)
+    return timeB - timeA;
+  });
 
   return (
     <div className="flex h-full flex-col">
@@ -161,9 +176,7 @@ export const DownloadQueueSidebar: React.FC = () => {
       <div className="scrollbar-tracksy mt-4 flex-1 space-y-2 overflow-auto">
         {allDownloads.length === 0 ? (
           <div className="flex h-32 items-center justify-center">
-            <p className="text-center text-xs text-muted-foreground">
-              No downloads in queue
-            </p>
+            <p className="text-center text-xs text-muted-foreground">No downloads in queue</p>
           </div>
         ) : (
           allDownloads.map((download) => (
@@ -183,7 +196,7 @@ export const DownloadQueueSidebar: React.FC = () => {
                     </p>
                   )}
                 </div>
-                <Badge className={cn("text-[10px] h-5 px-1.5", statusColors[download.status])}>
+                <Badge className={cn("h-5 px-1.5 text-[10px]", statusColors[download.status])}>
                   {statusLabels[download.status]}
                 </Badge>
               </div>
@@ -192,15 +205,32 @@ export const DownloadQueueSidebar: React.FC = () => {
               {download.status === "downloading" && (
                 <div className="space-y-1">
                   <Progress value={download.progress} className="h-1.5" />
-                  <p className="text-right text-[10px] text-muted-foreground">
-                    {download.progress}%
-                  </p>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      {download.downloadedSize && download.totalSize && (
+                        <span>
+                          {download.downloadedSize} / {download.totalSize}
+                        </span>
+                      )}
+                      {download.downloadSpeed && (
+                        <span className="text-tracksy-gold">• {download.downloadSpeed}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {download.eta && (
+                        <span className="text-tracksy-blue dark:text-tracksy-gold">
+                          ETA {download.eta}
+                        </span>
+                      )}
+                      <span>{download.progress}%</span>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Error message */}
               {download.status === "failed" && download.errorMessage && (
-                <p className="text-[10px] text-red-500 line-clamp-2">{download.errorMessage}</p>
+                <p className="line-clamp-2 text-[10px] text-red-500">{download.errorMessage}</p>
               )}
 
               {/* Action buttons */}
@@ -208,7 +238,11 @@ export const DownloadQueueSidebar: React.FC = () => {
                 {download.status === "completed" && download.filePath && download.videoId && (
                   <Link
                     to="/player"
-                    search={{ videoId: download.videoId, playlistId: undefined, playlistIndex: undefined }}
+                    search={{
+                      videoId: download.videoId,
+                      playlistId: undefined,
+                      playlistIndex: undefined,
+                    }}
                     className="inline-flex h-7 items-center justify-center rounded-md border bg-background px-2 text-[11px] font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
                   >
                     <PlayCircle className="mr-1 h-3 w-3" /> Play
@@ -271,4 +305,3 @@ export const DownloadQueueSidebar: React.FC = () => {
     </div>
   );
 };
-

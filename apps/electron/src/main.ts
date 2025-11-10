@@ -23,7 +23,6 @@ import defaultDb from "./api/db";
 
 import { toggleClockWindow } from "./main/windows/clock";
 
-
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuiting: boolean = false;
@@ -231,7 +230,6 @@ function createWindow(): void {
   // Register other IPC listeners (excluding window listeners)
   registerListeners(mainWindow, tray);
 
-
   mainWindow.on("close", (event) => {
     if (!isQuiting) {
       event.preventDefault();
@@ -279,16 +277,14 @@ app.whenReady().then(async () => {
 
     // Initialize download queue manager
     logger.info("[app] Initializing download queue manager");
-    initializeQueueManager(defaultDb, { autoStart: true });
+    await initializeQueueManager(defaultDb, { autoStart: true });
     logger.info("[app] Download queue manager initialized");
   } catch (error) {
     logger.error("[app.whenReady] Failed to initialize database:", error);
   }
 
-
   await createTray();
   createWindow();
-
 
   // Modify CSP to allow scripts from PostHog and inline scripts
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -394,11 +390,9 @@ declare global {
       update: () => Promise<{ success: boolean }>;
       getPath: () => Promise<string>;
       onDownloadStarted: (callback: () => void) => void;
-      onDownloadProgress: (callback: (progress: {
-        downloaded: number;
-        total: number;
-        percentage: number;
-      }) => void) => void;
+      onDownloadProgress: (
+        callback: (progress: { downloaded: number; total: number; percentage: number }) => void
+      ) => void;
       onDownloadCompleted: (callback: (version: string) => void) => void;
       onDownloadFailed: (callback: (error: string) => void) => void;
       onUpdateAvailable: (callback: (version: string) => void) => void;

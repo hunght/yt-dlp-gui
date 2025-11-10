@@ -44,7 +44,7 @@ export const spawnDownload = async (
   videoId: string | null,
   url: string,
   format: string | null,
-  outputPath: string,
+  outputPath: string
 ): Promise<void> => {
   try {
     // Check if already downloading
@@ -53,7 +53,7 @@ export const spawnDownload = async (
       return;
     }
 
-      // Status will be updated by queue manager before calling this function
+    // Status will be updated by queue manager before calling this function
 
     // Get yt-dlp binary path
     const ytDlpPath = getYtDlpPath();
@@ -105,29 +105,32 @@ export const spawnDownload = async (
 
       if (code === 0) {
         // Success
-          const queueManager = requireQueueManager();
-          // Determine final path: prefer parsed, else search by [videoId]
-          const w = worker;
-          let finalPath: string | null = w.lastKnownFilePath ?? null;
-          if (!finalPath && w.videoId && w.outputDir && fs.existsSync(w.outputDir)) {
-            try {
-              const files = fs.readdirSync(w.outputDir);
-              const match = files.find((f) => f.includes(`[${w.videoId}]`));
-              if (match) finalPath = path.join(w.outputDir, match);
-            } catch {
-              // Ignore file system errors when searching for video file
-            }
+        const queueManager = requireQueueManager();
+        // Determine final path: prefer parsed, else search by [videoId]
+        const w = worker;
+        let finalPath: string | null = w.lastKnownFilePath ?? null;
+        if (!finalPath && w.videoId && w.outputDir && fs.existsSync(w.outputDir)) {
+          try {
+            const files = fs.readdirSync(w.outputDir);
+            const match = files.find((f) => f.includes(`[${w.videoId}]`));
+            if (match) finalPath = path.join(w.outputDir, match);
+          } catch {
+            // Ignore file system errors when searching for video file
           }
-          await queueManager.markCompleted(downloadId, finalPath || outputPath);
-        logger.info("[download-worker] Download completed successfully", { downloadId, finalPath: finalPath || outputPath });
+        }
+        await queueManager.markCompleted(downloadId, finalPath || outputPath);
+        logger.info("[download-worker] Download completed successfully", {
+          downloadId,
+          finalPath: finalPath || outputPath,
+        });
       } else {
         // Failed
-          const queueManager = requireQueueManager();
-          await queueManager.markFailed(
-            downloadId,
-            `yt-dlp exited with code ${code}`,
-            "process_error"
-          );
+        const queueManager = requireQueueManager();
+        await queueManager.markFailed(
+          downloadId,
+          `yt-dlp exited with code ${code}`,
+          "process_error"
+        );
         logger.error("[download-worker] Download failed", { downloadId, exitCode: code });
       }
     });
@@ -135,18 +138,18 @@ export const spawnDownload = async (
     // Handle process errors
     process.on("error", async (error: Error) => {
       activeWorkers.delete(downloadId);
-        const queueManager = requireQueueManager();
-        await queueManager.markFailed(downloadId, error.message, "spawn_error");
+      const queueManager = requireQueueManager();
+      await queueManager.markFailed(downloadId, error.message, "spawn_error");
       logger.error("[download-worker] Download process error", error as Error, { downloadId });
     });
   } catch (error) {
     activeWorkers.delete(downloadId);
-      const queueManager = requireQueueManager();
-      await queueManager.markFailed(
-        downloadId,
-        error instanceof Error ? error.message : "Unknown error",
-        "spawn_error"
-      );
+    const queueManager = requireQueueManager();
+    await queueManager.markFailed(
+      downloadId,
+      error instanceof Error ? error.message : "Unknown error",
+      "spawn_error"
+    );
     logger.error("[download-worker] Failed to spawn download", error as Error, { downloadId });
   }
 };
@@ -155,11 +158,43 @@ export const spawnDownload = async (
  * Parse progress and metadata from yt-dlp output
  */
 const parseProgressAndMetadata = (db: Database, downloadId: string, output: string): void => {
-  // Look for progress percentage: "[download]  45.3% of 10.5MiB at 1.2MiB/s"
-  const progressMatch = output.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
+  // Parse comprehensive download progress information
+  // Example formats:
+  // "[download]  45.3% of 10.5MiB at 1.2MiB/s ETA 00:15"
+  // "[download]  45.3% of ~10.5MiB at 1.2MiB/s ETA 00:15"
+  // "[download] 100% of 10.5MiB in 00:08"
 
-  if (progressMatch) {
-    const progress = parseFloat(progressMatch[1]);
+  const progressLineMatch = output.match(
+    /\[download\]\s+(\d+(?:\.\d+)?)%(?:\s+of\s+~?([\d.]+(?:K|M|G)?i?B))?(?:\s+at\s+([\d.]+(?:K|M|G)?i?B\/s))?(?:\s+ETA\s+([\d:]+))?/i
+  );
+
+  if (progressLineMatch) {
+    const progress = parseFloat(progressLineMatch[1]);
+    const totalSize = progressLineMatch[2] || null;
+    const speed = progressLineMatch[3] || null;
+    const eta = progressLineMatch[4] || null;
+
+    // Calculate downloaded size if we have total size and progress
+    let downloadedSize: string | null = null;
+    if (totalSize && progress > 0) {
+      const totalBytes = parseSize(totalSize);
+      if (totalBytes > 0) {
+        const downloadedBytes = (totalBytes * progress) / 100;
+        downloadedSize = formatSize(downloadedBytes);
+      }
+    }
+
+    // Log parsed progress data (only log when speed/ETA are missing to avoid spam)
+    if (!speed || !eta) {
+      logger.debug("[download-worker] Parsed progress (no speed/ETA)", {
+        downloadId,
+        progress: Math.round(progress),
+        downloadedSize,
+        totalSize,
+        speed: speed || "unknown",
+        eta: eta || "unknown",
+      });
+    }
 
     // Update progress in database (throttled)
     const worker = activeWorkers.get(downloadId);
@@ -169,9 +204,16 @@ const parseProgressAndMetadata = (db: Database, downloadId: string, output: stri
       if (now - worker.lastProgressUpdate >= 500) {
         worker.lastProgressUpdate = now;
         const queueManager = requireQueueManager();
-        queueManager.updateProgress(downloadId, Math.round(progress)).catch((err: Error) =>
-          logger.error("[download-worker] Failed to update progress", err, { downloadId })
-        );
+        queueManager
+          .updateProgress(downloadId, Math.round(progress), {
+            downloadSpeed: speed,
+            downloadedSize,
+            totalSize,
+            eta,
+          })
+          .catch((err: Error) =>
+            logger.error("[download-worker] Failed to update progress", err, { downloadId })
+          );
       }
     }
   }
@@ -191,6 +233,47 @@ const parseProgressAndMetadata = (db: Database, downloadId: string, output: stri
       (worker as any).lastKnownFilePath = cleaned;
     }
   }
+};
+
+/**
+ * Parse size string to bytes (e.g., "10.5MiB" -> bytes)
+ */
+const parseSize = (sizeStr: string): number => {
+  const match = sizeStr.match(/([\d.]+)\s*(K|M|G)?(i)?B/i);
+  if (!match) return 0;
+
+  const value = parseFloat(match[1]);
+  const unit = match[2]?.toUpperCase() || "";
+  const isBinary = match[3] === "i"; // MiB vs MB
+
+  const multiplier = isBinary ? 1024 : 1000;
+
+  switch (unit) {
+    case "K":
+      return value * multiplier;
+    case "M":
+      return value * Math.pow(multiplier, 2);
+    case "G":
+      return value * Math.pow(multiplier, 3);
+    default:
+      return value;
+  }
+};
+
+/**
+ * Format bytes to human-readable size
+ */
+const formatSize = (bytes: number): string => {
+  const units = ["B", "KiB", "MiB", "GiB"];
+  let size = bytes;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+
+  return `${size.toFixed(1)}${units[unitIndex]}`;
 };
 
 /**

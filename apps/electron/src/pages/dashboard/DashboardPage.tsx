@@ -79,9 +79,8 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, [url]);
 
-
   const startMutation = useMutation({
-     mutationFn: (u: string) => trpcClient.queue.addToQueue.mutate({ urls: [u] }),
+    mutationFn: (u: string) => trpcClient.queue.addToQueue.mutate({ urls: [u] }),
     onSuccess: (res) => {
       if (res.success) {
         setDownloadId(res.downloadIds[0] || null);
@@ -90,7 +89,7 @@ export default function DashboardPage() {
         toast.error(res.message ?? "Failed to start download");
       }
     },
-     onError: (e: any) => toast.error(e?.message ?? "Failed to add to queue"),
+    onError: (e: any) => toast.error(e?.message ?? "Failed to add to queue"),
   });
 
   const downloadQuery = useQuery({
@@ -107,7 +106,10 @@ export default function DashboardPage() {
     }
   }, [downloadQuery.data?.status]);
 
-  const canStart = useMemo(() => isValidUrl(url) && !startMutation.isPending, [url, startMutation.isPending]);
+  const canStart = useMemo(
+    () => isValidUrl(url) && !startMutation.isPending,
+    [url, startMutation.isPending]
+  );
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,7 +196,9 @@ export default function DashboardPage() {
                     });
                     // Try fallback from .webp to .jpg
                     if (thumbnailUrl.includes(".webp")) {
-                      const fallbackUrl = thumbnailUrl.replace(/\.webp$/, ".jpg").replace(/vi_webp/, "vi");
+                      const fallbackUrl = thumbnailUrl
+                        .replace(/\.webp$/, ".jpg")
+                        .replace(/vi_webp/, "vi");
                       setThumbnailUrl(fallbackUrl);
                       logger.debug("Dashboard thumbnail fallback", { fallback: fallbackUrl });
                     } else {
@@ -242,7 +246,9 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Status: {downloadQuery.data.status}</span>
+                    <span className="text-muted-foreground">
+                      Status: {downloadQuery.data.status}
+                    </span>
                     <span className="font-medium">{downloadQuery.data.progress ?? 0}%</span>
                   </div>
                   <Progress
@@ -252,21 +258,47 @@ export default function DashboardPage() {
                       downloadQuery.data.status === "completed"
                         ? "bg-green-500"
                         : downloadQuery.data.status === "failed"
-                        ? "bg-red-500"
-                        : "bg-blue-500"
+                          ? "bg-red-500"
+                          : "bg-blue-500"
                     }
                   />
+                  {/* Download speed and ETA */}
+                  {downloadQuery.data.status === "downloading" && (
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        {(downloadQuery.data as any).downloadedSize &&
+                          (downloadQuery.data as any).totalSize && (
+                            <span>
+                              {(downloadQuery.data as any).downloadedSize} /{" "}
+                              {(downloadQuery.data as any).totalSize}
+                            </span>
+                          )}
+                        {(downloadQuery.data as any).downloadSpeed && (
+                          <span className="font-medium text-tracksy-gold">
+                            • {(downloadQuery.data as any).downloadSpeed}
+                          </span>
+                        )}
+                      </div>
+                      {(downloadQuery.data as any).eta && (
+                        <span className="font-medium text-tracksy-blue dark:text-tracksy-gold">
+                          ETA {(downloadQuery.data as any).eta}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1 text-sm">
                   <div className="text-xs text-muted-foreground">ID: {downloadId}</div>
                   {downloadQuery.data.filePath && (
                     <div className="truncate">
-                      <span className="text-muted-foreground">File:</span> {downloadQuery.data.filePath}
+                      <span className="text-muted-foreground">File:</span>{" "}
+                      {downloadQuery.data.filePath}
                     </div>
                   )}
                   {downloadQuery.data.errorMessage && (
                     <div className="text-red-600">
-                      <span className="text-muted-foreground">Error:</span> {downloadQuery.data.errorMessage}
+                      <span className="text-muted-foreground">Error:</span>{" "}
+                      {downloadQuery.data.errorMessage}
                     </div>
                   )}
                 </div>
@@ -287,33 +319,42 @@ export default function DashboardPage() {
             <div className="divide-y">
               {completedQuery.data.map((d) => {
                 return (
-                  <div key={d.videoId} className="flex items-center gap-3 py-2">
-                    {/* Thumbnail */}
-                    <Thumbnail
-                      thumbnailPath={d.thumbnailPath}
-                      thumbnailUrl={d.thumbnailUrl}
-                      alt={d.title || d.videoId || "thumbnail"}
-                      className="h-12 w-20 flex-shrink-0 rounded object-cover"
-                    />
+                  <div
+                    key={d.videoId}
+                    className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3 sm:py-2"
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      {/* Thumbnail */}
+                      <Thumbnail
+                        thumbnailPath={d.thumbnailPath}
+                        thumbnailUrl={d.thumbnailUrl}
+                        alt={d.title || d.videoId || "thumbnail"}
+                        className="h-12 w-20 flex-shrink-0 rounded object-cover"
+                      />
 
-                    {/* Meta */}
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{d.title ?? d.videoId}</div>
-                      <div className="truncate text-xs text-muted-foreground">{d.filePath}</div>
+                      {/* Meta */}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium">{d.title ?? d.videoId}</div>
+                        <div className="truncate text-xs text-muted-foreground">{d.filePath}</div>
+                      </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-2 sm:flex-shrink-0 sm:justify-end">
                       {d.videoId && (
                         <Link
                           to="/player"
-                          search={{ videoId: d.videoId, playlistId: undefined, playlistIndex: undefined }}
-                          className="inline-flex h-8 items-center justify-center rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+                          search={{
+                            videoId: d.videoId,
+                            playlistId: undefined,
+                            playlistIndex: undefined,
+                          }}
+                          className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
                         >
                           Play
                         </Link>
                       )}
-                      <div className="text-xs text-muted-foreground min-w-[8rem] text-right">
+                      <div className="whitespace-nowrap text-xs text-muted-foreground">
                         {d.completedAt ? new Date(d.completedAt).toLocaleString() : ""}
                       </div>
                     </div>
@@ -341,7 +382,7 @@ export default function DashboardPage() {
                   key={channel.channelId}
                   to="/channel"
                   search={{ channelId: channel.channelId }}
-                  className="flex items-center gap-3 py-3 hover:bg-accent rounded-md px-2 -mx-2 transition-colors"
+                  className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-accent"
                 >
                   {channel.thumbnailUrl ? (
                     <img
@@ -360,7 +401,9 @@ export default function DashboardPage() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{channel.channelTitle}</div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{channel.videoCount} {channel.videoCount === 1 ? "video" : "videos"}</span>
+                      <span>
+                        {channel.videoCount} {channel.videoCount === 1 ? "video" : "videos"}
+                      </span>
                       {channel.subscriberCount && (
                         <>
                           <span>•</span>

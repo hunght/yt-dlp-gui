@@ -41,6 +41,11 @@ export interface QueuedDownload {
   completedAt: number | null; // When completed
   cancelledAt: number | null; // When cancelled
   updatedAt: number | null;
+  // Download progress details
+  downloadSpeed: string | null; // e.g., "1.2MiB/s"
+  downloadedSize: string | null; // e.g., "45.3MiB"
+  totalSize: string | null; // e.g., "100.0MiB"
+  eta: string | null; // e.g., "00:15" or "01:23:45"
 }
 
 /**
@@ -89,4 +94,3 @@ export interface WorkerState {
   outputDir?: string;
   videoId?: string | null;
 }
-

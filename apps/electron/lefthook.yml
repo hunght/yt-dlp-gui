@@ -6,20 +6,20 @@ pre-commit:
     # Lint TypeScript files in electron app
     lint:
       root: "apps/electron"
-      glob: "**/*.{ts,tsx}"
+      glob: "apps/electron/**/*.{ts,tsx}"
       run: npx eslint --fix {staged_files}
       stage_fixed: true
       
     # Format files with Prettier in electron app
     format:
       root: "apps/electron"
-      glob: "**/*.{ts,tsx,json}"
+      glob: "apps/electron/**/*.{ts,tsx,json}"
       run: npx prettier --write {staged_files}
       stage_fixed: true
       
     # Run tests for changed files in electron app
     test:
       root: "apps/electron"
-      glob: "src/**/*.{ts,tsx}"
+      glob: "apps/electron/src/**/*.{ts,tsx}"
       exclude: '\.(test|spec)\.(ts|tsx)$'
       run: npx jest --bail --findRelatedTests --passWithNoTests {staged_files}

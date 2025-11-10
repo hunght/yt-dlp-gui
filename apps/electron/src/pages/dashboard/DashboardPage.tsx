@@ -8,10 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { logger } from "@/helpers/logger";
-import Thumbnail from "@/components/Thumbnail";
 import {
   Download,
-  Play,
   Clock,
   Eye,
   Users,
@@ -133,13 +131,6 @@ export default function DashboardPage() {
     setFinished(false);
     startMutation.mutate(url);
   };
-
-  // Load completed downloads
-  const completedQuery = useQuery({
-    queryKey: ["ytdlp", "downloads", "completed"],
-    queryFn: () => trpcClient.ytdlp.listCompletedDownloads.query({ limit: 50 }),
-    refetchOnWindowFocus: false,
-  });
 
   // Load channels
   const channelsQuery = useQuery({
@@ -434,107 +425,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Completed Downloads */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              <CardTitle className="text-lg sm:text-xl">Completed Downloads</CardTitle>
-            </div>
-            {completedQuery.data && completedQuery.data.length > 0 && (
-              <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                {completedQuery.data.length}
-              </span>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {completedQuery.isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex gap-3">
-                  <div className="h-16 w-28 animate-pulse rounded-lg bg-muted sm:h-20 sm:w-32" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-                    <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : completedQuery.data && completedQuery.data.length > 0 ? (
-            <div className="grid gap-3 sm:gap-4">
-              {completedQuery.data.map((d) => {
-                return (
-                  <div
-                    key={d.videoId}
-                    className="group rounded-lg border bg-card p-3 shadow-sm transition-all hover:shadow-md sm:p-4"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                      {/* Thumbnail */}
-                      <div className="relative overflow-hidden rounded-lg sm:w-40 sm:flex-shrink-0">
-                        <Thumbnail
-                          thumbnailPath={d.thumbnailPath}
-                          thumbnailUrl={d.thumbnailUrl}
-                          alt={d.title || d.videoId || "thumbnail"}
-                          className="h-auto w-full object-cover transition-transform group-hover:scale-105 sm:h-24"
-                        />
-                      </div>
-
-                      {/* Content */}
-                      <div className="min-w-0 flex-1 space-y-2">
-                        <h4 className="line-clamp-2 font-semibold leading-tight sm:text-lg">
-                          {d.title ?? d.videoId}
-                        </h4>
-                        <p className="line-clamp-1 text-xs text-muted-foreground sm:text-sm">
-                          {d.filePath}
-                        </p>
-                        {d.completedAt && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5" />
-                            <span>{new Date(d.completedAt).toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Action Button */}
-                      {d.videoId && (
-                        <div className="sm:flex-shrink-0">
-                          <Link
-                            to="/player"
-                            search={{
-                              videoId: d.videoId,
-                              playlistId: undefined,
-                              playlistIndex: undefined,
-                            }}
-                            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 sm:w-auto"
-                          >
-                            <Play className="h-4 w-4" />
-                            <span>Play</span>
-                          </Link>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
-              <div className="rounded-full bg-muted p-4">
-                <Video className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <div className="space-y-1">
-                <p className="font-medium">No downloads yet</p>
-                <p className="text-sm text-muted-foreground">
-                  Start by pasting a YouTube URL above
-                </p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Channels Section */}
       <Card>

@@ -182,121 +182,154 @@ export const DownloadQueueSidebar: React.FC = () => {
           allDownloads.map((download) => (
             <div
               key={download.id}
-              className="space-y-2 rounded-md border border-tracksy-gold/20 bg-white/50 p-2.5 dark:border-tracksy-gold/10 dark:bg-gray-800/50"
+              className="group overflow-hidden rounded-lg border border-tracksy-gold/20 bg-white/50 shadow-sm transition-all hover:shadow-md dark:border-tracksy-gold/10 dark:bg-gray-800/50"
             >
-              {/* Header */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-tracksy-blue dark:text-white">
-                    {download.title || download.url}
-                  </p>
-                  {download.channelTitle && (
-                    <p className="truncate text-[10px] text-muted-foreground">
-                      {download.channelTitle}
+              <div className="flex gap-2 p-2.5">
+                {/* Thumbnail */}
+                {download.thumbnailUrl ? (
+                  <div className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-md">
+                    <img
+                      src={download.thumbnailUrl}
+                      alt={download.title || "thumbnail"}
+                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                    {/* Status badge overlay on thumbnail */}
+                    <Badge
+                      className={cn(
+                        "absolute bottom-1 right-1 h-4 px-1 text-[9px] shadow-lg",
+                        statusColors[download.status]
+                      )}
+                    >
+                      {statusLabels[download.status]}
+                    </Badge>
+                  </div>
+                ) : (
+                  <div className="flex h-16 w-24 flex-shrink-0 items-center justify-center rounded-md bg-muted">
+                    <Badge className={cn("h-4 px-1 text-[9px]", statusColors[download.status])}>
+                      {statusLabels[download.status]}
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Content */}
+                <div className="min-w-0 flex-1 space-y-2">
+                  {/* Header */}
+                  <div className="space-y-0.5">
+                    <p className="line-clamp-2 text-xs font-semibold leading-tight text-tracksy-blue dark:text-white">
+                      {download.title || download.url}
+                    </p>
+                    {download.channelTitle && (
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {download.channelTitle}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Progress bar */}
+                  {download.status === "downloading" && (
+                    <div className="space-y-1">
+                      <Progress value={download.progress} className="h-1.5" />
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          {download.downloadedSize && download.totalSize && (
+                            <span>
+                              {download.downloadedSize} / {download.totalSize}
+                            </span>
+                          )}
+                          {download.downloadSpeed && (
+                            <span className="font-medium text-tracksy-gold">
+                              • {download.downloadSpeed}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {download.eta && (
+                            <span className="font-medium text-tracksy-blue dark:text-tracksy-gold">
+                              ETA {download.eta}
+                            </span>
+                          )}
+                          <span className="font-semibold">{download.progress}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error message */}
+                  {download.status === "failed" && download.errorMessage && (
+                    <p className="line-clamp-2 text-[10px] text-red-600 dark:text-red-400">
+                      {download.errorMessage}
                     </p>
                   )}
-                </div>
-                <Badge className={cn("h-5 px-1.5 text-[10px]", statusColors[download.status])}>
-                  {statusLabels[download.status]}
-                </Badge>
-              </div>
 
-              {/* Progress bar */}
-              {download.status === "downloading" && (
-                <div className="space-y-1">
-                  <Progress value={download.progress} className="h-1.5" />
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      {download.downloadedSize && download.totalSize && (
-                        <span>
-                          {download.downloadedSize} / {download.totalSize}
-                        </span>
+                  {/* Action buttons */}
+                  <div className="flex items-center justify-end gap-1.5">
+                    {download.status === "completed" && download.filePath && download.videoId && (
+                      <Link
+                        to="/player"
+                        search={{
+                          videoId: download.videoId,
+                          playlistId: undefined,
+                          playlistIndex: undefined,
+                        }}
+                        className="inline-flex h-6 items-center justify-center rounded-md border bg-background px-2 text-[10px] font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <PlayCircle className="mr-1 h-3 w-3" /> Play
+                      </Link>
+                    )}
+                    {download.status === "downloading" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => pauseMutation.mutate(download.id)}
+                        disabled={pauseMutation.isPending}
+                        className="h-6 w-6 p-0"
+                      >
+                        <Pause className="h-3 w-3" />
+                      </Button>
+                    )}
+
+                    {download.status === "paused" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => resumeMutation.mutate(download.id)}
+                        disabled={resumeMutation.isPending}
+                        className="h-6 w-6 p-0"
+                      >
+                        <Play className="h-3 w-3" />
+                      </Button>
+                    )}
+
+                    {download.status === "failed" &&
+                      download.isRetryable &&
+                      download.retryCount < download.maxRetries && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => retryMutation.mutate(download.id)}
+                          disabled={retryMutation.isPending}
+                          className="h-6 w-6 p-0"
+                        >
+                          <RotateCw className="h-3 w-3" />
+                        </Button>
                       )}
-                      {download.downloadSpeed && (
-                        <span className="text-tracksy-gold">• {download.downloadSpeed}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {download.eta && (
-                        <span className="text-tracksy-blue dark:text-tracksy-gold">
-                          ETA {download.eta}
-                        </span>
-                      )}
-                      <span>{download.progress}%</span>
-                    </div>
+
+                    {["downloading", "queued", "paused"].includes(download.status) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => cancelMutation.mutate(download.id)}
+                        disabled={cancelMutation.isPending}
+                        className="h-6 w-6 p-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
-              )}
-
-              {/* Error message */}
-              {download.status === "failed" && download.errorMessage && (
-                <p className="line-clamp-2 text-[10px] text-red-500">{download.errorMessage}</p>
-              )}
-
-              {/* Action buttons */}
-              <div className="flex items-center justify-end gap-1.5">
-                {download.status === "completed" && download.filePath && download.videoId && (
-                  <Link
-                    to="/player"
-                    search={{
-                      videoId: download.videoId,
-                      playlistId: undefined,
-                      playlistIndex: undefined,
-                    }}
-                    className="inline-flex h-7 items-center justify-center rounded-md border bg-background px-2 text-[11px] font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
-                  >
-                    <PlayCircle className="mr-1 h-3 w-3" /> Play
-                  </Link>
-                )}
-                {download.status === "downloading" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => pauseMutation.mutate(download.id)}
-                    disabled={pauseMutation.isPending}
-                    className="h-7 w-7 p-0"
-                  >
-                    <Pause className="h-3 w-3" />
-                  </Button>
-                )}
-
-                {download.status === "paused" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => resumeMutation.mutate(download.id)}
-                    disabled={resumeMutation.isPending}
-                    className="h-7 w-7 p-0"
-                  >
-                    <Play className="h-3 w-3" />
-                  </Button>
-                )}
-
-                {download.status === "failed" &&
-                  download.isRetryable &&
-                  download.retryCount < download.maxRetries && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => retryMutation.mutate(download.id)}
-                      disabled={retryMutation.isPending}
-                      className="h-7 w-7 p-0"
-                    >
-                      <RotateCw className="h-3 w-3" />
-                    </Button>
-                  )}
-
-                {["downloading", "queued", "paused"].includes(download.status) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => cancelMutation.mutate(download.id)}
-                    disabled={cancelMutation.isPending}
-                    className="h-7 w-7 p-0"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
               </div>
             </div>
           ))

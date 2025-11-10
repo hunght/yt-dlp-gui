@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { youtubeVideos } from "@/api/db/schema";
 import type { Database } from "@/api/db";
 import { DEFAULT_QUEUE_CONFIG } from "./config";
@@ -777,7 +777,7 @@ class QueueManager {
         })
         .from(youtubeVideos)
         .where(eq(youtubeVideos.downloadStatus, "completed"))
-        .orderBy(youtubeVideos.lastDownloadedAt)
+        .orderBy(desc(youtubeVideos.lastDownloadedAt))
         .limit(10)
         .execute();
 

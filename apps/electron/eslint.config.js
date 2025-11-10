@@ -6,6 +6,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import unusedImports from 'eslint-plugin-unused-imports';
 import importPlugin from 'eslint-plugin-import';
+import sonarjs from 'eslint-plugin-sonarjs';
 import testConfig from './eslint.test.config.js';
 
 export default [
@@ -101,6 +102,7 @@ export default [
       'react-refresh': reactRefresh,
       'unused-imports': unusedImports,
       import: importPlugin,
+      sonarjs,
     },
     settings: {
       react: {
@@ -205,85 +207,33 @@ export default [
       '@typescript-eslint/triple-slash-reference': 'off', // Allow triple-slash for Electron Forge types
 
       // =====================================================
-      // CODE COMPLEXITY & REFACTORING DETECTION RULES
+      // CODE COMPLEXITY & REFACTORING DETECTION (SonarJS)
       // =====================================================
 
-      // Cyclomatic Complexity - measures number of independent paths through code
-      // Higher values indicate code is harder to test and maintain
-      // TIP: To find the function, look at the line number in the error
-      complexity: ['warn', { max: 15 }], // Warn if function has >15 branches
+      // SonarJS - Cognitive Complexity (better than cyclomatic complexity)
+      // Measures how difficult code is to understand (not just # of branches)
+      'sonarjs/cognitive-complexity': ['warn', 15], // Warn if cognitive complexity > 15
 
-      // Max lines per function - long functions are hard to understand
-      'max-lines-per-function': [
-        'warn',
-        {
-          max: 100, // Warn if function exceeds 100 lines
-          skipBlankLines: true,
-          skipComments: true,
-          IIFEs: true, // Ignore Immediately Invoked Function Expressions
-        },
-      ],
+      // SonarJS - Code Smells & Duplication
+      'sonarjs/no-duplicate-string': ['warn', { threshold: 3 }], // Detect string duplication
+      'sonarjs/no-identical-functions': 'warn', // Detect duplicate functions
+      'sonarjs/no-duplicated-branches': 'warn', // if/else with same code
+      'sonarjs/no-identical-conditions': 'error', // Same condition multiple times
 
-      // Max lines per file - large files should be split
-      'max-lines': [
-        'warn',
-        {
-          max: 500, // Warn if file exceeds 500 lines
-          skipBlankLines: true,
-          skipComments: true,
-        },
-      ],
+      // SonarJS - Code Quality
+      'sonarjs/no-collection-size-mischeck': 'error', // Wrong size checks
+      'sonarjs/no-inverted-boolean-check': 'warn', // !(a == b) vs a != b
+      'sonarjs/no-redundant-boolean': 'warn', // x === true vs x
+      'sonarjs/no-small-switch': 'warn', // Switch with only 2 cases
+      'sonarjs/no-unused-collection': 'warn', // Collections that are never read
+      'sonarjs/prefer-immediate-return': 'warn', // return x vs const y = x; return y
+      'sonarjs/prefer-object-literal': 'warn', // Object literal vs empty + assignments
+      'sonarjs/prefer-single-boolean-return': 'warn', // if (x) return true; else return false;
 
-      // Max nested callbacks - deeply nested code is hard to read
-      'max-nested-callbacks': ['warn', { max: 4 }],
-
-      // Max depth of blocks - deeply nested if/for/while statements
-      'max-depth': ['warn', { max: 4 }],
-
-      // Max parameters - functions with many params are hard to use
-      'max-params': ['warn', { max: 5 }],
-
-      // Max statements per line - multiple statements on one line is confusing
-      'max-statements-per-line': ['error', { max: 1 }],
-
-      // Nested ternary operators - hard to read and understand
-      'no-nested-ternary': 'warn',
-
-      // Code duplication detection
+      // Basic duplication detection
       'no-duplicate-case': 'error',
       'no-dupe-keys': 'error',
       'no-dupe-else-if': 'error',
-
-      // Cognitive complexity (TypeScript ESLint specific)
-      // Measures how difficult code is to understand
-      '@typescript-eslint/no-unnecessary-condition': 'off', // Can be noisy
-
-      // Prefer early returns to reduce nesting
-      'no-else-return': ['warn', { allowElseIf: false }],
-
-      // Prefer destructuring to reduce repetitive property access
-      'prefer-destructuring': [
-        'warn',
-        {
-          array: false, // Don't enforce for arrays
-          object: true, // Enforce for objects
-        },
-        {
-          enforceForRenamedProperties: false,
-        },
-      ],
-
-      // Arrow function body style - prefer implicit returns for simple functions
-      'arrow-body-style': ['warn', 'as-needed'],
-
-      // Consistent return - all return paths should return a value or none should
-      'consistent-return': 'off', // TypeScript handles this better
-
-      // Avoid unnecessary boolean comparisons
-      'no-unneeded-ternary': 'warn',
-
-      // Detect functions that always return the same value
-      'no-constant-condition': 'warn',
     },
   },
 

@@ -1,0 +1,9 @@
+{
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.format.enable": true,
+  // Highlight complexity issues in the editor
+  "eslint.lintTask.options": "--max-warnings 0"
+}

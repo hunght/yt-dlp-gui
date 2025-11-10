@@ -207,11 +207,11 @@ export default [
       // =====================================================
       // CODE COMPLEXITY & REFACTORING DETECTION RULES
       // =====================================================
-      
+
       // Cyclomatic Complexity - measures number of independent paths through code
       // Higher values indicate code is harder to test and maintain
       complexity: ['warn', { max: 15 }], // Warn if function has >15 branches
-      
+
       // Max lines per function - long functions are hard to understand
       'max-lines-per-function': [
         'warn',
@@ -222,7 +222,7 @@ export default [
           IIFEs: true, // Ignore Immediately Invoked Function Expressions
         },
       ],
-      
+
       // Max lines per file - large files should be split
       'max-lines': [
         'warn',
@@ -232,34 +232,34 @@ export default [
           skipComments: true,
         },
       ],
-      
+
       // Max nested callbacks - deeply nested code is hard to read
       'max-nested-callbacks': ['warn', { max: 4 }],
-      
+
       // Max depth of blocks - deeply nested if/for/while statements
       'max-depth': ['warn', { max: 4 }],
-      
+
       // Max parameters - functions with many params are hard to use
       'max-params': ['warn', { max: 5 }],
-      
+
       // Max statements per line - multiple statements on one line is confusing
       'max-statements-per-line': ['error', { max: 1 }],
-      
+
       // Nested ternary operators - hard to read and understand
       'no-nested-ternary': 'warn',
-      
+
       // Code duplication detection
       'no-duplicate-case': 'error',
       'no-dupe-keys': 'error',
       'no-dupe-else-if': 'error',
-      
+
       // Cognitive complexity (TypeScript ESLint specific)
       // Measures how difficult code is to understand
       '@typescript-eslint/no-unnecessary-condition': 'off', // Can be noisy
-      
+
       // Prefer early returns to reduce nesting
       'no-else-return': ['warn', { allowElseIf: false }],
-      
+
       // Prefer destructuring to reduce repetitive property access
       'prefer-destructuring': [
         'warn',
@@ -271,16 +271,16 @@ export default [
           enforceForRenamedProperties: false,
         },
       ],
-      
+
       // Arrow function body style - prefer implicit returns for simple functions
       'arrow-body-style': ['warn', 'as-needed'],
-      
+
       // Consistent return - all return paths should return a value or none should
       'consistent-return': 'off', // TypeScript handles this better
-      
+
       // Avoid unnecessary boolean comparisons
       'no-unneeded-ternary': 'warn',
-      
+
       // Detect functions that always return the same value
       'no-constant-condition': 'warn',
     },

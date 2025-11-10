@@ -4,7 +4,7 @@ type SupportedPlatform = NodeJS.Platform; // 'darwin' | 'win32' | 'linux' | ...
 export const getYtDlpAssetName = (platform: SupportedPlatform): string => {
   switch (platform) {
     case "win32":
-      return "yt-dlp.exewewe";
+      return "yt-dlp.exe";
     case "darwin":
       return "yt-dlp_macos"; // official macOS build name
     case "linux":

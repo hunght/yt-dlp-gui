@@ -16,10 +16,10 @@ process.stdin.on('end', () => {
   try {
     const results = JSON.parse(input);
     const projectRoot = process.cwd();
-    
+
     // Extract complexity-related messages
     const complexityIssues = [];
-    
+
     results.forEach(file => {
       file.messages.forEach(msg => {
         if (
@@ -59,7 +59,7 @@ process.stdin.on('end', () => {
     const filesWithComplexity = Object.entries(byFile)
       .map(([file, issues]) => {
         const complexityIssue = issues.find(i => i.rule === 'sonarjs/cognitive-complexity');
-        const complexity = complexityIssue 
+        const complexity = complexityIssue
           ? parseInt(complexityIssue.message.match(/from (\d+) to/)?.[1] || '0')
           : 0;
         return { file, issues, complexity };
@@ -72,10 +72,10 @@ process.stdin.on('end', () => {
       const match = i.message.match(/from (\d+) to/);
       return match ? parseInt(match[1]) : 0;
     }).filter(s => s > 0);
-    
+
     const avgComplexity = scores.reduce((a, b) => a + b, 0) / scores.length;
     const maxComplexity = Math.max(...scores);
-    
+
     const critical = scores.filter(s => s > 50).length;
     const high = scores.filter(s => s > 30 && s <= 50).length;
     const medium = scores.filter(s => s > 20 && s <= 30).length;
@@ -311,7 +311,7 @@ process.stdin.on('end', () => {
             ${filesWithComplexity.map(({ file, issues, complexity }) => {
               const priorityClass = complexity > 50 ? 'critical' : complexity > 30 ? 'high' : complexity > 20 ? 'medium' : 'low';
               const priorityEmoji = complexity > 50 ? '🔴' : complexity > 30 ? '🟠' : complexity > 20 ? '🟡' : '🟢';
-              
+
               return `
                 <div class="file-section">
                     <div class="file-header">
@@ -322,9 +322,9 @@ process.stdin.on('end', () => {
                       const cognitiveScore = issue.message.match(/from (\\d+) to/)?.[1];
                       const barWidth = cognitiveScore ? Math.min((parseInt(cognitiveScore) / 50) * 100, 100) : 0;
                       
-                      // Create Cursor IDE link (uses vscode:// protocol)
-                      const cursorLink = `vscode://file${issue.file}:${issue.line}:${issue.column}`;
-                      
+                      // Create Cursor IDE link (uses cursor:// protocol)
+                      const cursorLink = `cursor://file${issue.file}:${issue.line}:${issue.column}`;
+
                       return `
                         <div class="issue">
                             <div class="issue-header">
@@ -393,14 +393,14 @@ process.stdin.on('end', () => {
     // Write HTML to file
     const outputPath = path.join(projectRoot, 'complexity-report.html');
     fs.writeFileSync(outputPath, html);
-    
+
     console.log(`\n✅ HTML report generated: ${outputPath}`);
     console.log('🌐 Opening in browser...\n');
-    
+
     // Open in default browser
-    const command = process.platform === 'darwin' ? 'open' : 
+    const command = process.platform === 'darwin' ? 'open' :
                     process.platform === 'win32' ? 'start' : 'xdg-open';
-    
+
     exec(`${command} "${outputPath}"`, (error) => {
       if (error) {
         console.error('Could not open browser automatically. Please open manually:', outputPath);

@@ -1,0 +1,35 @@
+# Electron App Lefthook Configuration
+# This config is extended by the root lefthook.yml
+
+pre-commit:
+  commands:
+    # Lint TypeScript files in electron app
+    lint:
+      glob: "apps/electron/**/*.{ts,tsx}"
+      run: |
+        for file in {staged_files}; do
+          cd apps/electron && npx eslint --fix "${file#apps/electron/}"
+        done
+      stage_fixed: true
+
+    # Format files with Prettier in electron app
+    format:
+      glob: "apps/electron/**/*.{ts,tsx,json}"
+      run: |
+        for file in {staged_files}; do
+          cd apps/electron && npx prettier --write "${file#apps/electron/}"
+        done
+      stage_fixed: true
+
+    # Run tests for changed files in electron app
+    test:
+      glob: "apps/electron/src/**/*.{ts,tsx}"
+      exclude: '\.(test|spec)\.(ts|tsx)$'
+      run: |
+        test_files=""
+        for file in {staged_files}; do
+          test_files="$test_files ${file#apps/electron/}"
+        done
+        if [ -n "$test_files" ]; then
+          cd apps/electron && npx jest --bail --findRelatedTests --passWithNoTests $test_files
+        fi

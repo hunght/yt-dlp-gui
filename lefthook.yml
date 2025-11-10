@@ -1,34 +1,17 @@
-# Lefthook configuration
-# https://github.com/evilmartians/lefthook
+# Root Lefthook Configuration
+# Extends workspace-specific configurations
+extends:
+  - apps/electron/lefthook.yml
 
+# Global hooks that run for all commits
 pre-commit:
-  parallel: true
   commands:
     # Type check all workspaces
     type-check:
       run: npm run type-check
 
-    # Lint staged TypeScript/TSX files in electron app
-    lint-electron:
-      glob: "apps/electron/**/*.{ts,tsx}"
-      run: cd apps/electron && npx eslint --fix {staged_files} && git add {staged_files}
-      stage_fixed: true
-
-    # Format staged files with Prettier
-    prettier:
-      glob: "*.{ts,tsx,json,md}"
-      run: npx prettier --write {staged_files} && git add {staged_files}
-      stage_fixed: true
-
-    # Run tests for related files
-    test:
-      glob: "apps/electron/**/*.{ts,tsx}"
-      exclude: '(test|spec)\.(ts|tsx)$'
-      run: cd apps/electron && npx jest --bail --findRelatedTests --passWithNoTests {staged_files}
-
 commit-msg:
   commands:
-    # Validate commit message
     message-validation:
       run: |
         msg=$(cat {1})

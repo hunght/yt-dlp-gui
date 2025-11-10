@@ -34,11 +34,15 @@ export default function ChannelPage() {
     queryKey: ["channel-library", channelId],
     queryFn: async () => {
       if (!channelId) return [];
-      const videos = await trpcClient.ytdlp.getVideosByChannel.query({ channelId: channelId!, limit: 100 });
+      const videos = await trpcClient.ytdlp.getVideosByChannel.query({
+        channelId: channelId!,
+        limit: 100,
+      });
       // Filter to only show videos with download activity
-      return videos.filter((v) =>
-        v.downloadStatus &&
-        ["downloading", "queued", "completed", "paused", "failed"].includes(v.downloadStatus)
+      return videos.filter(
+        (v) =>
+          v.downloadStatus &&
+          ["downloading", "queued", "completed", "paused", "failed"].includes(v.downloadStatus)
       );
     },
     enabled: !!channelId && activeTab === "library", // Only fetch when library tab is active
@@ -73,6 +77,8 @@ export default function ChannelPage() {
 
       if (result.success) {
         toast.success(`Added "${videoTitle}" to download queue`);
+        // Invalidate queue status to resume polling and update sidebar
+        queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       } else {
         toast.error(result.message || "Failed to add to queue");
       }
@@ -125,11 +131,12 @@ export default function ChannelPage() {
   };
   const thumbnailSrc = channel.thumbnailPath
     ? `local-file://${channel.thumbnailPath}`
-    : (isAllowedImageSrc(channel.thumbnailUrl) ? channel.thumbnailUrl : undefined);
+    : isAllowedImageSrc(channel.thumbnailUrl)
+      ? channel.thumbnailUrl
+      : undefined;
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-
       {/* Channel Header */}
       <Card>
         <CardContent className="pt-6">
@@ -160,13 +167,15 @@ export default function ChannelPage() {
                   disabled={refreshChannelMutation.isPending}
                   className="flex items-center gap-2"
                 >
-                  <RefreshCw className={`h-4 w-4 ${refreshChannelMutation.isPending ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    className={`h-4 w-4 ${refreshChannelMutation.isPending ? "animate-spin" : ""}`}
+                  />
                   {refreshChannelMutation.isPending ? "Refreshing..." : "Refresh Info"}
                 </Button>
               </div>
 
               {channel.channelDescription && (
-                <p className="text-sm text-muted-foreground line-clamp-3">
+                <p className="line-clamp-3 text-sm text-muted-foreground">
                   {channel.channelDescription}
                 </p>
               )}
@@ -227,17 +236,11 @@ export default function ChannelPage() {
             </TabsContent>
 
             <TabsContent value="library" className="mt-4">
-              <LibraryTab
-                channelId={channelId!}
-                isActive={activeTab === "library"}
-              />
+              <LibraryTab channelId={channelId!} isActive={activeTab === "library"} />
             </TabsContent>
 
             <TabsContent value="playlists" className="mt-4">
-              <PlaylistsTab
-                channelId={channelId!}
-                isActive={activeTab === "playlists"}
-              />
+              <PlaylistsTab channelId={channelId!} isActive={activeTab === "playlists"} />
             </TabsContent>
           </Tabs>
         </CardContent>

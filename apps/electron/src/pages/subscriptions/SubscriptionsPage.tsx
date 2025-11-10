@@ -29,6 +29,8 @@ export default function SubscriptionsPage() {
         toast.success("Added to queue");
         // Refresh recent list to reflect status changes
         queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+        // Invalidate queue status to resume polling and update sidebar
+        queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       } else {
         toast.error((result as any)?.message || "Failed to add to queue");
       }
@@ -40,7 +42,11 @@ export default function SubscriptionsPage() {
     <div className="container mx-auto space-y-6 p-6">
       <div className="flex items-center justify-end">
         <div className="text-xs text-muted-foreground">
-          {query.isFetching ? "Refreshing…" : query.dataUpdatedAt ? `Updated ${new Date(query.dataUpdatedAt).toLocaleTimeString()}` : ""}
+          {query.isFetching
+            ? "Refreshing…"
+            : query.dataUpdatedAt
+              ? `Updated ${new Date(query.dataUpdatedAt).toLocaleTimeString()}`
+              : ""}
         </div>
       </div>
 
@@ -54,32 +60,52 @@ export default function SubscriptionsPage() {
           ) : videos.length === 0 ? (
             <p className="text-sm text-muted-foreground">No recent videos found.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {videos.map((v) => {
-                const hideNoThumb = typeof v.thumbnailUrl === "string" && v.thumbnailUrl.includes("no_thumbnail");
+                const hideNoThumb =
+                  typeof v.thumbnailUrl === "string" && v.thumbnailUrl.includes("no_thumbnail");
                 return (
-                  <div key={v.videoId} className="rounded-lg border p-3 space-y-2">
+                  <div key={v.videoId} className="space-y-2 rounded-lg border p-3">
                     {hideNoThumb ? (
-                      <div className="w-full aspect-video rounded bg-muted" />
+                      <div className="aspect-video w-full rounded bg-muted" />
                     ) : (
                       <Thumbnail
                         thumbnailPath={v.thumbnailPath}
                         thumbnailUrl={v.thumbnailUrl}
                         alt={v.title}
-                        className="w-full aspect-video rounded object-cover"
+                        className="aspect-video w-full rounded object-cover"
                       />
                     )}
                     <div className="space-y-1">
-                      <div className="text-sm font-medium line-clamp-2">{v.title}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-1">{v.channelTitle || v.channelId}</div>
-                      <div className="text-xs text-muted-foreground flex gap-3">
-                        {typeof v.durationSeconds === "number" && <span>{Math.round(v.durationSeconds / 60)} min</span>}
-                        {typeof v.viewCount === "number" && <span>{v.viewCount.toLocaleString()} views</span>}
+                      <div className="line-clamp-2 text-sm font-medium">{v.title}</div>
+                      <div className="line-clamp-1 text-xs text-muted-foreground">
+                        {v.channelTitle || v.channelId}
+                      </div>
+                      <div className="flex gap-3 text-xs text-muted-foreground">
+                        {typeof v.durationSeconds === "number" && (
+                          <span>{Math.round(v.durationSeconds / 60)} min</span>
+                        )}
+                        {typeof v.viewCount === "number" && (
+                          <span>{v.viewCount.toLocaleString()} views</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2">
                       {v.downloadStatus === "completed" && v.downloadFilePath ? (
-                        <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId, playlistId: undefined, playlistIndex: undefined } })}>
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() =>
+                            navigate({
+                              to: "/player",
+                              search: {
+                                videoId: v.videoId,
+                                playlistId: undefined,
+                                playlistIndex: undefined,
+                              },
+                            })
+                          }
+                        >
                           <Play className="mr-1 h-3 w-3" />
                           Play
                         </Button>
@@ -88,13 +114,21 @@ export default function SubscriptionsPage() {
                           size="sm"
                           variant="outline"
                           className="flex-1"
-                          onClick={() => addToQueueMutation.mutate(`https://www.youtube.com/watch?v=${v.videoId}`)}
-                          disabled={v.downloadStatus === "downloading" || v.downloadStatus === "queued"}
+                          onClick={() =>
+                            addToQueueMutation.mutate(
+                              `https://www.youtube.com/watch?v=${v.videoId}`
+                            )
+                          }
+                          disabled={
+                            v.downloadStatus === "downloading" || v.downloadStatus === "queued"
+                          }
                         >
                           {v.downloadStatus === "downloading" || v.downloadStatus === "queued" ? (
                             <>
                               <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                              {v.downloadStatus === "queued" ? "Queued" : `Downloading ${v.downloadProgress || 0}%`}
+                              {v.downloadStatus === "queued"
+                                ? "Queued"
+                                : `Downloading ${v.downloadProgress || 0}%`}
                             </>
                           ) : (
                             <>
@@ -104,9 +138,12 @@ export default function SubscriptionsPage() {
                           )}
                         </Button>
                       )}
-                      <Button size="sm" variant="outline" onClick={() => trpcClient.utils.openExternalUrl.mutate({ url: v.url })}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => trpcClient.utils.openExternalUrl.mutate({ url: v.url })}
+                      >
                         <ExternalLinkIcon className="mr-1 h-3 w-3" />
-                        Watch on YouTube
                       </Button>
                     </div>
                   </div>
@@ -119,5 +156,3 @@ export default function SubscriptionsPage() {
     </div>
   );
 }
-
-

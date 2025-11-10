@@ -51,6 +51,8 @@ export default function PlayerPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["video-playback", videoId] });
+      // Invalidate queue status to resume polling and update sidebar
+      queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
     },
   });
 

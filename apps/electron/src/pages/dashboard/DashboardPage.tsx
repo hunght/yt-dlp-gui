@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +39,7 @@ const formatDuration = (seconds: number | null): string => {
 };
 
 export default function DashboardPage() {
+  const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
   const [downloadId, setDownloadId] = useState<string | null>(null);
   const [finished, setFinished] = useState(false);
@@ -94,6 +95,8 @@ export default function DashboardPage() {
     onSuccess: (res) => {
       if (res.success) {
         setDownloadId(res.downloadIds[0] || null);
+        // Invalidate queue status to resume polling if it was stopped
+        queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
         toast.success(`Download added to queue (${res.downloadIds.length})`);
       } else {
         toast.error(res.message ?? "Failed to start download");

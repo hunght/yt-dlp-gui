@@ -32,14 +32,31 @@ const statusLabels = {
 export const DownloadQueueSidebar: React.FC = () => {
   const queryClient = useQueryClient();
 
-  // Poll queue status every 1.5 seconds
+  // Poll queue status - smart polling based on download states
   const { data: queueData, isLoading } = useQuery({
     queryKey: ["queue", "status"],
     queryFn: async () => {
       const result = await trpcClient.queue.getQueueStatus.query();
       return result.success ? result.data : null;
     },
-    refetchInterval: 1500,
+    // Adaptive polling: Fast for active downloads, slower for completed/failed, stop when idle
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return 1500; // Poll initially until we get data
+
+      const hasActiveDownloads =
+        data.downloading.length > 0 || data.queued.length > 0 || data.paused.length > 0;
+
+      // Fast polling for active downloads
+      if (hasActiveDownloads) return 1500;
+
+      // Slower polling if there are completed/failed downloads (to catch final updates)
+      const hasRecentDownloads = data.completed.length > 0 || data.failed.length > 0;
+      if (hasRecentDownloads) return 5000; // Poll every 5 seconds
+
+      // Stop polling when completely idle
+      return false;
+    },
     refetchOnWindowFocus: true,
   });
 

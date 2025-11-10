@@ -1,5 +1,6 @@
 import React, { useMemo, Fragment } from "react";
 import { Link, useMatches } from "@tanstack/react-router";
+import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 
 export function HeaderNav() {
   const matches = useMatches();
@@ -37,8 +38,7 @@ export function HeaderNav() {
           ))}
         </nav>
       </div>
+      <RightSidebarTrigger />
     </div>
   );
 }
-
-

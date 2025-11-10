@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useSearch, useNavigate } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -84,9 +84,11 @@ export default function PlayerPage() {
   // WATCH PROGRESS (using existing useWatchProgress hook - complex reusable logic)
   // ============================================================================
 
-  const { currentTime, handleTimeUpdate } = useWatchProgress(videoId, videoRef, playback?.lastPositionSeconds);
-
-
+  const { currentTime, handleTimeUpdate } = useWatchProgress(
+    videoId,
+    videoRef,
+    playback?.lastPositionSeconds
+  );
 
   // ============================================================================
   // PLAYLIST NAVIGATION (previously in usePlaylistNavigation hook)
@@ -146,7 +148,14 @@ export default function PlayerPage() {
         },
       });
     }
-  }, [playlistHasNext, playlistId, playlistCurrentIndex, playlistVideos, updatePlaybackMutation, navigate]);
+  }, [
+    playlistHasNext,
+    playlistId,
+    playlistCurrentIndex,
+    playlistVideos,
+    updatePlaybackMutation,
+    navigate,
+  ]);
 
   // Navigate to previous video
   const goToPreviousVideo = useCallback(() => {
@@ -166,18 +175,28 @@ export default function PlayerPage() {
         },
       });
     }
-  }, [playlistHasPrevious, playlistId, playlistCurrentIndex, playlistVideos, updatePlaybackMutation, navigate]);
+  }, [
+    playlistHasPrevious,
+    playlistId,
+    playlistCurrentIndex,
+    playlistVideos,
+    updatePlaybackMutation,
+    navigate,
+  ]);
 
   const isPlaylist = !!playlistId && !!playlistData;
   const playlistTitle = playlistData?.title;
   const playlistTotalVideos = playlistVideos.length;
 
   // Right sidebar atoms
-  const [, setRightSidebarContent] = useAtom(rightSidebarContentAtom);
-  const [, setAnnotationsSidebarData] = useAtom(annotationsSidebarDataAtom);
+  const setRightSidebarContent = useSetAtom(rightSidebarContentAtom);
+  const setAnnotationsSidebarData = useSetAtom(annotationsSidebarDataAtom);
 
   // Global scroll-to-seek indicator
-  const [seekIndicator, setSeekIndicator] = useState<{ direction: 'forward' | 'backward'; amount: number } | null>(null);
+  const [seekIndicator, setSeekIndicator] = useState<{
+    direction: "forward" | "backward";
+    amount: number;
+  } | null>(null);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const filePath = playback?.filePath || null;
@@ -213,7 +232,6 @@ export default function PlayerPage() {
     currentTime,
   ]);
 
-
   // Global scroll-to-seek (works anywhere on the page when video is playing)
   useEffect(() => {
     const video = videoRef.current;
@@ -225,8 +243,8 @@ export default function PlayerPage() {
 
       // Determine seek direction and amount
       const seekAmount = 5; // seconds per scroll tick
-      const direction = e.deltaY < 0 ? 'backward' : 'forward';
-      const delta = direction === 'forward' ? seekAmount : -seekAmount;
+      const direction = e.deltaY < 0 ? "backward" : "forward";
+      const delta = direction === "forward" ? seekAmount : -seekAmount;
 
       // Seek the video
       const newTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + delta));
@@ -247,10 +265,10 @@ export default function PlayerPage() {
     };
 
     // Add wheel listener with passive: false to allow preventDefault
-    window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener("wheel", handleWheel, { passive: false });
 
     return () => {
-      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener("wheel", handleWheel);
       if (seekTimeoutRef.current) {
         clearTimeout(seekTimeoutRef.current);
       }
@@ -258,14 +276,14 @@ export default function PlayerPage() {
   }, [filePath]); // Re-run when file path changes (video loads)
 
   return (
-    <div className="container mx-auto space-y-6 p-6 relative">
+    <div className="container relative mx-auto space-y-6 p-6">
       {/* Global Seek Indicator Overlay */}
       {seekIndicator && (
-        <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
-          <div className="bg-black/80 backdrop-blur-sm rounded-lg px-6 py-4 flex items-center gap-3 shadow-lg animate-in fade-in zoom-in-95 duration-200">
-            {seekIndicator.direction === 'backward' ? (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+          <div className="flex items-center gap-3 rounded-lg bg-black/80 px-6 py-4 shadow-lg backdrop-blur-sm duration-200 animate-in fade-in zoom-in-95">
+            {seekIndicator.direction === "backward" ? (
               <>
-                <Rewind className="w-8 h-8 text-white" />
+                <Rewind className="h-8 w-8 text-white" />
                 <div className="text-white">
                   <p className="text-2xl font-bold">-{seekIndicator.amount}s</p>
                   <p className="text-xs text-white/70">Backward</p>
@@ -273,11 +291,11 @@ export default function PlayerPage() {
               </>
             ) : (
               <>
-                <div className="text-white text-right">
+                <div className="text-right text-white">
                   <p className="text-2xl font-bold">+{seekIndicator.amount}s</p>
                   <p className="text-xs text-white/70">Forward</p>
                 </div>
-                <FastForward className="w-8 h-8 text-white" />
+                <FastForward className="h-8 w-8 text-white" />
               </>
             )}
           </div>
@@ -339,11 +357,7 @@ export default function PlayerPage() {
               )}
 
               {/* Annotation Form Dialog - Self-contained, owns all its state */}
-              <AnnotationForm
-                videoId={videoId}
-                currentTime={currentTime}
-                videoRef={videoRef}
-              />
+              <AnnotationForm videoId={videoId} currentTime={currentTime} videoRef={videoRef} />
             </div>
           )}
         </CardContent>

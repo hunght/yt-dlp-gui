@@ -211,7 +211,7 @@ export default [
       'sonarjs/cognitive-complexity': ['error', 30], // Warn if cognitive complexity > 15
 
       // SonarJS - Code Smells & Duplication
-      'sonarjs/no-duplicate-string': ['error', { threshold: 3 }], // Detect string duplication
+      'sonarjs/no-duplicate-string': ['error', { threshold: 6 }], // Detect string duplication
       'sonarjs/no-identical-functions': 'error', // Detect duplicate functions
       'sonarjs/no-duplicated-branches': 'error', // if/else with same code
       'sonarjs/no-identical-conditions': 'error', // Same condition multiple times

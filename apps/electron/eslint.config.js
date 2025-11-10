@@ -226,7 +226,7 @@ export default [
       'sonarjs/no-redundant-boolean': 'warn', // x === true vs x
       'sonarjs/no-small-switch': 'warn', // Switch with only 2 cases
       'sonarjs/no-unused-collection': 'warn', // Collections that are never read
-      'sonarjs/prefer-immediate-return': 'warn', // return x vs const y = x; return y
+      'sonarjs/prefer-immediate-return': 'off', // return x vs const y = x; return y
       'sonarjs/prefer-object-literal': 'warn', // Object literal vs empty + assignments
       'sonarjs/prefer-single-boolean-return': 'warn', // if (x) return true; else return false;
 

@@ -18,3 +18,4 @@ export const getLatestReleaseApiUrl = (): string =>
 
 export const getDirectLatestDownloadUrl = (platform: SupportedPlatform): string =>
   `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${getYtDlpAssetName(platform)}`;
+// test comment

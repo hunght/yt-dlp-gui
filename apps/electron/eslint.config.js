@@ -210,6 +210,7 @@ export default [
 
       // Cyclomatic Complexity - measures number of independent paths through code
       // Higher values indicate code is harder to test and maintain
+      // TIP: To find the function, look at the line number in the error
       complexity: ['warn', { max: 15 }], // Warn if function has >15 branches
 
       // Max lines per function - long functions are hard to understand

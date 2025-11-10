@@ -9,6 +9,18 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { logger } from "@/helpers/logger";
 import Thumbnail from "@/components/Thumbnail";
+import {
+  Download,
+  Play,
+  Clock,
+  Eye,
+  Users,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Video,
+  TrendingUp,
+} from "lucide-react";
 
 const isValidUrl = (value: string) => {
   try {
@@ -137,95 +149,158 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="container mx-auto space-y-6 p-6">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
+    <div className="container mx-auto min-h-screen space-y-6 p-4 pb-8 md:p-6 lg:p-8">
+      {/* Header Section */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+            Download and manage your YouTube videos
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <TrendingUp className="h-4 w-4" />
+          <span className="hidden sm:inline">Quick access to your content</span>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Start a YouTube download</CardTitle>
+      {/* Download Input Section */}
+      <Card className="border-2 shadow-lg transition-shadow hover:shadow-xl">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-2">
+            <Download className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg sm:text-xl">Start a Download</CardTitle>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+            Paste any YouTube video or playlist URL
+          </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">
-            <Input
-              placeholder="Paste a YouTube URL..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="flex-1"
-              inputMode="url"
-            />
-            <Button type="submit" disabled={!canStart}>
-              {startMutation.isPending ? "Starting..." : "Download"}
+          <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row sm:gap-2">
+            <div className="relative flex-1">
+              <Input
+                placeholder="https://www.youtube.com/watch?v=..."
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="h-11 pr-10 sm:h-10"
+                inputMode="url"
+              />
+              {isValidUrl(url) && (
+                <CheckCircle2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-green-500" />
+              )}
+            </div>
+            <Button
+              type="submit"
+              disabled={!canStart}
+              className="h-11 gap-2 sm:h-10 sm:min-w-[120px]"
+              size="lg"
+            >
+              {startMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Starting...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  <span>Download</span>
+                </>
+              )}
             </Button>
           </form>
         </CardContent>
       </Card>
 
+      {/* Preview Loading State */}
       {isLoadingPreview && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Preview</CardTitle>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+              <CardTitle className="text-base sm:text-lg">Loading Preview...</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <div className="h-24 w-40 animate-pulse rounded bg-muted" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div className="h-32 w-full animate-pulse rounded-lg bg-muted sm:h-28 sm:w-48 sm:flex-shrink-0" />
+              <div className="flex-1 space-y-3">
+                <div className="h-5 w-full animate-pulse rounded bg-muted sm:w-3/4" />
+                <div className="h-4 w-3/4 animate-pulse rounded bg-muted sm:w-1/2" />
+                <div className="flex gap-3">
+                  <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+                  <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
+      {/* Preview Info */}
       {!isLoadingPreview && previewInfo && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Preview</CardTitle>
+        <Card className="overflow-hidden border-l-4 border-l-green-500 shadow-md transition-all hover:shadow-lg">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Video className="h-4 w-4 text-green-500" />
+              <CardTitle className="text-base sm:text-lg">Video Preview</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:gap-4">
+              {/* Thumbnail */}
               {thumbnailUrl && !thumbnailError ? (
-                <img
-                  src={thumbnailUrl}
-                  alt="Thumbnail"
-                  className="h-24 w-40 rounded object-cover"
-                  onError={() => {
-                    logger.warn("Dashboard thumbnail failed to load, trying fallback", {
-                      original: thumbnailUrl,
-                    });
-                    // Try fallback from .webp to .jpg
-                    if (thumbnailUrl.includes(".webp")) {
-                      const fallbackUrl = thumbnailUrl
-                        .replace(/\.webp$/, ".jpg")
-                        .replace(/vi_webp/, "vi");
-                      setThumbnailUrl(fallbackUrl);
-                      logger.debug("Dashboard thumbnail fallback", { fallback: fallbackUrl });
-                    } else {
-                      // No more fallbacks, hide thumbnail
-                      setThumbnailError(true);
-                      logger.error("Dashboard thumbnail all fallbacks failed", {
-                        url: thumbnailUrl,
+                <div className="relative overflow-hidden rounded-lg sm:w-48 sm:flex-shrink-0">
+                  <img
+                    src={thumbnailUrl}
+                    alt="Thumbnail"
+                    className="h-auto w-full object-cover sm:h-28"
+                    onError={() => {
+                      logger.warn("Dashboard thumbnail failed to load, trying fallback", {
+                        original: thumbnailUrl,
                       });
-                    }
-                  }}
-                />
+                      if (thumbnailUrl.includes(".webp")) {
+                        const fallbackUrl = thumbnailUrl
+                          .replace(/\.webp$/, ".jpg")
+                          .replace(/vi_webp/, "vi");
+                        setThumbnailUrl(fallbackUrl);
+                        logger.debug("Dashboard thumbnail fallback", { fallback: fallbackUrl });
+                      } else {
+                        setThumbnailError(true);
+                        logger.error("Dashboard thumbnail all fallbacks failed", {
+                          url: thumbnailUrl,
+                        });
+                      }
+                    }}
+                  />
+                </div>
               ) : (
-                <div className="flex h-24 w-40 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-                  No thumbnail
+                <div className="flex h-32 w-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground sm:h-28 sm:w-48 sm:flex-shrink-0">
+                  <Video className="h-8 w-8 opacity-50" />
                 </div>
               )}
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="truncate font-semibold">{previewInfo.title}</div>
+
+              {/* Video Info */}
+              <div className="min-w-0 flex-1 space-y-2">
+                <h3 className="line-clamp-2 text-base font-semibold leading-tight sm:text-lg">
+                  {previewInfo.title}
+                </h3>
                 {previewInfo.channelTitle && (
-                  <div className="text-sm text-muted-foreground">{previewInfo.channelTitle}</div>
+                  <p className="truncate text-sm text-muted-foreground">
+                    {previewInfo.channelTitle}
+                  </p>
                 )}
-                <div className="flex gap-3 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground sm:text-sm">
                   {previewInfo.durationSeconds && (
-                    <span>Duration: {formatDuration(previewInfo.durationSeconds)}</span>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>{formatDuration(previewInfo.durationSeconds)}</span>
+                    </div>
                   )}
                   {previewInfo.viewCount !== null && (
-                    <span>Views: {previewInfo.viewCount.toLocaleString()}</span>
+                    <div className="flex items-center gap-1.5">
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>{previewInfo.viewCount.toLocaleString()} views</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -234,26 +309,61 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {/* Download Status */}
       {downloadId && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Download status</CardTitle>
+        <Card
+          className={`border-l-4 shadow-md ${
+            downloadQuery.data?.status === "completed"
+              ? "border-l-green-500"
+              : downloadQuery.data?.status === "failed"
+                ? "border-l-red-500"
+                : "border-l-blue-500"
+          }`}
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {downloadQuery.data?.status === "completed" ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                ) : downloadQuery.data?.status === "failed" ? (
+                  <AlertCircle className="h-5 w-5 text-red-500" />
+                ) : (
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                )}
+                <CardTitle className="text-base sm:text-lg">Download Status</CardTitle>
+              </div>
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                  downloadQuery.data?.status === "completed"
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    : downloadQuery.data?.status === "failed"
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                      : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                }`}
+              >
+                {downloadQuery.data?.status ?? "Initializing"}
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
             {!downloadQuery.data ? (
-              <div className="text-muted-foreground">Initializing...</div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Initializing download...</span>
+              </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                {/* Progress Bar */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Status: {downloadQuery.data.status}
+                    <span className="text-muted-foreground">Progress</span>
+                    <span className="font-semibold tabular-nums">
+                      {downloadQuery.data.progress ?? 0}%
                     </span>
-                    <span className="font-medium">{downloadQuery.data.progress ?? 0}%</span>
                   </div>
                   <Progress
                     value={downloadQuery.data.progress ?? 0}
-                    className="h-2"
+                    className="h-3"
                     indicatorClassName={
                       downloadQuery.data.status === "completed"
                         ? "bg-green-500"
@@ -262,43 +372,60 @@ export default function DashboardPage() {
                           : "bg-blue-500"
                     }
                   />
-                  {/* Download speed and ETA */}
-                  {downloadQuery.data.status === "downloading" && (
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        {(downloadQuery.data as any).downloadedSize &&
-                          (downloadQuery.data as any).totalSize && (
-                            <span>
-                              {(downloadQuery.data as any).downloadedSize} /{" "}
-                              {(downloadQuery.data as any).totalSize}
-                            </span>
-                          )}
-                        {(downloadQuery.data as any).downloadSpeed && (
-                          <span className="font-medium text-tracksy-gold">
-                            • {(downloadQuery.data as any).downloadSpeed}
-                          </span>
-                        )}
-                      </div>
-                      {(downloadQuery.data as any).eta && (
-                        <span className="font-medium text-tracksy-blue dark:text-tracksy-gold">
-                          ETA {(downloadQuery.data as any).eta}
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
-                <div className="space-y-1 text-sm">
-                  <div className="text-xs text-muted-foreground">ID: {downloadId}</div>
+
+                {/* Download Stats */}
+                {downloadQuery.data.status === "downloading" && (
+                  <div className="grid gap-2 rounded-lg bg-muted/50 p-3 sm:grid-cols-2">
+                    {(downloadQuery.data as any).downloadedSize &&
+                      (downloadQuery.data as any).totalSize && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-muted-foreground">Size</span>
+                          <span className="text-sm font-medium tabular-nums">
+                            {(downloadQuery.data as any).downloadedSize} /{" "}
+                            {(downloadQuery.data as any).totalSize}
+                          </span>
+                        </div>
+                      )}
+                    {(downloadQuery.data as any).downloadSpeed && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Speed</span>
+                        <span className="text-sm font-medium tabular-nums text-blue-600 dark:text-blue-400">
+                          {(downloadQuery.data as any).downloadSpeed}
+                        </span>
+                      </div>
+                    )}
+                    {(downloadQuery.data as any).eta && (
+                      <div className="flex flex-col gap-1 sm:col-span-2">
+                        <span className="text-xs text-muted-foreground">Time remaining</span>
+                        <span className="text-sm font-medium tabular-nums">
+                          {(downloadQuery.data as any).eta}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Details */}
+                <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-sm">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
+                    <span className="text-xs font-medium text-muted-foreground">ID:</span>
+                    <code className="break-all text-xs">{downloadId}</code>
+                  </div>
                   {downloadQuery.data.filePath && (
-                    <div className="truncate">
-                      <span className="text-muted-foreground">File:</span>{" "}
-                      {downloadQuery.data.filePath}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-medium text-muted-foreground">File path:</span>
+                      <code className="break-all text-xs">{downloadQuery.data.filePath}</code>
                     </div>
                   )}
                   {downloadQuery.data.errorMessage && (
-                    <div className="text-red-600">
-                      <span className="text-muted-foreground">Error:</span>{" "}
-                      {downloadQuery.data.errorMessage}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-medium text-red-600 dark:text-red-400">
+                        Error:
+                      </span>
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        {downloadQuery.data.errorMessage}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -308,120 +435,207 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {/* Completed Downloads */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Completed downloads</CardTitle>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              <CardTitle className="text-lg sm:text-xl">Completed Downloads</CardTitle>
+            </div>
+            {completedQuery.data && completedQuery.data.length > 0 && (
+              <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                {completedQuery.data.length}
+              </span>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {completedQuery.isLoading ? (
-            <div className="text-muted-foreground">Loading...</div>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex gap-3">
+                  <div className="h-16 w-28 animate-pulse rounded-lg bg-muted sm:h-20 sm:w-32" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : completedQuery.data && completedQuery.data.length > 0 ? (
-            <div className="divide-y">
+            <div className="grid gap-3 sm:gap-4">
               {completedQuery.data.map((d) => {
                 return (
                   <div
                     key={d.videoId}
-                    className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3 sm:py-2"
+                    className="group rounded-lg border bg-card p-3 shadow-sm transition-all hover:shadow-md sm:p-4"
                   >
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                       {/* Thumbnail */}
-                      <Thumbnail
-                        thumbnailPath={d.thumbnailPath}
-                        thumbnailUrl={d.thumbnailUrl}
-                        alt={d.title || d.videoId || "thumbnail"}
-                        className="h-12 w-20 flex-shrink-0 rounded object-cover"
-                      />
-
-                      {/* Meta */}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{d.title ?? d.videoId}</div>
-                        <div className="truncate text-xs text-muted-foreground">{d.filePath}</div>
+                      <div className="relative overflow-hidden rounded-lg sm:w-40 sm:flex-shrink-0">
+                        <Thumbnail
+                          thumbnailPath={d.thumbnailPath}
+                          thumbnailUrl={d.thumbnailUrl}
+                          alt={d.title || d.videoId || "thumbnail"}
+                          className="h-auto w-full object-cover transition-transform group-hover:scale-105 sm:h-24"
+                        />
                       </div>
-                    </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center justify-between gap-2 sm:flex-shrink-0 sm:justify-end">
+                      {/* Content */}
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <h4 className="line-clamp-2 font-semibold leading-tight sm:text-lg">
+                          {d.title ?? d.videoId}
+                        </h4>
+                        <p className="line-clamp-1 text-xs text-muted-foreground sm:text-sm">
+                          {d.filePath}
+                        </p>
+                        {d.completedAt && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>{new Date(d.completedAt).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Button */}
                       {d.videoId && (
-                        <Link
-                          to="/player"
-                          search={{
-                            videoId: d.videoId,
-                            playlistId: undefined,
-                            playlistIndex: undefined,
-                          }}
-                          className="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md border bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
-                        >
-                          Play
-                        </Link>
+                        <div className="sm:flex-shrink-0">
+                          <Link
+                            to="/player"
+                            search={{
+                              videoId: d.videoId,
+                              playlistId: undefined,
+                              playlistIndex: undefined,
+                            }}
+                            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 sm:w-auto"
+                          >
+                            <Play className="h-4 w-4" />
+                            <span>Play</span>
+                          </Link>
+                        </div>
                       )}
-                      <div className="whitespace-nowrap text-xs text-muted-foreground">
-                        {d.completedAt ? new Date(d.completedAt).toLocaleString() : ""}
-                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="text-muted-foreground">No downloads yet.</div>
+            <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
+              <div className="rounded-full bg-muted p-4">
+                <Video className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium">No downloads yet</p>
+                <p className="text-sm text-muted-foreground">
+                  Start by pasting a YouTube URL above
+                </p>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
 
+      {/* Channels Section */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Channels</CardTitle>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg sm:text-xl">Channels</CardTitle>
+            </div>
+            {channelsQuery.data && channelsQuery.data.length > 0 && (
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                {channelsQuery.data.length}
+              </span>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {channelsQuery.isLoading ? (
-            <div className="text-muted-foreground">Loading...</div>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="h-14 w-14 animate-pulse rounded-full bg-muted sm:h-16 sm:w-16" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+                    <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : channelsQuery.data && channelsQuery.data.length > 0 ? (
-            <div className="divide-y">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {channelsQuery.data.map((channel) => (
                 <Link
                   key={channel.channelId}
                   to="/channel"
                   search={{ channelId: channel.channelId }}
-                  className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-accent"
+                  className="group flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm transition-all hover:shadow-md"
                 >
-                  {channel.thumbnailUrl ? (
-                    <img
-                      src={channel.thumbnailUrl}
-                      alt={channel.channelTitle}
-                      className="h-12 w-12 rounded-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                      {channel.channelTitle.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{channel.channelTitle}</div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>
-                        {channel.videoCount} {channel.videoCount === 1 ? "video" : "videos"}
-                      </span>
-                      {channel.subscriberCount && (
-                        <>
-                          <span>•</span>
-                          <span>{channel.subscriberCount.toLocaleString()} subscribers</span>
-                        </>
-                      )}
+                  {/* Channel Avatar and Title */}
+                  <div className="flex items-center gap-3">
+                    {channel.thumbnailUrl ? (
+                      <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full ring-2 ring-primary/10 transition-all group-hover:ring-primary/30 sm:h-16 sm:w-16">
+                        <img
+                          src={channel.thumbnailUrl}
+                          alt={channel.channelTitle}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary sm:h-16 sm:w-16 sm:text-base">
+                        {channel.channelTitle.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <h4 className="line-clamp-2 font-semibold leading-tight group-hover:text-primary">
+                        {channel.channelTitle}
+                      </h4>
                     </div>
                   </div>
-                  {channel.lastUpdated && (
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(channel.lastUpdated).toLocaleDateString()}
+
+                  {/* Channel Stats */}
+                  <div className="space-y-2 border-t pt-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <Video className="h-3.5 w-3.5" />
+                        <span>
+                          {channel.videoCount} {channel.videoCount === 1 ? "video" : "videos"}
+                        </span>
+                      </div>
+                      {channel.lastUpdated && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>{new Date(channel.lastUpdated).toLocaleDateString()}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
+                    {channel.subscriberCount && (
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Users className="h-3.5 w-3.5" />
+                        <span>{channel.subscriberCount.toLocaleString()} subscribers</span>
+                      </div>
+                    )}
+                  </div>
                 </Link>
               ))}
             </div>
           ) : (
-            <div className="text-muted-foreground">No channels yet.</div>
+            <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
+              <div className="rounded-full bg-muted p-4">
+                <Users className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium">No channels yet</p>
+                <p className="text-sm text-muted-foreground">
+                  Channels will appear here after you download videos
+                </p>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

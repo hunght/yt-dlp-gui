@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "lint:strict": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
+    "lint:complexity": "eslint . --format json | node -e \"const input = require('fs').readFileSync(0, 'utf-8'); const results = JSON.parse(input); const complexity = results.flatMap(r => r.messages.filter(m => m.ruleId === 'complexity' || m.ruleId === 'max-lines-per-function' || m.ruleId === 'max-lines')); console.log('\\n📊 Complexity Report:\\n'); const byFile = {}; complexity.forEach(c => { if (!byFile[c.ruleId]) byFile[c.ruleId] = []; byFile[c.ruleId].push({file: results.find(r => r.messages.includes(c)).filePath, line: c.line, message: c.message}); }); Object.entries(byFile).forEach(([rule, issues]) => { console.log('\\n' + rule + ': ' + issues.length + ' issues'); issues.slice(0, 10).forEach(i => console.log('  -', i.file.split('/').slice(-3).join('/'), ':', i.message)); });\"",
     "dev": "electron-forge start",
     "start": "npm run restart",
     "package": "electron-forge package",

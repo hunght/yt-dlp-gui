@@ -192,43 +192,39 @@ export default [
 
       // General rules - adapted to your patterns
       'no-console': 'error', // Ban console - use logger instead
-      'no-empty': 'off', // Allow empty catch blocks (common pattern)
-      'no-useless-escape': 'off', // Turn off - regex escapes are fine
-      'no-unreachable': 'off', // Turn off - might be intentional dead code for future use
-      'no-redeclare': 'off', // Turn off - can be intentional for type/value
-      'no-async-promise-executor': 'off', // Turn off
-      'no-case-declarations': 'off', // Turn off
+      'no-empty': 'error', // Empty catch blocks are not allowed
+      'no-useless-escape': 'error', // Turn off - regex escapes are fine
+      'no-unreachable': 'error', // Turn off - might be intentional dead code for future use
+      'no-redeclare': 'error', // Turn off - can be intentional for type/value
+      'no-async-promise-executor': 'error', // Turn off
+      'no-case-declarations': 'error', // Turn off
       'no-undef': 'error', // Keep as error - should be caught
-      'prefer-const': 'off',
+      'prefer-const': 'error',
       'no-var': 'error',
-      'object-shorthand': 'off', // Allow both styles
-      eqeqeq: 'off',
-      'no-debugger': 'off',
+      'object-shorthand': 'error', // Allow both styles
+      eqeqeq: 'error',
+      'no-debugger': 'error',
       '@typescript-eslint/triple-slash-reference': 'off', // Allow triple-slash for Electron Forge types
-
-      // =====================================================
-      // CODE COMPLEXITY & REFACTORING DETECTION (SonarJS)
-      // =====================================================
 
       // SonarJS - Cognitive Complexity (better than cyclomatic complexity)
       // Measures how difficult code is to understand (not just # of branches)
-      'sonarjs/cognitive-complexity': ['warn', 15], // Warn if cognitive complexity > 15
+      'sonarjs/cognitive-complexity': ['error', 30], // Warn if cognitive complexity > 15
 
       // SonarJS - Code Smells & Duplication
-      'sonarjs/no-duplicate-string': ['warn', { threshold: 3 }], // Detect string duplication
-      'sonarjs/no-identical-functions': 'warn', // Detect duplicate functions
-      'sonarjs/no-duplicated-branches': 'warn', // if/else with same code
+      'sonarjs/no-duplicate-string': ['error', { threshold: 3 }], // Detect string duplication
+      'sonarjs/no-identical-functions': 'error', // Detect duplicate functions
+      'sonarjs/no-duplicated-branches': 'error', // if/else with same code
       'sonarjs/no-identical-conditions': 'error', // Same condition multiple times
 
       // SonarJS - Code Quality
       'sonarjs/no-collection-size-mischeck': 'error', // Wrong size checks
-      'sonarjs/no-inverted-boolean-check': 'warn', // !(a == b) vs a != b
-      'sonarjs/no-redundant-boolean': 'warn', // x === true vs x
-      'sonarjs/no-small-switch': 'warn', // Switch with only 2 cases
-      'sonarjs/no-unused-collection': 'warn', // Collections that are never read
-      'sonarjs/prefer-immediate-return': 'off', // return x vs const y = x; return y
-      'sonarjs/prefer-object-literal': 'warn', // Object literal vs empty + assignments
-      'sonarjs/prefer-single-boolean-return': 'warn', // if (x) return true; else return false;
+      'sonarjs/no-inverted-boolean-check': 'error', // !(a == b) vs a != b
+      'sonarjs/no-redundant-boolean': 'error', // x === true vs x
+      'sonarjs/no-small-switch': 'error', // Switch with only 2 cases
+      'sonarjs/no-unused-collection': 'error', // Collections that are never read
+      'sonarjs/prefer-immediate-return': 'error', // return x vs const y = x; return y
+      'sonarjs/prefer-object-literal': 'error', // Object literal vs empty + assignments
+      'sonarjs/prefer-single-boolean-return': 'error', // if (x) return true; else return false;
 
       // Basic duplication detection
       'no-duplicate-case': 'error',

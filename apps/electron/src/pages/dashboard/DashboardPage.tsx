@@ -5,7 +5,6 @@ import { trpcClient } from "@/utils/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { logger } from "@/helpers/logger";
 import {
@@ -14,7 +13,6 @@ import {
   Eye,
   Users,
   CheckCircle2,
-  AlertCircle,
   Loader2,
   Video,
   TrendingUp,
@@ -41,8 +39,6 @@ const formatDuration = (seconds: number | null): string => {
 export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
-  const [downloadId, setDownloadId] = useState<string | null>(null);
-  const [finished, setFinished] = useState(false);
   const [previewInfo, setPreviewInfo] = useState<any>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -94,7 +90,6 @@ export default function DashboardPage() {
     mutationFn: (u: string) => trpcClient.queue.addToQueue.mutate({ urls: [u] }),
     onSuccess: (res) => {
       if (res.success) {
-        setDownloadId(res.downloadIds[0] || null);
         // Invalidate queue status to resume polling if it was stopped
         queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
         toast.success(`Download added to queue (${res.downloadIds.length})`);
@@ -104,20 +99,6 @@ export default function DashboardPage() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to add to queue"),
   });
-
-  const downloadQuery = useQuery({
-    queryKey: ["ytdlp", "download", downloadId],
-    queryFn: () => trpcClient.ytdlp.getVideoById.query({ id: downloadId! }),
-    enabled: !!downloadId && !finished,
-    refetchInterval: 1500,
-  });
-
-  useEffect(() => {
-    const status = downloadQuery.data?.status;
-    if (status === "completed" || status === "failed" || status === "cancelled") {
-      setFinished(true);
-    }
-  }, [downloadQuery.data?.status]);
 
   const canStart = useMemo(
     () => isValidUrl(url) && !startMutation.isPending,
@@ -131,7 +112,6 @@ export default function DashboardPage() {
       return;
     }
     logger.debug("Dashboard start download", { url });
-    setFinished(false);
     startMutation.mutate(url);
   };
 
@@ -299,132 +279,6 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Download Status */}
-      {downloadId && (
-        <Card
-          className={`border-l-4 shadow-md ${
-            downloadQuery.data?.status === "completed"
-              ? "border-l-green-500"
-              : downloadQuery.data?.status === "failed"
-                ? "border-l-red-500"
-                : "border-l-blue-500"
-          }`}
-        >
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                {downloadQuery.data?.status === "completed" ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
-                ) : downloadQuery.data?.status === "failed" ? (
-                  <AlertCircle className="h-5 w-5 text-red-500" />
-                ) : (
-                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                )}
-                <CardTitle className="text-base sm:text-lg">Download Status</CardTitle>
-              </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  downloadQuery.data?.status === "completed"
-                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                    : downloadQuery.data?.status === "failed"
-                      ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                      : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                }`}
-              >
-                {downloadQuery.data?.status ?? "Initializing"}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {!downloadQuery.data ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Initializing download...</span>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Progress Bar */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-semibold tabular-nums">
-                      {downloadQuery.data.progress ?? 0}%
-                    </span>
-                  </div>
-                  <Progress
-                    value={downloadQuery.data.progress ?? 0}
-                    className="h-3"
-                    indicatorClassName={
-                      downloadQuery.data.status === "completed"
-                        ? "bg-green-500"
-                        : downloadQuery.data.status === "failed"
-                          ? "bg-red-500"
-                          : "bg-blue-500"
-                    }
-                  />
-                </div>
-
-                {/* Download Stats */}
-                {downloadQuery.data.status === "downloading" && (
-                  <div className="grid gap-2 rounded-lg bg-muted/50 p-3 sm:grid-cols-2">
-                    {(downloadQuery.data as any).downloadedSize &&
-                      (downloadQuery.data as any).totalSize && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs text-muted-foreground">Size</span>
-                          <span className="text-sm font-medium tabular-nums">
-                            {(downloadQuery.data as any).downloadedSize} /{" "}
-                            {(downloadQuery.data as any).totalSize}
-                          </span>
-                        </div>
-                      )}
-                    {(downloadQuery.data as any).downloadSpeed && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs text-muted-foreground">Speed</span>
-                        <span className="text-sm font-medium tabular-nums text-blue-600 dark:text-blue-400">
-                          {(downloadQuery.data as any).downloadSpeed}
-                        </span>
-                      </div>
-                    )}
-                    {(downloadQuery.data as any).eta && (
-                      <div className="flex flex-col gap-1 sm:col-span-2">
-                        <span className="text-xs text-muted-foreground">Time remaining</span>
-                        <span className="text-sm font-medium tabular-nums">
-                          {(downloadQuery.data as any).eta}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Details */}
-                <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-sm">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
-                    <span className="text-xs font-medium text-muted-foreground">ID:</span>
-                    <code className="break-all text-xs">{downloadId}</code>
-                  </div>
-                  {downloadQuery.data.filePath && (
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs font-medium text-muted-foreground">File path:</span>
-                      <code className="break-all text-xs">{downloadQuery.data.filePath}</code>
-                    </div>
-                  )}
-                  {downloadQuery.data.errorMessage && (
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs font-medium text-red-600 dark:text-red-400">
-                        Error:
-                      </span>
-                      <p className="text-xs text-red-600 dark:text-red-400">
-                        {downloadQuery.data.errorMessage}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}

@@ -25,6 +25,26 @@ export default function PlayerPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // Shared seek indicator state for both VideoPlayer and TranscriptPanel
+  const [seekIndicator, setSeekIndicator] = useState<{
+    direction: "forward" | "backward";
+    amount: number;
+  } | null>(null);
+  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper function to trigger seek indicator
+  const triggerSeekIndicator = useCallback((direction: "forward" | "backward", amount: number) => {
+    setSeekIndicator({ direction, amount });
+
+    if (seekTimeoutRef.current) {
+      clearTimeout(seekTimeoutRef.current);
+    }
+
+    seekTimeoutRef.current = setTimeout(() => {
+      setSeekIndicator(null);
+    }, 800);
+  }, []);
+
   // ============================================================================
   // VIDEO PLAYBACK (previously in useVideoPlayback hook)
   // ============================================================================
@@ -194,13 +214,6 @@ export default function PlayerPage() {
   const setRightSidebarContent = useSetAtom(rightSidebarContentAtom);
   const setAnnotationsSidebarData = useSetAtom(annotationsSidebarDataAtom);
 
-  // Global scroll-to-seek indicator
-  const [seekIndicator, setSeekIndicator] = useState<{
-    direction: "forward" | "backward";
-    amount: number;
-  } | null>(null);
-  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const filePath = playback?.filePath || null;
   const videoTitle = playback?.title || playback?.videoId || "Video";
 
@@ -233,49 +246,6 @@ export default function PlayerPage() {
     playback?.description,
     currentTime,
   ]);
-
-  // Global scroll-to-seek (works anywhere on the page when video is playing)
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !filePath) return; // Only active when video is loaded
-
-    const handleWheel = (e: WheelEvent) => {
-      // Prevent default scrolling
-      e.preventDefault();
-
-      // Determine seek direction and amount
-      const seekAmount = 5; // seconds per scroll tick
-      const direction = e.deltaY < 0 ? "backward" : "forward";
-      const delta = direction === "forward" ? seekAmount : -seekAmount;
-
-      // Seek the video
-      const newTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + delta));
-      video.currentTime = newTime;
-
-      // Show visual feedback
-      setSeekIndicator({ direction, amount: seekAmount });
-
-      // Clear previous timeout
-      if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current);
-      }
-
-      // Hide indicator after 800ms
-      seekTimeoutRef.current = setTimeout(() => {
-        setSeekIndicator(null);
-      }, 800);
-    };
-
-    // Add wheel listener with passive: false to allow preventDefault
-    window.addEventListener("wheel", handleWheel, { passive: false });
-
-    return () => {
-      window.removeEventListener("wheel", handleWheel);
-      if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current);
-      }
-    };
-  }, [filePath]); // Re-run when file path changes (video loads)
 
   return (
     <div className="container relative mx-auto space-y-6 p-6">
@@ -335,6 +305,7 @@ export default function PlayerPage() {
                 filePath={filePath}
                 videoRef={videoRef}
                 onTimeUpdate={handleTimeUpdate}
+                onSeek={triggerSeekIndicator}
               />
 
               {/* Transcript - Self-contained, owns all its state */}
@@ -343,6 +314,7 @@ export default function PlayerPage() {
                 currentTime={currentTime}
                 videoRef={videoRef}
                 playbackData={playback}
+                onSeek={triggerSeekIndicator}
               />
 
               {/* Playlist Navigation - Show when playing from a playlist */}

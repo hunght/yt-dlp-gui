@@ -8,7 +8,7 @@ import {
   currentTranscriptLangAtom,
   fontFamilyAtom,
   fontSizeAtom,
-  transcriptCollapsedAtom
+  transcriptCollapsedAtom,
 } from "@/context/transcriptSettings";
 import { openAnnotationFormAtom } from "@/context/annotations";
 import { toast } from "sonner";
@@ -19,13 +19,19 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Settings as SettingsIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { filterLanguagesByPreference, isInCooldown, setCooldown, clearCooldown } from "../utils/transcriptUtils";
+import {
+  filterLanguagesByPreference,
+  isInCooldown,
+  setCooldown,
+  clearCooldown,
+} from "../utils/transcriptUtils";
 
 interface TranscriptPanelProps {
   videoId: string;
   currentTime: number;
   videoRef: React.RefObject<HTMLVideoElement>;
   playbackData?: any; // For accessing availableLanguages
+  onSeek?: (direction: "forward" | "backward", amount: number) => void;
 }
 
 export function TranscriptPanel({
@@ -33,6 +39,7 @@ export function TranscriptPanel({
   currentTime,
   videoRef,
   playbackData,
+  onSeek,
 }: TranscriptPanelProps) {
   const queryClient = useQueryClient();
   const { toast: toastHook } = useToast();
@@ -84,7 +91,7 @@ export function TranscriptPanel({
 
     if (
       playbackData !== null &&
-      !('availableLanguages' in playbackData) &&
+      !("availableLanguages" in playbackData) &&
       !fetchVideoInfoMutation.isPending &&
       !fetchVideoInfoMutation.isSuccess &&
       !hasAttemptedFetchRef.current
@@ -103,26 +110,29 @@ export function TranscriptPanel({
   const availableSubsQuery = useQuery({
     queryKey: ["available-subs", videoId],
     queryFn: async () => {
-      if (!videoId) return { languages: [] as Array<{ lang: string; hasManual: boolean; hasAuto: boolean }> };
+      if (!videoId)
+        return { languages: [] as Array<{ lang: string; hasManual: boolean; hasAuto: boolean }> };
 
-      if (playbackData && 'availableLanguages' in playbackData) {
+      if (playbackData && "availableLanguages" in playbackData) {
         return { languages: playbackData.availableLanguages || [] };
       }
 
       return { languages: [] };
     },
     enabled: !!videoId && playbackData !== undefined,
-    initialData: playbackData?.availableLanguages !== undefined
-      ? { languages: playbackData.availableLanguages || [] }
-      : undefined,
+    initialData:
+      playbackData?.availableLanguages !== undefined
+        ? { languages: playbackData.availableLanguages || [] }
+        : undefined,
   });
 
   // Filter languages by user preferences
   const filteredLanguages = useMemo(
-    () => filterLanguagesByPreference(
-      availableSubsQuery.data?.languages || [],
-      userPrefsQuery.data?.preferredLanguages || []
-    ),
+    () =>
+      filterLanguagesByPreference(
+        availableSubsQuery.data?.languages || [],
+        userPrefsQuery.data?.preferredLanguages || []
+      ),
     [availableSubsQuery.data, userPrefsQuery.data]
   );
 
@@ -176,7 +186,7 @@ export function TranscriptPanel({
       if (!videoId) return { segments: [] as Array<{ start: number; end: number; text: string }> };
       return await trpcClient.transcripts.getSegments.query({
         videoId,
-        lang: effectiveLang
+        lang: effectiveLang,
       });
     },
     enabled: !!videoId,
@@ -195,14 +205,16 @@ export function TranscriptPanel({
       if (!videoId) throw new Error("Missing videoId");
       return await trpcClient.transcripts.download.mutate({
         videoId,
-        lang: selectedLang ?? undefined
+        lang: selectedLang ?? undefined,
       });
     },
     onSuccess: (res: any) => {
       if (!videoId) return;
 
       if (res?.success) {
-        queryClient.invalidateQueries({ queryKey: ["transcript", videoId, selectedLang ?? "__default__"] });
+        queryClient.invalidateQueries({
+          queryKey: ["transcript", videoId, selectedLang ?? "__default__"],
+        });
         queryClient.invalidateQueries({ queryKey: ["transcript-segments", videoId] });
         clearCooldown(videoId, selectedLang);
         return;
@@ -263,12 +275,19 @@ export function TranscriptPanel({
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const [hoveredWord, setHoveredWord] = useState<string | null>(null);
   const [isHoveringTooltip, setIsHoveringTooltip] = useState<boolean>(false);
-  const [hoverTranslation, setHoverTranslation] = useState<{ word: string; translation: string; translationId: string; loading: boolean; saved?: boolean } | null>(null);
+  const [hoverTranslation, setHoverTranslation] = useState<{
+    word: string;
+    translation: string;
+    translationId: string;
+    loading: boolean;
+    saved?: boolean;
+  } | null>(null);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const segRefs = useRef<Array<HTMLParagraphElement | null>>([]);
   const isSnappingRef = useRef<boolean>(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const translateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSeekingRef = useRef<boolean>(false);
 
   // Handle text selection - trigger annotation form via atom
   const handleTranscriptSelect = () => {
@@ -300,7 +319,7 @@ export function TranscriptPanel({
     },
     onSuccess: (data) => {
       // Update the hover translation to show it's saved
-      setHoverTranslation(prev => prev ? { ...prev, saved: true } : null);
+      setHoverTranslation((prev) => (prev ? { ...prev, saved: true } : null));
 
       // Show success toast
       toast.success(data.alreadySaved ? "Word already in My Words" : "Word saved to My Words! 📚");
@@ -328,9 +347,12 @@ export function TranscriptPanel({
   const translationMap = useMemo(() => {
     if (!savedWords || !showInlineTranslations) return new Map();
 
-    const map = new Map<string, { translatedText: string; targetLang: string; queryCount: number }>();
+    const map = new Map<
+      string,
+      { translatedText: string; targetLang: string; queryCount: number }
+    >();
 
-    savedWords.forEach(t => {
+    savedWords.forEach((t) => {
       // Index by exact match (lowercase, trimmed)
       const cleanSource = t.sourceText.toLowerCase().trim();
       map.set(cleanSource, {
@@ -340,7 +362,10 @@ export function TranscriptPanel({
       });
 
       // Also index without punctuation for better matching
-      const noPunctuation = t.sourceText.replace(/[.,!?;:'"()\[\]{}]/g, '').toLowerCase().trim();
+      const noPunctuation = t.sourceText
+        .replace(/[.,!?;:'"()[\]{}]/g, "")
+        .toLowerCase()
+        .trim();
       if (noPunctuation !== cleanSource && noPunctuation.length > 0) {
         map.set(noPunctuation, {
           translatedText: t.translatedText,
@@ -354,20 +379,26 @@ export function TranscriptPanel({
   }, [savedWords, showInlineTranslations]);
 
   // Get translation for a word (O(1) lookup)
-  const getTranslationForWord = useCallback((word: string) => {
-    if (!showInlineTranslations || translationMap.size === 0) return null;
+  const getTranslationForWord = useCallback(
+    (word: string) => {
+      if (!showInlineTranslations || translationMap.size === 0) return null;
 
-    const cleanWord = word.toLowerCase().trim();
-    let translation = translationMap.get(cleanWord);
+      const cleanWord = word.toLowerCase().trim();
+      let translation = translationMap.get(cleanWord);
 
-    // If not found, try without punctuation
-    if (!translation) {
-      const noPunctuation = word.replace(/[.,!?;:'"()\[\]{}]/g, '').toLowerCase().trim();
-      translation = translationMap.get(noPunctuation);
-    }
+      // If not found, try without punctuation
+      if (!translation) {
+        const noPunctuation = word
+          .replace(/[.,!?;:'"()[\]{}]/g, "")
+          .toLowerCase()
+          .trim();
+        translation = translationMap.get(noPunctuation);
+      }
 
-    return translation;
-  }, [translationMap, showInlineTranslations]);
+      return translation;
+    },
+    [translationMap, showInlineTranslations]
+  );
 
   // Handle word hover with debouncing and automatic translation
   const handleWordMouseEnter = async (word: string) => {
@@ -389,30 +420,30 @@ export function TranscriptPanel({
     }
 
     // Clean the word (remove punctuation)
-    const cleanWord = word.replace(/[.,!?;:'"()\[\]{}]/g, '').trim();
+    const cleanWord = word.replace(/[.,!?;:'"()[\]{}]/g, "").trim();
     if (!cleanWord || cleanWord.length < 2) return;
 
     // Set up timer to trigger translation after 800ms of hovering
     translateTimeoutRef.current = setTimeout(async () => {
       try {
         // Show loading state
-        setHoverTranslation({ word: cleanWord, translation: '', translationId: '', loading: true });
+        setHoverTranslation({ word: cleanWord, translation: "", translationId: "", loading: true });
 
         // Get current timestamp for context
-        const timestamp = activeSegIndex !== null && segments[activeSegIndex]
-          ? segments[activeSegIndex].start
-          : currentTime;
+        const timestamp =
+          activeSegIndex !== null && segments[activeSegIndex]
+            ? segments[activeSegIndex].start
+            : currentTime;
 
         // Get context text (current segment)
-        const contextText = activeSegIndex !== null && segments[activeSegIndex]
-          ? segments[activeSegIndex].text
-          : '';
+        const contextText =
+          activeSegIndex !== null && segments[activeSegIndex] ? segments[activeSegIndex].text : "";
 
         // Call translation API (this will cache it automatically)
         const result = await trpcClient.utils.translateText.query({
           text: cleanWord,
           targetLang: translationTargetLang, // From transcript settings atom
-          sourceLang: 'auto', // Auto-detect source language
+          sourceLang: "auto", // Auto-detect source language
           videoId,
           timestampSeconds: Math.floor(timestamp),
           contextText,
@@ -491,6 +522,54 @@ export function TranscriptPanel({
     };
   }, []);
 
+  // Wheel event handling for seeking within transcript
+  useEffect(() => {
+    const container = transcriptContainerRef.current;
+    const video = videoRef.current;
+    if (!container || !video || segments.length === 0) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Throttle: Ignore wheel events if we're already seeking
+      if (isSeekingRef.current) {
+        e.preventDefault();
+        return;
+      }
+
+      // Prevent default scrolling (transcript is not scrollable)
+      e.preventDefault();
+
+      // Mark as seeking
+      isSeekingRef.current = true;
+
+      // Determine seek direction and amount
+      const seekAmount = 5; // seconds per scroll tick
+      const direction = e.deltaY < 0 ? "backward" : "forward";
+      const delta = direction === "backward" ? -seekAmount : seekAmount;
+
+      // Seek the video
+      const newTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + delta));
+      video.currentTime = newTime;
+
+      // Trigger shared seek indicator
+      if (onSeek) {
+        onSeek(direction, seekAmount);
+      }
+
+      // Reset seeking flag after a short delay
+      setTimeout(() => {
+        isSeekingRef.current = false;
+      }, 200);
+    };
+
+    // Add wheel listener with passive: false to allow preventDefault
+    container.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+      isSeekingRef.current = false;
+    };
+  }, [videoRef, segments.length, onSeek]);
+
   // Handle word hover with translation
 
   // Snap selection to word boundaries
@@ -510,7 +589,11 @@ export function TranscriptPanel({
       const endContainer = range.endContainer;
 
       // Function to expand to word boundary
-      const expandToWordBoundary = (container: Node, offset: number, isStart: boolean): { container: Node; offset: number } => {
+      const expandToWordBoundary = (
+        container: Node,
+        offset: number,
+        isStart: boolean
+      ): { container: Node; offset: number } => {
         if (container.nodeType === Node.TEXT_NODE && container.textContent) {
           const text = container.textContent;
           let newOffset = offset;
@@ -583,8 +666,8 @@ export function TranscriptPanel({
       }
     };
 
-    document.addEventListener('selectionchange', handleSelectionChange);
-    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
   }, [snapToWordBoundaries]);
 
   // Active segment index based on current time (freeze when selecting or hovering)
@@ -669,7 +752,7 @@ export function TranscriptPanel({
 
   return (
     <>
-      <div className="lg:col-span-2 space-y-3">
+      <div className="space-y-3 lg:col-span-2">
         {!isCollapsed && (
           <div className="relative">
             <TranscriptContent
@@ -681,7 +764,10 @@ export function TranscriptPanel({
               hoveredWord={hoveredWord}
               translationMap={translationMap}
               onMouseDown={handleMouseDown}
-              onMouseUp={() => { handleMouseUp(); handleTranscriptSelect(); }}
+              onMouseUp={() => {
+                handleMouseUp();
+                handleTranscriptSelect();
+              }}
               onKeyDown={handleTranscriptKeyDown}
               onWordMouseEnter={handleWordMouseEnter}
               onWordMouseLeave={handleWordMouseLeave}
@@ -712,10 +798,10 @@ export function TranscriptPanel({
         )}
 
         {/* Controls at bottom */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2">
           {/* Left side - hint text */}
           {!isCollapsed && segments.length > 0 && (
-            <p className="text-xs text-muted-foreground italic">
+            <p className="text-xs italic text-muted-foreground">
               💡 Hover words to translate • Saved words highlighted in blue
             </p>
           )}
@@ -723,9 +809,7 @@ export function TranscriptPanel({
             <div className="flex items-center gap-2">
               {segments.length === 0 ? (
                 <>
-                  <p className="text-xs text-muted-foreground italic">
-                    No transcript available
-                  </p>
+                  <p className="text-xs italic text-muted-foreground">No transcript available</p>
                   {!transcriptData && (
                     <Button
                       size="sm"
@@ -736,7 +820,7 @@ export function TranscriptPanel({
                     >
                       {downloadTranscriptMutation.isPending ? (
                         <>
-                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                           Downloading...
                         </>
                       ) : (
@@ -746,9 +830,7 @@ export function TranscriptPanel({
                   )}
                 </>
               ) : (
-                <p className="text-xs text-muted-foreground italic">
-                  Transcript collapsed
-                </p>
+                <p className="text-xs italic text-muted-foreground">Transcript collapsed</p>
               )}
             </div>
           )}
@@ -760,14 +842,15 @@ export function TranscriptPanel({
               <div className="flex items-center gap-1.5">
                 <label className="text-xs text-muted-foreground">Language:</label>
                 <select
-                  className="text-xs border rounded px-2 py-1 bg-background hover:bg-muted/30"
+                  className="rounded border bg-background px-2 py-1 text-xs hover:bg-muted/30"
                   value={selectedLang ?? effectiveLang ?? ""}
                   onChange={(e) => setSelectedLang(e.target.value)}
                   disabled={availableSubsQuery.isLoading || downloadTranscriptMutation.isPending}
                 >
                   {filteredLanguages.map((l) => (
                     <option key={l.lang} value={l.lang}>
-                      {l.lang}{l.hasManual ? "" : " (auto)"}
+                      {l.lang}
+                      {l.hasManual ? "" : " (auto)"}
                     </option>
                   ))}
                   {filteredLanguages.length === 0 && (
@@ -780,17 +863,23 @@ export function TranscriptPanel({
             {/* Follow playback toggle */}
             {!isCollapsed && (
               <div className="flex items-center gap-1.5">
-                <Switch id="follow-playback" checked={followPlayback} onCheckedChange={setFollowPlayback} />
-                <label htmlFor="follow-playback" className="text-xs text-muted-foreground">Auto-scroll</label>
+                <Switch
+                  id="follow-playback"
+                  checked={followPlayback}
+                  onCheckedChange={setFollowPlayback}
+                />
+                <label htmlFor="follow-playback" className="text-xs text-muted-foreground">
+                  Auto-scroll
+                </label>
                 {(isSelecting || isHovering || isHoveringTooltip) && (
-                  <span className="text-[10px] text-blue-500 font-medium">
+                  <span className="text-[10px] font-medium text-blue-500">
                     {isSelecting
                       ? "(selecting)"
                       : isHoveringTooltip
-                      ? "(viewing translation)"
-                      : hoveredWord
-                      ? `(hovering: ${hoveredWord.trim().substring(0, 15)}...)`
-                      : "(hovering)"}
+                        ? "(viewing translation)"
+                        : hoveredWord
+                          ? `(hovering: ${hoveredWord.trim().substring(0, 15)}...)`
+                          : "(hovering)"}
                   </span>
                 )}
               </div>
@@ -805,12 +894,12 @@ export function TranscriptPanel({
             >
               {isCollapsed ? (
                 <>
-                  <ChevronDown className="w-3.5 h-3.5 mr-1.5" />
+                  <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
                   <span className="text-xs">Show</span>
                 </>
               ) : (
                 <>
-                  <ChevronUp className="w-3.5 h-3.5 mr-1.5" />
+                  <ChevronUp className="mr-1.5 h-3.5 w-3.5" />
                   <span className="text-xs">Hide</span>
                 </>
               )}
@@ -818,8 +907,13 @@ export function TranscriptPanel({
 
             {/* Transcript Settings Button */}
             {!isCollapsed && (
-              <Button size="sm" variant="outline" onClick={() => setShowTranscriptSettings(true)} className="h-7">
-                <SettingsIcon className="w-3.5 h-3.5 mr-1.5" />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowTranscriptSettings(true)}
+                className="h-7"
+              >
+                <SettingsIcon className="mr-1.5 h-3.5 w-3.5" />
                 <span className="text-xs">Settings</span>
               </Button>
             )}
@@ -828,9 +922,11 @@ export function TranscriptPanel({
             {!isCollapsed && (
               <div className="flex items-center gap-3">
                 {/* Tiny loader (non-blocking) when fetching or downloading */}
-                {(transcriptQuery.isFetching || transcriptSegmentsQuery.isFetching || downloadTranscriptMutation.isPending) && (
+                {(transcriptQuery.isFetching ||
+                  transcriptSegmentsQuery.isFetching ||
+                  downloadTranscriptMutation.isPending) && (
                   <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <Loader2 className="h-3 w-3 animate-spin" />
                     Updating…
                   </span>
                 )}

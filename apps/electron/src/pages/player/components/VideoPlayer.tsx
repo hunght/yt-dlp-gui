@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Rewind, FastForward } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface VideoPlayerProps {
   filePath: string;
   videoRef: React.RefObject<HTMLVideoElement>;
   onTimeUpdate: (e: React.SyntheticEvent<HTMLVideoElement, Event>) => void;
+  onSeek?: (direction: "forward" | "backward", amount: number) => void;
 }
 
-export function VideoPlayer({ filePath, videoRef, onTimeUpdate }: VideoPlayerProps) {
+export function VideoPlayer({ filePath, videoRef, onTimeUpdate, onSeek }: VideoPlayerProps) {
   const toLocalFileUrl = (p: string) => `local-file://${p}`;
-  const [seekIndicator, setSeekIndicator] = useState<{ direction: 'forward' | 'backward'; amount: number } | null>(null);
-  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isSeekingRef = useRef<boolean>(false);
 
   // Mouse wheel seeking
   useEffect(() => {
@@ -24,43 +24,46 @@ export function VideoPlayer({ filePath, videoRef, onTimeUpdate }: VideoPlayerPro
       const video = videoRef.current;
       if (!video) return;
 
+      // Throttle: Ignore wheel events if we're already seeking
+      if (isSeekingRef.current) {
+        e.preventDefault();
+        return;
+      }
+
       // Prevent default scrolling
       e.preventDefault();
 
+      // Mark as seeking
+      isSeekingRef.current = true;
+
       // Determine seek direction and amount
-      // Scroll up (negative deltaY) = backward, scroll down (positive deltaY) = forward
       const seekAmount = 5; // seconds per scroll tick
-      const direction = e.deltaY < 0 ? 'backward' : 'forward';
-      const delta = direction === 'forward' ? seekAmount : -seekAmount;
+      const direction = e.deltaY < 0 ? "backward" : "forward";
+      const delta = direction === "forward" ? seekAmount : -seekAmount;
 
       // Seek the video
       const newTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + delta));
       video.currentTime = newTime;
 
-      // Show visual feedback
-      setSeekIndicator({ direction, amount: seekAmount });
-
-      // Clear previous timeout
-      if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current);
+      // Trigger shared seek indicator
+      if (onSeek) {
+        onSeek(direction, seekAmount);
       }
 
-      // Hide indicator after 800ms
-      seekTimeoutRef.current = setTimeout(() => {
-        setSeekIndicator(null);
-      }, 800);
+      // Reset seeking flag after a short delay
+      setTimeout(() => {
+        isSeekingRef.current = false;
+      }, 200);
     };
 
     // Add wheel listener with passive: false to allow preventDefault
-    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener("wheel", handleWheel, { passive: false });
 
     return () => {
-      container.removeEventListener('wheel', handleWheel);
-      if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current);
-      }
+      container.removeEventListener("wheel", handleWheel);
+      isSeekingRef.current = false;
     };
-  }, [videoRef]);
+  }, [videoRef, onSeek]);
 
   // Keyboard shortcuts for seeking
   useEffect(() => {
@@ -70,46 +73,48 @@ export function VideoPlayer({ filePath, videoRef, onTimeUpdate }: VideoPlayerPro
 
       // Only handle if video player area has focus or no input is focused
       const activeElement = document.activeElement;
-      if (activeElement?.tagName === 'INPUT' ||
-          activeElement?.tagName === 'TEXTAREA' ||
-          activeElement?.getAttribute('contenteditable') === 'true') {
+      if (
+        activeElement?.tagName === "INPUT" ||
+        activeElement?.tagName === "TEXTAREA" ||
+        activeElement?.getAttribute("contenteditable") === "true"
+      ) {
         return;
       }
 
       let handled = false;
       let seekAmount = 0;
-      let direction: 'forward' | 'backward' | null = null;
+      let direction: "forward" | "backward" | null = null;
 
       switch (e.key) {
-        case 'ArrowLeft':
+        case "ArrowLeft":
           seekAmount = 5;
-          direction = 'backward';
+          direction = "backward";
           video.currentTime = Math.max(0, video.currentTime - seekAmount);
           handled = true;
           break;
-        case 'ArrowRight':
+        case "ArrowRight":
           seekAmount = 5;
-          direction = 'forward';
+          direction = "forward";
           video.currentTime = Math.min(video.duration || 0, video.currentTime + seekAmount);
           handled = true;
           break;
-        case 'j':
-        case 'J':
+        case "j":
+        case "J":
           seekAmount = 10;
-          direction = 'backward';
+          direction = "backward";
           video.currentTime = Math.max(0, video.currentTime - seekAmount);
           handled = true;
           break;
-        case 'l':
-        case 'L':
+        case "l":
+        case "L":
           seekAmount = 10;
-          direction = 'forward';
+          direction = "forward";
           video.currentTime = Math.min(video.duration || 0, video.currentTime + seekAmount);
           handled = true;
           break;
-        case 'k':
-        case 'K':
-        case ' ':
+        case "k":
+        case "K":
+        case " ":
           // Play/Pause
           if (video.paused) {
             video.play();
@@ -122,85 +127,62 @@ export function VideoPlayer({ filePath, videoRef, onTimeUpdate }: VideoPlayerPro
 
       if (handled) {
         e.preventDefault();
-        if (direction) {
-          setSeekIndicator({ direction, amount: seekAmount });
-          if (seekTimeoutRef.current) {
-            clearTimeout(seekTimeoutRef.current);
-          }
-          seekTimeoutRef.current = setTimeout(() => {
-            setSeekIndicator(null);
-          }, 800);
+        if (direction && onSeek) {
+          onSeek(direction, seekAmount);
         }
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [videoRef]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [videoRef, onSeek]);
 
   return (
     <div className="space-y-4" ref={containerRef}>
-      <div className="relative group">
+      <div className="group relative">
         <video
           ref={videoRef}
           key={filePath}
           src={toLocalFileUrl(filePath)}
           autoPlay
           controls
-          className="w-full max-h-[60vh] rounded border bg-black"
+          className="max-h-[60vh] w-full rounded border bg-black"
           onTimeUpdate={onTimeUpdate}
         />
 
-        {/* Seek Indicator Overlay */}
-        {seekIndicator && (
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="bg-black/80 backdrop-blur-sm rounded-lg px-6 py-4 flex items-center gap-3 shadow-lg animate-in fade-in zoom-in-95 duration-200">
-              {seekIndicator.direction === 'backward' ? (
-                <>
-                  <Rewind className="w-8 h-8 text-white" />
-                  <div className="text-white">
-                    <p className="text-2xl font-bold">-{seekIndicator.amount}s</p>
-                    <p className="text-xs text-white/70">Backward</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="text-white text-right">
-                    <p className="text-2xl font-bold">+{seekIndicator.amount}s</p>
-                    <p className="text-xs text-white/70">Forward</p>
-                  </div>
-                  <FastForward className="w-8 h-8 text-white" />
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Keyboard Shortcuts Hint (shows on hover) */}
-        <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          <div className="bg-black/70 backdrop-blur-sm rounded-md px-3 py-2 text-white text-xs space-y-1">
+        <div className="pointer-events-none absolute bottom-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="space-y-1 rounded-md bg-black/70 px-3 py-2 text-xs text-white backdrop-blur-sm">
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                <ChevronLeft className="w-3 h-3" />
+              <Badge variant="secondary" className="px-1 py-0 text-[10px]">
+                <ChevronLeft className="h-3 w-3" />
               </Badge>
               <span>5s back</span>
-              <Badge variant="secondary" className="text-[10px] px-1 py-0 ml-2">
-                <ChevronRight className="w-3 h-3" />
+              <Badge variant="secondary" className="ml-2 px-1 py-0 text-[10px]">
+                <ChevronRight className="h-3 w-3" />
               </Badge>
               <span>5s forward</span>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-[10px] px-1 py-0">J</Badge>
+              <Badge variant="secondary" className="px-1 py-0 text-[10px]">
+                J
+              </Badge>
               <span>10s back</span>
-              <Badge variant="secondary" className="text-[10px] px-1 py-0 ml-2">L</Badge>
+              <Badge variant="secondary" className="ml-2 px-1 py-0 text-[10px]">
+                L
+              </Badge>
               <span>10s forward</span>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-[10px] px-1 py-0">K/Space</Badge>
+              <Badge variant="secondary" className="px-1 py-0 text-[10px]">
+                K/Space
+              </Badge>
               <span>Play/Pause</span>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-[10px] px-1 py-0">Scroll</Badge>
+              <Badge variant="secondary" className="px-1 py-0 text-[10px]">
+                Scroll
+              </Badge>
               <span>Seek ±5s</span>
             </div>
           </div>

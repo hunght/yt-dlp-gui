@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { getConfig } from "./config/env";
-import { VersionChecker } from "@/components/version-checker";
+
 import { YtDlpInstaller } from "@/components/ytdlp-installer";
 import { getAppVersion } from "./helpers/version";
 import { logger } from "./helpers/logger";
@@ -94,7 +94,6 @@ function App() {
       <TooltipProvider>
         <YtDlpInstaller />
         <MainApp />
-        <VersionChecker autoCheck={true} showCheckButton={false} />
       </TooltipProvider>
     </QueryClientProvider>
   );

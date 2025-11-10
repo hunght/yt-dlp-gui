@@ -117,6 +117,7 @@ apps/electron/*.db.*
 
 # Editor directories and files
 .vscode/*
+!.vscode/settings.json
 
 # Additional Electron-specific files
 apps/electron/local.db*.backup

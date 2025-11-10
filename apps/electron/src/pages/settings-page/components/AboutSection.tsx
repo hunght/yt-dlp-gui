@@ -2,20 +2,20 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ScrollTextIcon } from "lucide-react";
 import { trpcClient } from "@/utils/trpc";
-import { VersionChecker, VersionInfo } from "@/components/version-checker";
 
 export function AboutSection() {
-  const [version, setVersion] = useState<string>("");
   const [logContent, setLogContent] = useState<string>("");
   const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
-
-  const handleVersionInfo = (info: VersionInfo) => {
-    setVersion(info.currentVersion);
-  };
 
   const handleOpenLogFile = async () => {
     try {
@@ -35,17 +35,7 @@ export function AboutSection() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="text-sm">
-              Version: <span className="font-mono">{version}</span>
-            </div>
-
             <div className="flex flex-wrap gap-2">
-              <VersionChecker
-                autoCheck={false}
-                showCheckButton={true}
-                onVersionInfo={handleVersionInfo}
-              />
-
               <Button variant="outline" onClick={handleOpenLogFile}>
                 <ScrollTextIcon className="mr-2 h-4 w-4" />
                 View Logs

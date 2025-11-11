@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { useAtom } from "jotai";
+import { z } from "zod";
 import {
   showInlineTranslationsAtom,
   translationTargetLangAtom,
@@ -26,11 +27,46 @@ import {
   clearCooldown,
 } from "../utils/transcriptUtils";
 
+// Zod schema for available language structure
+const availableLanguageSchema = z.object({
+  lang: z.string(),
+  hasManual: z.boolean(),
+  hasAuto: z.boolean(),
+  manualFormats: z.array(z.string()).optional(),
+  autoFormats: z.array(z.string()).optional(),
+});
+
+// Zod schema for playback data (prefixed with _ as only used for type inference)
+const _playbackDataSchema = z
+  .object({
+    availableLanguages: z.array(availableLanguageSchema).optional(),
+  })
+  .passthrough(); // Allow additional fields
+
+// Zod schema for download transcript response
+const downloadTranscriptResponseSchema = z.union([
+  z.object({
+    success: z.literal(true),
+    videoId: z.string().optional(),
+    language: z.string().optional(),
+    length: z.number().optional(),
+  }),
+  z.object({
+    success: z.literal(false),
+    code: z.string().optional(),
+    retryAfterMs: z.number().optional(),
+    message: z.string().optional(),
+  }),
+]);
+
+type AvailableLanguage = z.infer<typeof availableLanguageSchema>;
+type PlaybackData = z.infer<typeof _playbackDataSchema>;
+
 interface TranscriptPanelProps {
   videoId: string;
   currentTime: number;
   videoRef: React.RefObject<HTMLVideoElement>;
-  playbackData?: any; // For accessing availableLanguages
+  playbackData?: PlaybackData;
   onSeek?: (direction: "forward" | "backward", amount: number) => void;
 }
 
@@ -109,20 +145,23 @@ export function TranscriptPanel({
   // Available subtitles query
   const availableSubsQuery = useQuery({
     queryKey: ["available-subs", videoId],
-    queryFn: async () => {
-      if (!videoId)
-        return { languages: [] as Array<{ lang: string; hasManual: boolean; hasAuto: boolean }> };
-
-      if (playbackData && "availableLanguages" in playbackData) {
-        return { languages: playbackData.availableLanguages || [] };
+    queryFn: async (): Promise<{ languages: AvailableLanguage[] }> => {
+      if (!videoId) {
+        const emptyLanguages: AvailableLanguage[] = [];
+        return { languages: emptyLanguages };
       }
 
-      return { languages: [] };
+      if (playbackData?.availableLanguages) {
+        return { languages: playbackData.availableLanguages };
+      }
+
+      const emptyLanguages: AvailableLanguage[] = [];
+      return { languages: emptyLanguages };
     },
     enabled: !!videoId && playbackData !== undefined,
     initialData:
       playbackData?.availableLanguages !== undefined
-        ? { languages: playbackData.availableLanguages || [] }
+        ? { languages: playbackData.availableLanguages }
         : undefined,
   });
 
@@ -138,7 +177,7 @@ export function TranscriptPanel({
 
   // Validate selected language is available
   useEffect(() => {
-    const available = (availableSubsQuery.data?.languages || []).map((l: any) => l.lang);
+    const available = (availableSubsQuery.data?.languages ?? []).map((l) => l.lang);
     if (selectedLang && !available.includes(selectedLang)) {
       toastHook({
         title: "Subtitle not available",
@@ -160,15 +199,15 @@ export function TranscriptPanel({
       return await trpcClient.transcripts.get.query({ videoId });
     },
     enabled: !!videoId,
-    placeholderData: (prev) => prev as any,
+    placeholderData: (prev) => prev,
   });
 
-  const transcriptData = transcriptQuery.data as any;
-  const effectiveLang = selectedLang ?? (transcriptData?.language as string | undefined);
+  const transcriptData = transcriptQuery.data;
+  const effectiveLang = selectedLang ?? transcriptData?.language;
 
   // Update shared atom when language changes (for AnnotationForm)
   useEffect(() => {
-    setCurrentTranscriptLang(effectiveLang);
+    setCurrentTranscriptLang(effectiveLang ?? undefined);
   }, [effectiveLang, setCurrentTranscriptLang]);
 
   // Clear download attempt when transcript loads
@@ -183,21 +222,17 @@ export function TranscriptPanel({
   const transcriptSegmentsQuery = useQuery({
     queryKey: ["transcript-segments", videoId, effectiveLang ?? "__default__"],
     queryFn: async () => {
-      if (!videoId) return { segments: [] as Array<{ start: number; end: number; text: string }> };
+      if (!videoId) return { segments: [] };
       return await trpcClient.transcripts.getSegments.query({
         videoId,
-        lang: effectiveLang,
+        lang: effectiveLang ?? undefined,
       });
     },
     enabled: !!videoId,
-    placeholderData: (prev) => prev as any,
+    placeholderData: (prev) => prev,
   });
 
-  const segments = ((transcriptSegmentsQuery.data as any)?.segments ?? []) as Array<{
-    start: number;
-    end: number;
-    text: string;
-  }>;
+  const segments = transcriptSegmentsQuery.data?.segments ?? [];
 
   // Download transcript mutation
   const downloadTranscriptMutation = useMutation({
@@ -208,10 +243,23 @@ export function TranscriptPanel({
         lang: selectedLang ?? undefined,
       });
     },
-    onSuccess: (res: any) => {
+    onSuccess: (res: unknown) => {
       if (!videoId) return;
 
-      if (res?.success) {
+      // Validate response with Zod
+      const parseResult = downloadTranscriptResponseSchema.safeParse(res);
+      if (!parseResult.success) {
+        toastHook({
+          title: "Transcript download failed",
+          description: "Invalid response from server",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const response = parseResult.data;
+
+      if (response.success) {
         queryClient.invalidateQueries({
           queryKey: ["transcript", videoId, selectedLang ?? "__default__"],
         });
@@ -221,8 +269,8 @@ export function TranscriptPanel({
       }
 
       // Handle rate limit
-      if (res?.code === "RATE_LIMITED") {
-        const retryAfterMs: number = res.retryAfterMs ?? 15 * 60 * 1000;
+      if (response.code === "RATE_LIMITED") {
+        const retryAfterMs = response.retryAfterMs ?? 15 * 60 * 1000;
         setCooldown(videoId, selectedLang, retryAfterMs);
         toastHook({
           title: "Rate limited by YouTube",
@@ -234,7 +282,7 @@ export function TranscriptPanel({
 
       toastHook({
         title: "Transcript download failed",
-        description: String(res?.message ?? "Unknown error"),
+        description: response.message ?? "Unknown error",
         variant: "destructive",
       });
     },
@@ -344,8 +392,13 @@ export function TranscriptPanel({
   });
 
   // Build efficient lookup map for saved words (memoized)
-  const translationMap = useMemo(() => {
-    if (!savedWords || !showInlineTranslations) return new Map();
+  const translationMap = useMemo((): Map<
+    string,
+    { translatedText: string; targetLang: string; queryCount: number }
+  > => {
+    if (!savedWords || !showInlineTranslations) {
+      return new Map<string, { translatedText: string; targetLang: string; queryCount: number }>();
+    }
 
     const map = new Map<
       string,
@@ -380,11 +433,11 @@ export function TranscriptPanel({
 
   // Get translation for a word (O(1) lookup)
   const getTranslationForWord = useCallback(
-    (word: string) => {
+    (word: string): { translatedText: string; targetLang: string; queryCount: number } | null => {
       if (!showInlineTranslations || translationMap.size === 0) return null;
 
       const cleanWord = word.toLowerCase().trim();
-      let translation = translationMap.get(cleanWord);
+      const translation = translationMap.get(cleanWord);
 
       // If not found, try without punctuation
       if (!translation) {
@@ -392,7 +445,7 @@ export function TranscriptPanel({
           .replace(/[.,!?;:'"()[\]{}]/g, "")
           .toLowerCase()
           .trim();
-        translation = translationMap.get(noPunctuation);
+        return translationMap.get(noPunctuation) ?? null;
       }
 
       return translation;
@@ -952,7 +1005,7 @@ export function TranscriptPanel({
         onOpenChange={setShowTranscriptSettings}
         filteredLanguages={filteredLanguages}
         selectedLang={selectedLang}
-        effectiveLang={effectiveLang}
+        effectiveLang={effectiveLang ?? undefined}
         onLanguageChange={setSelectedLang}
       />
     </>

@@ -78,7 +78,7 @@ const queryClient = new QueryClient({});
 // Initialize theme based on saved preference
 syncThemeWithLocal().catch((error) => logger.error("Failed to sync theme", error));
 
-function MainApp() {
+function MainApp(): React.JSX.Element {
   const { i18n } = useTranslation();
 
   useEffect(() => {
@@ -88,7 +88,7 @@ function MainApp() {
   return <RouterProvider router={router} />;
 }
 
-function App() {
+function App(): React.JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

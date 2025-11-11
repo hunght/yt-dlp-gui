@@ -2,7 +2,6 @@ import React, { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import BaseLayout from "@/layouts/BaseLayout";
 import { Outlet, createRootRoute, useMatches } from "@tanstack/react-router";
-import { ConfirmationDialogProvider } from "@/components/providers/ConfirmationDialog";
 import { analytics } from "@/helpers/analytics";
 import { logger } from "@/helpers/logger";
 import { Toaster } from "sonner";
@@ -50,7 +49,7 @@ export const RootRoute = createRootRoute({
   },
 });
 
-function Root() {
+function Root(): React.JSX.Element {
   const matches = useMatches();
   const isFullScreenRoute = matches.some((match) => match.pathname === "/raining-letters");
 
@@ -81,7 +80,7 @@ function Root() {
   }, [matches]);
 
   return (
-    <ConfirmationDialogProvider>
+    <>
       {isFullScreenRoute ? (
         <Outlet />
       ) : (
@@ -90,6 +89,6 @@ function Root() {
         </BaseLayout>
       )}
       <Toaster />
-    </ConfirmationDialogProvider>
+    </>
   );
 }

@@ -21,16 +21,16 @@ export function PlaylistNavigation({
   hasPrevious,
   onNext,
   onPrevious,
-}: PlaylistNavigationProps) {
+}: PlaylistNavigationProps): React.JSX.Element {
   return (
     <Card>
       <CardContent className="p-4">
         <div className="flex items-center justify-between gap-4">
           {/* Playlist info */}
-          <div className="flex items-center gap-2 min-w-0">
-            <List className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <div className="flex min-w-0 items-center gap-2">
+            <List className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
             <div className="min-w-0">
-              <div className="text-sm font-medium text-muted-foreground truncate">
+              <div className="truncate text-sm font-medium text-muted-foreground">
                 {playlistTitle || "Playlist"}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -40,7 +40,7 @@ export function PlaylistNavigation({
           </div>
 
           {/* Navigation buttons */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-shrink-0 items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -48,7 +48,7 @@ export function PlaylistNavigation({
               disabled={!hasPrevious}
               title="Previous video"
             >
-              <ChevronLeft className="h-4 w-4 mr-1" />
+              <ChevronLeft className="mr-1 h-4 w-4" />
               Previous
             </Button>
             <Button
@@ -59,7 +59,7 @@ export function PlaylistNavigation({
               title="Next video"
             >
               Next
-              <ChevronRight className="h-4 w-4 ml-1" />
+              <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -67,4 +67,3 @@ export function PlaylistNavigation({
     </Card>
   );
 }
-

@@ -7,7 +7,7 @@ import { AppRightSidebar } from "@/components/app-right-sidebar";
 import DragWindowRegion from "@/components/DragWindowRegion";
 import { HeaderNav } from "@/components/HeaderNav";
 
-export default function BaseLayout({ children }: { children: React.ReactNode }) {
+export default function BaseLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <SidebarProvider>
       <div className="flex h-screen flex-col">

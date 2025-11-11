@@ -18,8 +18,8 @@ export function DownloadStatus({
   progress,
   onStartDownload,
   isStarting,
-}: DownloadStatusProps) {
-  const statusText = (status?: string | null, progress?: number | null) => {
+}: DownloadStatusProps): React.JSX.Element {
+  const statusText = (status?: string | null, progress?: number | null): string | null => {
     if (!status) return null;
     switch (status) {
       case "completed":
@@ -42,7 +42,8 @@ export function DownloadStatus({
       <Alert>
         <AlertTitle>File not available</AlertTitle>
         <AlertDescription>
-          The video has no downloaded file yet. {status ? "Current status shown below." : "Start a download to fetch it."}
+          The video has no downloaded file yet.{" "}
+          {status ? "Current status shown below." : "Start a download to fetch it."}
         </AlertDescription>
       </Alert>
 
@@ -60,8 +61,8 @@ export function DownloadStatus({
               status === "completed"
                 ? "bg-green-500"
                 : status === "failed"
-                ? "bg-red-500"
-                : "bg-blue-500"
+                  ? "bg-red-500"
+                  : "bg-blue-500"
             }
           />
         </div>
@@ -75,13 +76,17 @@ export function DownloadStatus({
           {isStarting
             ? "Starting..."
             : ["downloading", "queued"].includes(status || "")
-            ? statusText(status, progress)
-            : "Download video"}
+              ? statusText(status, progress)
+              : "Download video"}
         </Button>
         {videoId && (
           <Button
             variant="outline"
-            onClick={() => trpcClient.utils.openExternalUrl.mutate({ url: `https://www.youtube.com/watch?v=${videoId}` })}
+            onClick={() =>
+              trpcClient.utils.openExternalUrl.mutate({
+                url: `https://www.youtube.com/watch?v=${videoId}`,
+              })
+            }
           >
             Open on YouTube
           </Button>

@@ -23,7 +23,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "@tanstack/react-router";
 import Thumbnail from "@/components/Thumbnail";
 
-export default function MyWordsPage() {
+export default function MyWordsPage(): React.JSX.Element {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -38,12 +38,17 @@ export default function MyWordsPage() {
   }, [searchQuery]);
 
   // Fetch saved words (not all translations - only user-saved ones)
-  const { data: savedWordsData, isLoading: savedWordsLoading, refetch: refetchSavedWords } = useQuery({
+  const {
+    data: savedWordsData,
+    isLoading: savedWordsLoading,
+    refetch: refetchSavedWords,
+  } = useQuery({
     queryKey: ["saved-words"],
-    queryFn: async () => trpcClient.translation.getSavedWords.query({
-      limit: 100,
-      offset: 0,
-    }),
+    queryFn: async () =>
+      trpcClient.translation.getSavedWords.query({
+        limit: 100,
+        offset: 0,
+      }),
   });
 
   // Fetch statistics
@@ -73,7 +78,7 @@ export default function MyWordsPage() {
   };
 
   const toggleExpanded = (translationId: string) => {
-    setExpandedTranslations(prev => {
+    setExpandedTranslations((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(translationId)) {
         newSet.delete(translationId);
@@ -90,24 +95,23 @@ export default function MyWordsPage() {
       search: {
         videoId,
         playlistId: undefined,
-        playlistIndex: undefined
-      }
+        playlistIndex: undefined,
+      },
     });
   };
 
   // Format saved words to match the expected structure
-  const savedWords = savedWordsData?.words.map(w => ({
-    ...w.translation,
-    savedWordId: w.id,
-    notes: w.notes,
-    reviewCount: w.reviewCount,
-    lastReviewedAt: w.lastReviewedAt,
-    savedAt: w.createdAt,
-  })) || [];
+  const savedWords =
+    savedWordsData?.words.map((w) => ({
+      ...w.translation,
+      savedWordId: w.id,
+      notes: w.notes,
+      reviewCount: w.reviewCount,
+      lastReviewedAt: w.lastReviewedAt,
+      savedAt: w.createdAt,
+    })) || [];
 
-  const displayTranslations = debouncedSearch
-    ? searchResults || []
-    : savedWords;
+  const displayTranslations = debouncedSearch ? searchResults || [] : savedWords;
 
   const isLoading = debouncedSearch ? searchLoading : savedWordsLoading;
 
@@ -123,7 +127,7 @@ export default function MyWordsPage() {
 
     if (contextsLoading) {
       return (
-        <div className="mt-3 flex items-center justify-center py-4 border-t">
+        <div className="mt-3 flex items-center justify-center border-t py-4">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       );
@@ -132,49 +136,51 @@ export default function MyWordsPage() {
     if (!contexts || contexts.length === 0) {
       return (
         <div className="mt-3 border-t pt-3">
-          <p className="text-sm text-muted-foreground text-center py-2">
-            No video contexts found. This word will be linked to videos when you translate it while watching.
+          <p className="py-2 text-center text-sm text-muted-foreground">
+            No video contexts found. This word will be linked to videos when you translate it while
+            watching.
           </p>
         </div>
       );
     }
 
     return (
-      <div className="mt-3 border-t pt-3 space-y-2">
-        <div className="flex items-center gap-2 mb-2">
+      <div className="mt-3 space-y-2 border-t pt-3">
+        <div className="mb-2 flex items-center gap-2">
           <Video className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Found in {contexts.length} video{contexts.length !== 1 ? 's' : ''}</span>
+          <span className="text-sm font-medium">
+            Found in {contexts.length} video{contexts.length !== 1 ? "s" : ""}
+          </span>
         </div>
 
         <div className="space-y-2">
           {contexts.map((context) => (
             <div
               key={context.id}
-              className="flex items-center gap-3 p-2 rounded-md border hover:bg-accent transition-colors"
+              className="flex items-center gap-3 rounded-md border p-2 transition-colors hover:bg-accent"
             >
               {/* Video Thumbnail */}
-              <div className="flex-shrink-0 w-24">
+              <div className="w-24 flex-shrink-0">
                 <Thumbnail
                   thumbnailPath={context.videoThumbnailPath}
                   thumbnailUrl={context.videoThumbnailUrl}
                   alt={context.videoTitle || "Video"}
-                  className="w-full aspect-video rounded object-cover"
+                  className="aspect-video w-full rounded object-cover"
                 />
               </div>
 
               {/* Video Info */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
                   {context.videoTitle || context.videoId}
                 </p>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   <span>
-                    {Math.floor(context.timestampSeconds / 60)}:{String(context.timestampSeconds % 60).padStart(2, '0')}
+                    {Math.floor(context.timestampSeconds / 60)}:
+                    {String(context.timestampSeconds % 60).padStart(2, "0")}
                   </span>
-                  {context.contextText && (
-                    <span className="truncate">• {context.contextText}</span>
-                  )}
+                  {context.contextText && <span className="truncate">• {context.contextText}</span>}
                 </div>
               </div>
 
@@ -185,7 +191,7 @@ export default function MyWordsPage() {
                 className="flex-shrink-0"
                 onClick={() => handlePlayFromContext(context.videoId, context.timestampSeconds)}
               >
-                <Play className="h-3 w-3 mr-1" />
+                <Play className="mr-1 h-3 w-3" />
                 Play
               </Button>
             </div>
@@ -222,9 +228,7 @@ export default function MyWordsPage() {
                 savedWordsData?.total || 0
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Words in your learning list
-            </p>
+            <p className="text-xs text-muted-foreground">Words in your learning list</p>
           </CardContent>
         </Card>
 
@@ -241,9 +245,7 @@ export default function MyWordsPage() {
                 stats?.totalQueries || 0
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Times you looked up words
-            </p>
+            <p className="text-xs text-muted-foreground">Times you looked up words</p>
           </CardContent>
         </Card>
 
@@ -260,9 +262,7 @@ export default function MyWordsPage() {
                 stats?.uniqueLanguagePairs || 0
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Different language combinations
-            </p>
+            <p className="text-xs text-muted-foreground">Different language combinations</p>
           </CardContent>
         </Card>
 
@@ -272,7 +272,7 @@ export default function MyWordsPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-bold truncate">
+            <div className="truncate text-lg font-bold">
               {statsLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin" />
               ) : stats?.mostFrequent ? (
@@ -314,9 +314,7 @@ export default function MyWordsPage() {
           {!debouncedSearch && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-4 w-4" />
-              <span>
-                Showing saved words (most recent first)
-              </span>
+              <span>Showing saved words (most recent first)</span>
             </div>
           )}
 
@@ -327,26 +325,29 @@ export default function MyWordsPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : displayTranslations.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="py-8 text-center text-muted-foreground">
                 {debouncedSearch ? (
                   <p>No saved words found for "{debouncedSearch}"</p>
                 ) : (
                   <div className="space-y-2">
                     <p>No saved words yet.</p>
-                    <p className="text-sm">Hover over words in video transcripts for 800ms and click "Save to My Words" to build your vocabulary!</p>
+                    <p className="text-sm">
+                      Hover over words in video transcripts for 800ms and click "Save to My Words"
+                      to build your vocabulary!
+                    </p>
                   </div>
                 )}
               </div>
             ) : (
               displayTranslations.map((translation) => (
-                <Card key={translation.id} className="group hover:shadow-md transition-shadow">
+                <Card key={translation.id} className="group transition-shadow hover:shadow-md">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-2">
                         {/* Source and Target Text */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="mb-1 flex items-center gap-2">
                               <Badge variant="outline" className="text-xs">
                                 {translation.sourceLang.toUpperCase()}
                               </Badge>
@@ -354,12 +355,12 @@ export default function MyWordsPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{translation.sourceText}</p>
-                              <BookmarkCheck className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                              <BookmarkCheck className="h-4 w-4 flex-shrink-0 text-blue-500" />
                             </div>
                           </div>
 
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="mb-1 flex items-center gap-2">
                               <Badge variant="outline" className="text-xs">
                                 {translation.targetLang.toUpperCase()}
                               </Badge>
@@ -370,33 +371,48 @@ export default function MyWordsPage() {
                         </div>
 
                         {/* Notes (if any) */}
-                        {(translation as any).notes && (
-                          <div className="pt-2 border-t">
-                            <p className="text-xs text-muted-foreground mb-1">Notes:</p>
-                            <p className="text-sm italic">{(translation as any).notes}</p>
-                          </div>
-                        )}
+                        {"notes" in translation &&
+                          typeof translation.notes === "string" &&
+                          translation.notes && (
+                            <div className="border-t pt-2">
+                              <p className="mb-1 text-xs text-muted-foreground">Notes:</p>
+                              <p className="text-sm italic">{translation.notes}</p>
+                            </div>
+                          )}
 
                         {/* Metadata */}
                         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <TrendingUp className="h-3 w-3" />
-                            <span>{translation.queryCount} {translation.queryCount === 1 ? 'query' : 'queries'}</span>
+                            <span>
+                              {translation.queryCount}{" "}
+                              {translation.queryCount === 1 ? "query" : "queries"}
+                            </span>
                           </div>
 
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             <span>
-                              Saved {formatDistanceToNow(new Date((translation as any).savedAt || translation.createdAt), { addSuffix: true })}
+                              Saved{" "}
+                              {formatDistanceToNow(
+                                new Date(
+                                  "savedAt" in translation &&
+                                  typeof translation.savedAt === "number"
+                                    ? translation.savedAt
+                                    : translation.createdAt
+                                ),
+                                { addSuffix: true }
+                              )}
                             </span>
                           </div>
 
-                          {translation.detectedLang && translation.detectedLang !== translation.sourceLang && (
-                            <div className="flex items-center gap-1">
-                              <Languages className="h-3 w-3" />
-                              <span>Detected as {translation.detectedLang}</span>
-                            </div>
-                          )}
+                          {translation.detectedLang &&
+                            translation.detectedLang !== translation.sourceLang && (
+                              <div className="flex items-center gap-1">
+                                <Languages className="h-3 w-3" />
+                                <span>Detected as {translation.detectedLang}</span>
+                              </div>
+                            )}
                         </div>
 
                         {/* Show in Videos Button */}
@@ -430,7 +446,7 @@ export default function MyWordsPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDelete(translation.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="opacity-0 transition-opacity group-hover:opacity-100"
                         title="Remove from My Words (keeps in cache)"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -444,10 +460,8 @@ export default function MyWordsPage() {
 
           {/* Load More */}
           {!debouncedSearch && savedWordsData?.hasMore && (
-            <div className="text-center pt-4">
-              <Button variant="outline">
-                Load More
-              </Button>
+            <div className="pt-4 text-center">
+              <Button variant="outline">Load More</Button>
             </div>
           )}
         </CardContent>
@@ -455,4 +469,3 @@ export default function MyWordsPage() {
     </div>
   );
 }
-

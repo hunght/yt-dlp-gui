@@ -263,7 +263,7 @@ class QueueManager {
         count: interruptedDownloads.length,
       });
     } catch (error) {
-      logger.error("[queue-manager] Failed to restore interrupted downloads", error as Error);
+      logger.error("[queue-manager] Failed to restore interrupted downloads", error);
     }
   }
 
@@ -287,13 +287,13 @@ class QueueManager {
     // Process queue every 2 seconds
     this.processingInterval = setInterval(() => {
       this.processQueue().catch((error) => {
-        logger.error("[queue-manager] Error processing queue", error as Error);
+        logger.error("[queue-manager] Error processing queue", error);
       });
     }, 2000);
 
     // Process immediately
     this.processQueue().catch((error) => {
-      logger.error("[queue-manager] Error processing queue", error as Error);
+      logger.error("[queue-manager] Error processing queue", error);
     });
   }
 
@@ -402,14 +402,14 @@ class QueueManager {
             url: item.url,
           });
         } catch (error) {
-          logger.error("[queue-manager] Failed to start download", error as Error);
+          logger.error("[queue-manager] Failed to start download", error);
           // Mark as failed
           item.status = "paused";
-          item.errorMessage = (error as Error).message;
+          item.errorMessage = error instanceof Error ? error.message : String(error);
         }
       }
     } catch (error) {
-      logger.error("[queue-manager] Error in processQueue", error as Error);
+      logger.error("[queue-manager] Error in processQueue", error);
     }
   }
 
@@ -592,24 +592,28 @@ class QueueManager {
 
       // Return both added and skipped info
       if (skippedUrls.length > 0) {
-        const error: any = new Error(
+        // Create custom error with additional properties
+        const duplicateError = new Error(
           skippedUrls.length === urls.length
             ? "All videos already downloaded or in queue"
             : `${skippedUrls.length} of ${urls.length} videos skipped (already downloaded or in queue)`
         );
-        error.skippedUrls = skippedUrls;
-        error.addedIds = downloadIds;
-        error.isPartialDuplicate = downloadIds.length > 0;
-        throw error;
+        // Attach metadata to error object
+        Object.assign(duplicateError, {
+          skippedUrls,
+          addedIds: downloadIds,
+          isPartialDuplicate: downloadIds.length > 0,
+        });
+        throw duplicateError;
       }
 
       return downloadIds;
     } catch (error) {
       // Re-throw with additional context if it's our duplicate error
-      if ((error as any).skippedUrls) {
+      if (error && typeof error === "object" && "skippedUrls" in error) {
         throw error;
       }
-      logger.error("[queue-manager] Failed to add to queue", error as Error);
+      logger.error("[queue-manager] Failed to add to queue", error);
       throw error;
     }
   }
@@ -647,7 +651,7 @@ class QueueManager {
         wasActive,
       });
     } catch (error) {
-      logger.error("[queue-manager] Failed to pause download", error as Error);
+      logger.error("[queue-manager] Failed to pause download", error);
       throw error;
     }
   }
@@ -679,7 +683,7 @@ class QueueManager {
 
       logger.info("[queue-manager] Resumed download", { downloadId });
     } catch (error) {
-      logger.error("[queue-manager] Failed to resume download", error as Error);
+      logger.error("[queue-manager] Failed to resume download", error);
       throw error;
     }
   }
@@ -716,7 +720,7 @@ class QueueManager {
         wasActive,
       });
     } catch (error) {
-      logger.error("[queue-manager] Failed to cancel download", error as Error);
+      logger.error("[queue-manager] Failed to cancel download", error);
       throw error;
     }
   }
@@ -747,7 +751,7 @@ class QueueManager {
         retryCount: item.retryCount,
       });
     } catch (error) {
-      logger.error("[queue-manager] Failed to retry download", error as Error);
+      logger.error("[queue-manager] Failed to retry download", error);
       throw error;
     }
   }
@@ -912,7 +916,7 @@ class QueueManager {
         stats,
       };
     } catch (error) {
-      logger.error("[queue-manager] Failed to get queue status", error as Error);
+      logger.error("[queue-manager] Failed to get queue status", error);
       throw error;
     }
   }
@@ -937,7 +941,7 @@ class QueueManager {
 
       logger.info("[queue-manager] Cleared completed downloads");
     } catch (error) {
-      logger.error("[queue-manager] Failed to clear completed", error as Error);
+      logger.error("[queue-manager] Failed to clear completed", error);
       throw error;
     }
   }

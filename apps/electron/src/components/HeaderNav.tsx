@@ -2,7 +2,7 @@ import React, { useMemo, Fragment } from "react";
 import { Link, useMatches } from "@tanstack/react-router";
 import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 
-export function HeaderNav() {
+export function HeaderNav(): React.JSX.Element {
   const matches = useMatches();
   const leaf = matches[matches.length - 1];
   const segments = useMemo(() => {

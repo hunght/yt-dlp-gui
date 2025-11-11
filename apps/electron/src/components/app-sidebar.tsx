@@ -54,7 +54,10 @@ const items = [
   },
 ];
 
-export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+  className,
+  ...props
+}: React.ComponentProps<typeof Sidebar>): React.JSX.Element {
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const matches = useMatches();
   const currentPath = useMemo(() => matches[matches.length - 1]?.pathname ?? "/", [matches]);

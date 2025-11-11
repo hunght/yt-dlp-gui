@@ -26,8 +26,8 @@ export function ExternalLink({
   iconClassName = "h-4 w-4",
   iconPosition = "right",
   onClick,
-}: ExternalLinkProps) {
-  const handleClick = async (e: React.MouseEvent) => {
+}: ExternalLinkProps): React.JSX.Element {
+  const handleClick = async (e: React.MouseEvent): Promise<void> => {
     e.preventDefault();
 
     // Call user-defined onClick if provided

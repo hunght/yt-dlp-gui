@@ -9,8 +9,13 @@ interface VideoPlayerProps {
   onSeek?: (direction: "forward" | "backward", amount: number) => void;
 }
 
-export function VideoPlayer({ filePath, videoRef, onTimeUpdate, onSeek }: VideoPlayerProps) {
-  const toLocalFileUrl = (p: string) => `local-file://${p}`;
+export function VideoPlayer({
+  filePath,
+  videoRef,
+  onTimeUpdate,
+  onSeek,
+}: VideoPlayerProps): React.JSX.Element {
+  const toLocalFileUrl = (p: string): string => `local-file://${p}`;
   const containerRef = useRef<HTMLDivElement>(null);
   const isSeekingRef = useRef<boolean>(false);
 
@@ -19,7 +24,7 @@ export function VideoPlayer({ filePath, videoRef, onTimeUpdate, onSeek }: VideoP
     const container = containerRef.current;
     if (!container) return;
 
-    const handleWheel = (e: WheelEvent) => {
+    const handleWheel = (e: WheelEvent): void => {
       // Only handle wheel events when hovering over the video player area
       const video = videoRef.current;
       if (!video) return;
@@ -67,7 +72,7 @@ export function VideoPlayer({ filePath, videoRef, onTimeUpdate, onSeek }: VideoP
 
   // Keyboard shortcuts for seeking
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       const video = videoRef.current;
       if (!video) return;
 

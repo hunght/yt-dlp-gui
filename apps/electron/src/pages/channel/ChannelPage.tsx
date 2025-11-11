@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { LatestTab, PopularTab, LibraryTab, PlaylistsTab } from "./components";
 import { RefreshCw } from "lucide-react";
 
-export default function ChannelPage() {
+export default function ChannelPage(): React.JSX.Element {
   const search = useSearch({ from: "/channel" });
   const channelId = search.channelId;
   const queryClient = useQueryClient();
@@ -62,7 +62,7 @@ export default function ChannelPage() {
         queryClient.invalidateQueries({ queryKey: ["channel", channelId] });
         toast.success("Channel information refreshed successfully");
       } else {
-        toast.error((result as any).error || "Failed to refresh channel information");
+        toast.error("Failed to refresh channel information");
       }
     },
     onError: () => {

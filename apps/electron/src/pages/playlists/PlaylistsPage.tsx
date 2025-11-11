@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Search, Play, Clock, Eye } from "lucide-react";
 import Thumbnail from "@/components/Thumbnail";
 
-export default function PlaylistsPage() {
+export default function PlaylistsPage(): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState("");
   const [limit, setLimit] = useState(100);
 
@@ -20,8 +20,7 @@ export default function PlaylistsPage() {
   });
 
   const updatePlaylistViewMutation = useMutation({
-    mutationFn: (playlistId: string) =>
-      trpcClient.playlists.updateView.mutate({ playlistId }),
+    mutationFn: (playlistId: string) => trpcClient.playlists.updateView.mutate({ playlistId }),
   });
 
   const filteredPlaylists = useMemo(() => {
@@ -29,9 +28,10 @@ export default function PlaylistsPage() {
     if (!searchQuery.trim()) return playlistsQuery.data;
 
     const query = searchQuery.toLowerCase();
-    return playlistsQuery.data.filter((playlist) =>
-      playlist.title.toLowerCase().includes(query) ||
-      playlist.channelTitle?.toLowerCase().includes(query)
+    return playlistsQuery.data.filter(
+      (playlist) =>
+        playlist.title.toLowerCase().includes(query) ||
+        playlist.channelTitle?.toLowerCase().includes(query)
     );
   }, [playlistsQuery.data, searchQuery]);
 
@@ -84,11 +84,7 @@ export default function PlaylistsPage() {
               />
             </div>
             {searchQuery && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSearchQuery("")}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setSearchQuery("")}>
                 Clear
               </Button>
             )}
@@ -103,11 +99,7 @@ export default function PlaylistsPage() {
               All Playlists {filteredPlaylists.length > 0 && `(${filteredPlaylists.length})`}
             </CardTitle>
             {playlistsQuery.data && playlistsQuery.data.length >= limit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setLimit((prev) => prev + 50)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setLimit((prev) => prev + 50)}>
                 Load More
               </Button>
             )}
@@ -116,7 +108,7 @@ export default function PlaylistsPage() {
         <CardContent>
           {playlistsQuery.isLoading ? (
             <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
+              {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3 rounded-lg border p-4">
                   <div className="h-24 w-40 animate-pulse rounded bg-muted" />
                   <div className="flex-1 space-y-2">
@@ -131,9 +123,10 @@ export default function PlaylistsPage() {
             <div className="space-y-4">
               {filteredPlaylists.map((playlist) => {
                 const hasWatchHistory = (playlist.viewCount ?? 0) > 0;
-                const progress = playlist.itemCount && playlist.currentVideoIndex
-                  ? Math.round((playlist.currentVideoIndex / playlist.itemCount) * 100)
-                  : 0;
+                const progress =
+                  playlist.itemCount && playlist.currentVideoIndex
+                    ? Math.round((playlist.currentVideoIndex / playlist.itemCount) * 100)
+                    : 0;
 
                 return (
                   <div
@@ -201,12 +194,15 @@ export default function PlaylistsPage() {
                               <Eye className="h-3 w-3" />
                               <span>{playlist.viewCount} views</span>
                             </div>
-                            {playlist.totalWatchTimeSeconds && playlist.totalWatchTimeSeconds > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                <span>{formatDuration(playlist.totalWatchTimeSeconds)} watched</span>
-                              </div>
-                            )}
+                            {playlist.totalWatchTimeSeconds &&
+                              playlist.totalWatchTimeSeconds > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>
+                                    {formatDuration(playlist.totalWatchTimeSeconds)} watched
+                                  </span>
+                                </div>
+                              )}
                             {progress > 0 && (
                               <Badge variant="secondary" className="text-xs">
                                 {progress}% complete

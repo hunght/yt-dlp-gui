@@ -71,7 +71,7 @@ export function showMainWindow(): void {
   }
 }
 
-async function createTray() {
+async function createTray(): Promise<void> {
   // Request notification permission on macOS
   if (process.platform === "darwin") {
     await app.whenReady();

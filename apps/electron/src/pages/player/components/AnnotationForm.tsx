@@ -13,7 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { trpcClient } from "@/utils/trpc";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { translationTargetLangAtom, includeTranslationInNoteAtom, currentTranscriptLangAtom } from "@/context/transcriptSettings";
+import {
+  translationTargetLangAtom,
+  includeTranslationInNoteAtom,
+  currentTranscriptLangAtom,
+} from "@/context/transcriptSettings";
 import { toast } from "sonner";
 import { openAnnotationFormAtom } from "@/context/annotations";
 
@@ -31,11 +35,7 @@ const EMOJI_REACTIONS = [
   { emoji: "🔖", label: "Bookmark", description: "Save for later review" },
 ] as const;
 
-export function AnnotationForm({
-  videoId,
-  currentTime,
-  videoRef,
-}: AnnotationFormProps) {
+export function AnnotationForm({ videoId, currentTime, videoRef }: AnnotationFormProps) {
   const queryClient = useQueryClient();
 
   // Atoms for settings and shared state
@@ -67,7 +67,7 @@ export function AnnotationForm({
   const createAnnotationMutation = useMutation({
     mutationFn: async () => {
       if (!videoId) throw new Error("Missing videoId");
-        return await trpcClient.annotations.create.mutate({
+      return await trpcClient.annotations.create.mutate({
         videoId,
         timestampSeconds: timestampWhenOpened,
         selectedText: selectedText || undefined,
@@ -195,14 +195,17 @@ export function AnnotationForm({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-muted-foreground" />
-            Add note at {Math.floor(timestampWhenOpened / 60)}:{String(Math.floor(timestampWhenOpened % 60)).padStart(2, "0")}
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            Add note at {Math.floor(timestampWhenOpened / 60)}:
+            {String(Math.floor(timestampWhenOpened % 60)).padStart(2, "0")}
           </DialogTitle>
           {selectedText && (
             <DialogDescription asChild>
-              <div className="mt-2 p-3 rounded bg-muted/50 border border-primary/20">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Selected text:</p>
-                <p className="text-sm italic text-foreground/90 leading-relaxed">"{selectedText}"</p>
+              <div className="mt-2 rounded border border-primary/20 bg-muted/50 p-3">
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Selected text:</p>
+                <p className="text-sm italic leading-relaxed text-foreground/90">
+                  "{selectedText}"
+                </p>
               </div>
             </DialogDescription>
           )}
@@ -210,9 +213,9 @@ export function AnnotationForm({
         <div className="space-y-4 py-4">
           {/* Auto Translation - only show if there's selected text */}
           {selectedText && (
-            <div className="p-3 rounded-lg bg-gradient-to-br from-blue-500/5 to-blue-500/10 border border-blue-500/20">
+            <div className="rounded-lg border border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-blue-500/10 p-3">
               <div className="flex items-start gap-3">
-                <Languages className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                <Languages className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-500" />
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold">
@@ -223,18 +226,18 @@ export function AnnotationForm({
                   <div className="space-y-2">
                     {translationQuery.isLoading && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <Loader2 className="h-3 w-3 animate-spin" />
                         Translating...
                       </div>
                     )}
 
                     {translationQuery.data?.success && (
                       <>
-                        <div className="p-2 rounded bg-background border text-sm">
+                        <div className="rounded border bg-background p-2 text-sm">
                           <p className="font-medium text-foreground">
                             {translationQuery.data.translation}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {translationQuery.data.sourceLang} → {translationQuery.data.targetLang}
                           </p>
                         </div>
@@ -242,30 +245,36 @@ export function AnnotationForm({
                         {/* Save to My Words Button */}
                         <div className="flex items-center gap-2">
                           {wordSaved ? (
-                            <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-3 py-1.5 rounded border border-green-200 dark:border-green-800">
-                              <Check className="w-3 h-3" />
+                            <div className="flex items-center gap-1.5 rounded border border-green-200 bg-green-50 px-3 py-1.5 text-xs text-green-600 dark:border-green-800 dark:bg-green-950/30 dark:text-green-400">
+                              <Check className="h-3 w-3" />
                               <span>Saved to My Words</span>
                             </div>
-                          ) : translationQuery.data.success && (translationQuery.data as any).translationId ? (
+                          ) : translationQuery.data.success &&
+                            "translationId" in translationQuery.data &&
+                            typeof translationQuery.data.translationId === "string" ? (
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                if (translationQuery.data?.success && (translationQuery.data as any).translationId) {
-                                  saveWordMutation.mutate((translationQuery.data as any).translationId);
+                                if (
+                                  translationQuery.data?.success &&
+                                  "translationId" in translationQuery.data &&
+                                  typeof translationQuery.data.translationId === "string"
+                                ) {
+                                  saveWordMutation.mutate(translationQuery.data.translationId);
                                 }
                               }}
                               disabled={saveWordMutation.isPending}
-                              className="text-xs h-7"
+                              className="h-7 text-xs"
                             >
                               {saveWordMutation.isPending ? (
                                 <>
-                                  <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
                                   Saving...
                                 </>
                               ) : (
                                 <>
-                                  <BookmarkPlus className="w-3 h-3 mr-1.5" />
+                                  <BookmarkPlus className="mr-1.5 h-3 w-3" />
                                   Save to My Words
                                 </>
                               )}
@@ -319,17 +328,21 @@ export function AnnotationForm({
             placeholder="Write your note... (optional)"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="text-sm min-h-24 resize-none"
+            className="min-h-24 resize-none text-sm"
             autoFocus
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !createAnnotationMutation.isPending) {
+              if (
+                e.key === "Enter" &&
+                (e.ctrlKey || e.metaKey) &&
+                !createAnnotationMutation.isPending
+              ) {
                 e.preventDefault();
                 handleSave();
               }
             }}
           />
         </div>
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
           {emoji && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground sm:mr-auto">
               <span className="text-base">{emoji}</span>
@@ -337,14 +350,19 @@ export function AnnotationForm({
             </div>
           )}
           <div className="flex gap-2 sm:ml-auto">
-            <Button variant="outline" onClick={handleCancel} disabled={createAnnotationMutation.isPending}>
-              Cancel
-            </Button>
             <Button
-              onClick={handleSave}
+              variant="outline"
+              onClick={handleCancel}
               disabled={createAnnotationMutation.isPending}
             >
-              {createAnnotationMutation.isPending ? "Saving..." : emoji ? `Save ${emoji}` : "Save note"}
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={createAnnotationMutation.isPending}>
+              {createAnnotationMutation.isPending
+                ? "Saving..."
+                : emoji
+                  ? `Save ${emoji}`
+                  : "Save note"}
             </Button>
           </div>
         </DialogFooter>

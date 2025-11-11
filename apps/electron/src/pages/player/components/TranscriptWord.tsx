@@ -18,7 +18,7 @@ export function TranscriptWord({
   showInlineTranslations,
   onMouseEnter,
   onMouseLeave,
-}: TranscriptWordProps) {
+}: TranscriptWordProps): React.JSX.Element {
   // Don't wrap whitespace - just render as space
   if (/^\s+$/.test(word)) {
     return <span className="w-1" />;
@@ -28,27 +28,30 @@ export function TranscriptWord({
     <span
       className={`inline-flex flex-col items-center transition-all duration-100 ${
         isHovered
-          ? 'bg-yellow-200 dark:bg-yellow-500/30 px-1 -mx-0.5 rounded scale-105'
+          ? "-mx-0.5 scale-105 rounded bg-yellow-200 px-1 dark:bg-yellow-500/30"
           : hasTranslation
-          ? 'hover:bg-blue-100 dark:hover:bg-blue-900/30 px-1 -mx-0.5 rounded'
-          : 'hover:bg-muted/50 px-1 -mx-0.5 rounded'
+            ? "-mx-0.5 rounded px-1 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+            : "-mx-0.5 rounded px-1 hover:bg-muted/50"
       }`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{
-        cursor: word.trim() ? 'pointer' : 'default',
-        minHeight: showInlineTranslations && hasTranslation ? '1.8em' : 'auto'
+        cursor: word.trim() ? "pointer" : "default",
+        minHeight: showInlineTranslations && hasTranslation ? "1.8em" : "auto",
       }}
     >
-      <span className={hasTranslation && !isHovered ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}>
+      <span
+        className={
+          hasTranslation && !isHovered ? "font-medium text-blue-600 dark:text-blue-400" : ""
+        }
+      >
         {word}
       </span>
       {hasTranslation && showInlineTranslations && translation && (
-        <span className="text-[10px] text-blue-500 dark:text-blue-400 leading-none whitespace-nowrap opacity-90">
+        <span className="whitespace-nowrap text-[10px] leading-none text-blue-500 opacity-90 dark:text-blue-400">
           {translation.translatedText}
         </span>
       )}
     </span>
   );
 }
-

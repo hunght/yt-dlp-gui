@@ -14,7 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Label } from "@/components/ui/label";
 
-export default function SettingsPage() {
+export default function SettingsPage(): React.JSX.Element {
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>("light");
 
   // Get database path
@@ -29,12 +29,12 @@ export default function SettingsPage() {
     });
   }, []);
 
-  const handleThemeChange = async (theme: ThemeMode) => {
+  const handleThemeChange = async (theme: ThemeMode): Promise<void> => {
     await setTheme(theme);
     setCurrentTheme(theme);
   };
 
-  const handleRevealDatabase = async () => {
+  const handleRevealDatabase = async (): Promise<void> => {
     if (dbInfo?.path) {
       // On macOS, shell.showItemInFolder would be better, but we can use openPath for the parent directory
       await trpcClient.utils.openFolder.mutate({ folderPath: dbInfo.directory });
@@ -80,7 +80,7 @@ export default function SettingsPage() {
               <div>
                 <Label className="text-sm font-medium">Database Path</Label>
                 <div className="mt-1 flex items-center gap-2">
-                  <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono break-all">
+                  <code className="flex-1 break-all rounded bg-muted px-3 py-2 font-mono text-xs">
                     {dbInfo.path}
                   </code>
                   <Button

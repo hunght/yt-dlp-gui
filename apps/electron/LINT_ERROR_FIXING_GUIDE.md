@@ -387,7 +387,50 @@ const downloadTranscriptMutation = useMutation({
 
 ---
 
-## 11. When ESLint Exceptions Are Acceptable
+## 11. Router Navigation with Optional Properties
+
+### ❌ Bad - Explicitly sending undefined
+```typescript
+navigate({
+  to: "/player",
+  search: {
+    videoId: video.videoId,
+    playlistId: undefined,  // Don't send undefined explicitly
+    playlistIndex: undefined,  // Don't send undefined explicitly
+  },
+});
+```
+
+### ✅ Good - Only send defined properties
+```typescript
+navigate({
+  to: "/player",
+  search: {
+    videoId: video.videoId,
+    // Omit optional properties when undefined
+  },
+});
+
+// Or conditionally include them:
+navigate({
+  to: "/player",
+  search: {
+    videoId: video.videoId,
+    ...(playlistId && { playlistId }),
+    ...(playlistIndex !== undefined && { playlistIndex }),
+  },
+});
+```
+
+**Benefits:**
+- Cleaner URLs (no `?playlistId=undefined` in address bar)
+- Follows REST API best practices
+- More readable code
+- Smaller payload
+
+---
+
+## 12. When ESLint Exceptions Are Acceptable
 
 ### ✅ Rare cases only
 ```typescript

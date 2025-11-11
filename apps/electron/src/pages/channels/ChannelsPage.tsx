@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Search } from "lucide-react";
 
-export default function ChannelsPage() {
+export default function ChannelsPage(): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState("");
   const [limit, setLimit] = useState(100);
 
@@ -27,7 +27,7 @@ export default function ChannelsPage() {
     );
   }, [channelsQuery.data, searchQuery]);
 
-  const handleRefresh = () => {
+  const handleRefresh = (): void => {
     channelsQuery.refetch();
   };
 
@@ -63,11 +63,7 @@ export default function ChannelsPage() {
               />
             </div>
             {searchQuery && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSearchQuery("")}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setSearchQuery("")}>
                 Clear
               </Button>
             )}
@@ -82,11 +78,7 @@ export default function ChannelsPage() {
               All Channels {filteredChannels.length > 0 && `(${filteredChannels.length})`}
             </CardTitle>
             {channelsQuery.data && channelsQuery.data.length >= limit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setLimit((prev) => prev + 50)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setLimit((prev) => prev + 50)}>
                 Load More
               </Button>
             )}
@@ -95,7 +87,7 @@ export default function ChannelsPage() {
         <CardContent>
           {channelsQuery.isLoading ? (
             <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
+              {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3 py-3">
                   <div className="h-16 w-16 animate-pulse rounded-full bg-muted" />
                   <div className="flex-1 space-y-2">
@@ -146,9 +138,7 @@ export default function ChannelsPage() {
                           )}
                         </div>
                         {channel.lastUpdated && (
-                          <span>
-                            Updated: {new Date(channel.lastUpdated).toLocaleDateString()}
-                          </span>
+                          <span>Updated: {new Date(channel.lastUpdated).toLocaleDateString()}</span>
                         )}
                       </div>
                     </div>

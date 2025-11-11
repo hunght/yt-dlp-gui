@@ -137,7 +137,7 @@ export const DownloadQueueSidebar: React.FC = () => {
     ...queueData.completed,
   ].sort((a, b) => {
     // Get the most recent timestamp for each download
-    const getRecentTime = (download: typeof a) => {
+    const getRecentTime = (download: typeof a): number => {
       const times = [
         download.startedAt,
         download.updatedAt,

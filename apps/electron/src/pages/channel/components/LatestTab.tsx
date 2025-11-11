@@ -121,18 +121,16 @@ export const LatestTab: React.FC<LatestTabProps> = ({ channelId, onDownload }) =
 
                 {/* Video Info */}
                 <div className="flex-1 space-y-1">
-                  <h3 className="font-medium line-clamp-2">{video.title}</h3>
+                  <h3 className="line-clamp-2 font-medium">{video.title}</h3>
 
                   {video.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
                       {video.description}
                     </p>
                   )}
 
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    {video.viewCount && (
-                      <span>{video.viewCount.toLocaleString()} views</span>
-                    )}
+                    {video.viewCount && <span>{video.viewCount.toLocaleString()} views</span>}
                     {video.publishedAt && (
                       <span>{new Date(video.publishedAt).toLocaleDateString()}</span>
                     )}
@@ -146,7 +144,7 @@ export const LatestTab: React.FC<LatestTabProps> = ({ channelId, onDownload }) =
 
                   {/* Download Status */}
                   {video.downloadStatus && (
-                    <div className="flex items-center gap-2 mt-2">
+                    <div className="mt-2 flex items-center gap-2">
                       {getDownloadStatusIcon(video.downloadStatus)}
                       <span className="text-xs font-medium">
                         {getDownloadStatusText(video.downloadStatus, video.downloadProgress)}
@@ -161,7 +159,11 @@ export const LatestTab: React.FC<LatestTabProps> = ({ channelId, onDownload }) =
                     <>
                       <Link
                         to="/player"
-                        search={{ videoId: video.videoId as string, playlistId: undefined, playlistIndex: undefined }}
+                        search={{
+                          videoId: video.videoId,
+                          playlistId: undefined,
+                          playlistIndex: undefined,
+                        }}
                         className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90"
                       >
                         <Play className="h-3 w-3" />
@@ -185,7 +187,10 @@ export const LatestTab: React.FC<LatestTabProps> = ({ channelId, onDownload }) =
                         size="sm"
                         variant="outline"
                         onClick={() => onDownload(videoUrl, video.title)}
-                        disabled={video.downloadStatus === "downloading" || video.downloadStatus === "queued"}
+                        disabled={
+                          video.downloadStatus === "downloading" ||
+                          video.downloadStatus === "queued"
+                        }
                       >
                         <Download className="mr-1 h-3 w-3" />
                         Download

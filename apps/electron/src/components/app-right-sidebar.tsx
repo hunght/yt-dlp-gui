@@ -12,7 +12,10 @@ import {
 import { DownloadQueueSidebar } from "@/components/DownloadQueueSidebar";
 import { AnnotationsSidebar } from "@/components/AnnotationsSidebar";
 
-export function AppRightSidebar({ className, ...props }: React.ComponentProps<"div">) {
+export function AppRightSidebar({
+  className,
+  ...props
+}: React.ComponentProps<"div">): React.JSX.Element | null {
   const [open, setOpen] = useAtom(rightSidebarOpenAtom);
   const content = useAtomValue(rightSidebarContentAtom);
   const annotationsData = useAtomValue(annotationsSidebarDataAtom);

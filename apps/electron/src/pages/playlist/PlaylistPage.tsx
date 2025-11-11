@@ -10,10 +10,10 @@ import { Loader2, Play, List as ListIcon } from "lucide-react";
 import { toast } from "sonner";
 import Thumbnail from "@/components/Thumbnail";
 
-export default function PlaylistPage() {
+export default function PlaylistPage(): React.JSX.Element {
   const navigate = useNavigate();
   const search = useSearch({ from: "/playlist" });
-  const playlistId = search.playlistId as string | undefined;
+  const playlistId = search.playlistId;
   const queryClient = useQueryClient();
   const [_currentVideoIndex, setCurrentVideoIndex] = useState(0);
 
@@ -45,7 +45,7 @@ export default function PlaylistPage() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleRefresh = async () => {
+  const handleRefresh = async (): Promise<void> => {
     if (!playlistId || isRefreshing) return;
     try {
       setIsRefreshing(true);
@@ -56,7 +56,7 @@ export default function PlaylistPage() {
     }
   };
 
-  const handlePlayAll = () => {
+  const handlePlayAll = (): void => {
     if (!data?.videos || data.videos.length === 0) {
       toast.error("No videos in playlist");
       return;
@@ -71,13 +71,13 @@ export default function PlaylistPage() {
         search: {
           videoId: video.videoId,
           playlistId,
-          playlistIndex: startIndex
-        }
+          playlistIndex: startIndex,
+        },
       });
     }
   };
 
-  const handlePlayVideo = (videoIndex: number) => {
+  const handlePlayVideo = (videoIndex: number): void => {
     setCurrentVideoIndex(videoIndex);
     updatePlaybackMutation.mutate({ videoIndex });
     const video = data?.videos[videoIndex];
@@ -87,25 +87,25 @@ export default function PlaylistPage() {
         search: {
           videoId: video.videoId,
           playlistId,
-          playlistIndex: videoIndex
-        }
+          playlistIndex: videoIndex,
+        },
       });
     }
   };
 
-  const data = query.data as any | null;
-  const title = data?.title || playlistId || "Playlist";
+  const data = query.data;
+  const title = data?.title ?? playlistId ?? "Playlist";
 
-  const progress = data?.itemCount && data?.currentVideoIndex
-    ? Math.round((data.currentVideoIndex / data.itemCount) * 100)
-    : 0;
+  const progress =
+    data?.itemCount && data?.currentVideoIndex
+      ? Math.round((data.currentVideoIndex / data.itemCount) * 100)
+      : 0;
 
   return (
     <div className="container mx-auto space-y-6 p-6">
-
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between text-base">
             <span>{title}</span>
             {query.dataUpdatedAt > 0 && (
               <span className="text-xs text-muted-foreground">
@@ -136,24 +136,25 @@ export default function PlaylistPage() {
             </Alert>
           ) : (
             <div className="space-y-4">
-              <div className="flex gap-4 items-start">
-                {typeof data?.thumbnailUrl === "string" && data.thumbnailUrl.includes("no_thumbnail") ? (
-                  <div className="w-48 aspect-video rounded bg-muted" />
+              <div className="flex items-start gap-4">
+                {typeof data?.thumbnailUrl === "string" &&
+                data.thumbnailUrl.includes("no_thumbnail") ? (
+                  <div className="aspect-video w-48 rounded bg-muted" />
                 ) : (
                   <Thumbnail
                     thumbnailPath={data?.thumbnailPath}
                     thumbnailUrl={data?.thumbnailUrl}
                     alt={title}
-                    className="w-48 aspect-video rounded object-cover"
+                    className="aspect-video w-48 rounded object-cover"
                   />
                 )}
                 <div className="flex-1 space-y-2">
                   {data?.description && (
-                    <p className="text-sm text-muted-foreground whitespace-pre-line line-clamp-5">
+                    <p className="line-clamp-5 whitespace-pre-line text-sm text-muted-foreground">
                       {data.description}
                     </p>
                   )}
-                  <div className="text-xs text-muted-foreground flex items-center gap-3">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     {typeof data?.itemCount === "number" && <span>{data.itemCount} items</span>}
                     {progress > 0 && (
                       <Badge variant="secondary" className="text-xs">
@@ -162,11 +163,7 @@ export default function PlaylistPage() {
                     )}
                   </div>
                   <div className="flex gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      onClick={handlePlayAll}
-                      className="flex items-center gap-2"
-                    >
+                    <Button size="sm" onClick={handlePlayAll} className="flex items-center gap-2">
                       <Play className="h-4 w-4" />
                       {progress > 0 ? "Continue Playlist" : "Play All"}
                     </Button>
@@ -190,13 +187,13 @@ export default function PlaylistPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(data?.videos || []).map((v: any, index: number) => {
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {(data?.videos ?? []).map((v, index) => {
                   const isCurrentVideo = index === (data?.currentVideoIndex || 0);
                   return (
                     <div
                       key={v.videoId}
-                      className={`rounded-lg border p-3 space-y-2 ${
+                      className={`space-y-2 rounded-lg border p-3 ${
                         isCurrentVideo ? "border-primary bg-primary/5" : ""
                       }`}
                     >
@@ -205,23 +202,23 @@ export default function PlaylistPage() {
                           thumbnailPath={v.thumbnailPath}
                           thumbnailUrl={v.thumbnailUrl}
                           alt={v.title}
-                          className="w-full aspect-video rounded object-cover"
+                          className="aspect-video w-full rounded object-cover"
                         />
                         {isCurrentVideo && (
-                          <div className="absolute top-2 right-2">
+                          <div className="absolute right-2 top-2">
                             <Badge variant="default" className="flex items-center gap-1">
                               <ListIcon className="h-3 w-3" />
                               Current
                             </Badge>
                           </div>
                         )}
-                        <div className="absolute bottom-2 left-2 text-xs text-white bg-black/70 px-1.5 py-0.5 rounded">
+                        <div className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">
                           #{index + 1}
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <div className="text-sm font-medium line-clamp-2">{v.title}</div>
-                        <div className="text-xs text-muted-foreground flex gap-3">
+                        <div className="line-clamp-2 text-sm font-medium">{v.title}</div>
+                        <div className="flex gap-3 text-xs text-muted-foreground">
                           {typeof v.durationSeconds === "number" && (
                             <span>{Math.round(v.durationSeconds / 60)} min</span>
                           )}
@@ -231,11 +228,7 @@ export default function PlaylistPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handlePlayVideo(index)}
-                        >
+                        <Button size="sm" className="flex-1" onClick={() => handlePlayVideo(index)}>
                           Play
                         </Button>
                         <Button
@@ -257,5 +250,3 @@ export default function PlaylistPage() {
     </div>
   );
 }
-
-

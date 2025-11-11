@@ -21,7 +21,7 @@ export async function getCurrentTheme(): Promise<ThemePreferences> {
   };
 }
 
-export async function setTheme(newTheme: ThemeMode) {
+export async function setTheme(newTheme: ThemeMode): Promise<void> {
   switch (newTheme) {
     case "dark": {
       await window.themeMode.dark();
@@ -43,7 +43,7 @@ export async function setTheme(newTheme: ThemeMode) {
   localStorage.setItem(THEME_KEY, newTheme);
 }
 
-export async function toggleTheme() {
+export async function toggleTheme(): Promise<void> {
   const isDarkMode = await window.themeMode.toggle();
   const newTheme = isDarkMode ? "dark" : "light";
 
@@ -51,7 +51,7 @@ export async function toggleTheme() {
   localStorage.setItem(THEME_KEY, newTheme);
 }
 
-export async function syncThemeWithLocal() {
+export async function syncThemeWithLocal(): Promise<void> {
   const { local } = await getCurrentTheme();
   if (!local) {
     setTheme("system");
@@ -61,7 +61,7 @@ export async function syncThemeWithLocal() {
   await setTheme(local);
 }
 
-function updateDocumentTheme(isDarkMode: boolean) {
+function updateDocumentTheme(isDarkMode: boolean): void {
   if (!isDarkMode) {
     document.documentElement.classList.remove("dark");
   } else {

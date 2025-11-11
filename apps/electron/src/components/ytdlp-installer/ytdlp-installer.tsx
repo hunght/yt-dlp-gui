@@ -7,7 +7,7 @@ import { logger } from "@/helpers/logger";
  * YtDlpInstaller - Ensures yt-dlp binary is installed on app startup.
  * Checks for installation status and automatically downloads if needed.
  */
-export const YtDlpInstaller = () => {
+export const YtDlpInstaller = (): null => {
   // Query to check if yt-dlp is installed
   const { data: installInfo, isLoading: isCheckingInstall } = useQuery({
     queryKey: ["ytdlp", "installInfo"],

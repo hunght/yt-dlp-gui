@@ -8,7 +8,7 @@ import { ExternalLink as ExternalLinkIcon, Download, Play, Loader2 } from "lucid
 import Thumbnail from "@/components/Thumbnail";
 import { toast } from "sonner";
 
-export default function SubscriptionsPage() {
+export default function SubscriptionsPage(): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -20,19 +20,19 @@ export default function SubscriptionsPage() {
     staleTime: 60_000,
   });
 
-  const videos = (query.data || []) as any[];
+  const videos = query.data ?? [];
 
   const addToQueueMutation = useMutation({
     mutationFn: (url: string) => trpcClient.queue.addToQueue.mutate({ urls: [url], priority: 0 }),
     onSuccess: (result) => {
-      if ((result as any)?.success) {
+      if (result.success) {
         toast.success("Added to queue");
         // Refresh recent list to reflect status changes
         queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
         // Invalidate queue status to resume polling and update sidebar
         queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       } else {
-        toast.error((result as any)?.message || "Failed to add to queue");
+        toast.error(result.message ?? "Failed to add to queue");
       }
     },
     onError: () => toast.error("Failed to add video to queue"),
@@ -141,7 +141,11 @@ export default function SubscriptionsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => trpcClient.utils.openExternalUrl.mutate({ url: v.url })}
+                        onClick={() => {
+                          void trpcClient.utils.openExternalUrl.mutate({
+                            url: `https://www.youtube.com/watch?v=${v.videoId}`,
+                          });
+                        }}
                       >
                         <ExternalLinkIcon className="mr-1 h-3 w-3" />
                       </Button>

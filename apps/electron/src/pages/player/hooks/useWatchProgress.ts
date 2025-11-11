@@ -11,21 +11,18 @@ export function useWatchProgress(
 
   const lastTimeRef = useRef<number>(0);
   const accumulatedRef = useRef<number>(0);
-  const flushTimerRef = useRef<any>(null);
+  const flushTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleTimeUpdate = useCallback(
-    (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-      const el = e.currentTarget;
-      const current = el.currentTime;
-      setCurrentTime(current);
-      const prev = lastTimeRef.current;
-      if (current > prev) {
-        accumulatedRef.current += current - prev;
-      }
-      lastTimeRef.current = current;
-    },
-    []
-  );
+  const handleTimeUpdate = useCallback((e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const el = e.currentTarget;
+    const current = el.currentTime;
+    setCurrentTime(current);
+    const prev = lastTimeRef.current;
+    if (current > prev) {
+      accumulatedRef.current += current - prev;
+    }
+    lastTimeRef.current = current;
+  }, []);
 
   const flushProgress = useCallback(async () => {
     if (!videoId) return;
@@ -38,7 +35,9 @@ export function useWatchProgress(
         deltaSeconds: delta,
         positionSeconds: Math.floor(lastTimeRef.current || 0),
       });
-    } catch {}
+    } catch {
+      // Ignore - progress recording is not critical
+    }
   }, [videoId]);
 
   // Restore last position when video is ready
@@ -87,7 +86,9 @@ export function useWatchProgress(
       flushProgress();
     }, 10000);
     return () => {
-      clearInterval(flushTimerRef.current);
+      if (flushTimerRef.current) {
+        clearInterval(flushTimerRef.current);
+      }
       flushProgress();
     };
   }, [flushProgress]);

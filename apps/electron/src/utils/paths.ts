@@ -1,7 +1,7 @@
 import { app } from "electron";
 import path from "path";
 
-export const getDatabasePath = () => {
+export const getDatabasePath = (): string => {
   if (process.env.NODE_ENV === "development") {
     // In development
     return "file:local.db";

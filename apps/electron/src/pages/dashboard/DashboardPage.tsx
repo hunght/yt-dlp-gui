@@ -36,7 +36,7 @@ const formatDuration = (seconds: number | null): string => {
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
-export default function DashboardPage() {
+export default function DashboardPage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
   // Type inferred from tRPC ytdlp.fetchVideoInfo mutation (VideoInfoData from backend)

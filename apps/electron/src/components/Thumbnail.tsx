@@ -19,7 +19,7 @@ export default function Thumbnail({
   alt,
   className = "aspect-video w-full rounded-t-lg object-cover",
   fallbackIcon = <Play className="h-12 w-12 text-gray-400" />,
-}: ThumbnailProps) {
+}: ThumbnailProps): React.JSX.Element {
   // Debug logging removed - use logger.debug if needed for specific troubleshooting
 
   // Use tRPC to convert local image to data URL with caching and loading states
@@ -74,7 +74,9 @@ export default function Thumbnail({
         onError={() => {
           // Attempt one fallback from .webp to .jpg for ytimg URLs
           if (/\.webp($|\?)/.test(remoteSrc)) {
-            const fallbackUrl = remoteSrc.replace(/\.webp($|\?)/, ".jpg$1").replace(/vi_webp/, "vi");
+            const fallbackUrl = remoteSrc
+              .replace(/\.webp($|\?)/, ".jpg$1")
+              .replace(/vi_webp/, "vi");
             if (fallbackUrl !== remoteSrc) {
               setRemoteSrc(fallbackUrl);
               return;

@@ -14,11 +14,11 @@ import { PlaylistNavigation } from "./components/PlaylistNavigation";
 import { rightSidebarContentAtom, annotationsSidebarDataAtom } from "@/context/rightSidebar";
 import { trpcClient } from "@/utils/trpc";
 
-export default function PlayerPage() {
+export default function PlayerPage(): React.JSX.Element {
   const search = useSearch({ from: "/player" });
-  const videoId = search.videoId as string | undefined;
-  const playlistId = search.playlistId as string | undefined;
-  const playlistIndex = search.playlistIndex as number | undefined;
+  const videoId = search.videoId;
+  const playlistId = search.playlistId;
+  const playlistIndex = search.playlistIndex;
 
   // Video reference for playback control
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -57,8 +57,8 @@ export default function PlayerPage() {
     },
     enabled: !!videoId,
     refetchInterval: (q) => {
-      const status = (q.state.data as any)?.status as string | undefined;
-      if (!status) return false;
+      const status = q.state.data?.status;
+      if (!status || typeof status !== "string") return false;
       return ["downloading", "queued", "paused"].includes(status) ? 1500 : false;
     },
   });
@@ -82,8 +82,8 @@ export default function PlayerPage() {
     if (!videoId) return;
     if (playback?.filePath) return; // We already have the file
 
-    const st = (playback?.status as string | undefined) || undefined;
-    const isActive = st && ["downloading", "queued", "paused"].includes(st);
+    const st = playback?.status;
+    const isActive = typeof st === "string" && ["downloading", "queued", "paused"].includes(st);
 
     if (!isActive && !autoStartedRef.current) {
       autoStartedRef.current = true;
@@ -96,7 +96,7 @@ export default function PlayerPage() {
   useEffect(() => {
     if (!videoId) return;
     if (playback?.filePath) return;
-    if ((playback?.status as string | undefined) === "completed" && !completionRefetchRef.current) {
+    if (playback?.status === "completed" && !completionRefetchRef.current) {
       completionRefetchRef.current = true;
       queryClient.invalidateQueries({ queryKey: ["video-playback", videoId] });
     }
@@ -144,8 +144,8 @@ export default function PlayerPage() {
     },
   });
 
-  const playlistData = playlistQuery.data as any | null;
-  const playlistVideos = playlistData?.videos || [];
+  const playlistData = playlistQuery.data;
+  const playlistVideos = playlistData?.videos ?? [];
   const playlistCurrentIndex = playlistIndex ?? 0;
 
   // Check if there's a next/previous video
@@ -294,7 +294,7 @@ export default function PlayerPage() {
           ) : !filePath ? (
             <DownloadStatus
               videoId={videoId}
-              status={playback?.status as string | undefined}
+              status={typeof playback?.status === "string" ? playback.status : undefined}
               progress={playback?.progress ?? null}
               onStartDownload={() => startDownloadMutation.mutate()}
               isStarting={startDownloadMutation.isPending}

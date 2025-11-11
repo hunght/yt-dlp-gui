@@ -26,7 +26,7 @@ function formatTimestamp(seconds: number): string {
 }
 
 function parseTimestampToSeconds(timestamp: string): number {
-  const parts = timestamp.split(':').map(Number);
+  const parts = timestamp.split(":").map(Number);
   if (parts.length === 3) {
     // HH:MM:SS
     return parts[0] * 3600 + parts[1] * 60 + parts[2];
@@ -66,9 +66,9 @@ function renderDescriptionWithTimestamps(
           e.preventDefault();
           onSeek(seconds);
         }}
-        className="text-primary hover:text-primary/80 hover:underline font-medium cursor-pointer inline-flex items-center gap-0.5"
+        className="inline-flex cursor-pointer items-center gap-0.5 font-medium text-primary hover:text-primary/80 hover:underline"
       >
-        <Clock className="w-3 h-3 inline" />
+        <Clock className="inline h-3 w-3" />
         {timestamp}
       </button>
     );
@@ -90,7 +90,7 @@ export function AnnotationsSidebar({
   videoTitle: _videoTitle,
   videoDescription,
   currentTime = 0,
-}: AnnotationsSidebarProps) {
+}: AnnotationsSidebarProps): React.JSX.Element {
   const queryClient = useQueryClient();
   const annotationRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -115,12 +115,15 @@ export function AnnotationsSidebar({
   });
 
   // Own seek handler
-  const handleSeek = useCallback((timestampSeconds: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = timestampSeconds;
-      videoRef.current.play();
-    }
-  }, [videoRef]);
+  const handleSeek = useCallback(
+    (timestampSeconds: number) => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = timestampSeconds;
+        videoRef.current.play();
+      }
+    },
+    [videoRef]
+  );
 
   const annotations = annotationsQuery.data || [];
 
@@ -129,9 +132,7 @@ export function AnnotationsSidebar({
     if (!currentTime || annotations.length === 0) return null;
 
     // Find all annotations at or before current time
-    const passedAnnotations = annotations.filter(
-      (a) => a.timestampSeconds <= currentTime
-    );
+    const passedAnnotations = annotations.filter((a) => a.timestampSeconds <= currentTime);
 
     if (passedAnnotations.length === 0) return null;
 
@@ -150,8 +151,8 @@ export function AnnotationsSidebar({
     const element = annotationRefs.current.get(activeAnnotationId);
     if (element) {
       element.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
+        behavior: "smooth",
+        block: "center",
       });
     }
   }, [activeAnnotationId]);
@@ -160,7 +161,7 @@ export function AnnotationsSidebar({
     <div className="flex h-full flex-col">
       <div className="mb-4">
         <h2 className="text-lg font-semibold">Notes</h2>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="mt-1 text-xs text-muted-foreground">
           {annotations.length} {annotations.length === 1 ? "note" : "notes"}
         </p>
       </div>
@@ -169,8 +170,8 @@ export function AnnotationsSidebar({
       {videoDescription && (
         <Card className="mb-4 shadow-sm">
           <CardContent className="p-3">
-            <h3 className="text-sm font-semibold mb-2">Description</h3>
-            <div className="text-xs text-muted-foreground max-h-[200px] overflow-y-auto">
+            <h3 className="mb-2 text-sm font-semibold">Description</h3>
+            <div className="max-h-[200px] overflow-y-auto text-xs text-muted-foreground">
               <div className="whitespace-pre-wrap break-words">
                 {renderDescriptionWithTimestamps(videoDescription, handleSeek)}
               </div>
@@ -183,7 +184,7 @@ export function AnnotationsSidebar({
         {annotationsQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading notes...</p>
         ) : annotations.length === 0 ? (
-          <div className="text-center py-8">
+          <div className="py-8 text-center">
             <p className="text-sm text-muted-foreground">
               No notes yet. Select text in the transcript to add notes.
             </p>
@@ -193,70 +194,66 @@ export function AnnotationsSidebar({
             {annotations.map((annotation) => {
               const isActive = annotation.id === activeAnnotationId;
               return (
-              <Card
-                key={annotation.id}
-                ref={(el) => {
-                  if (el) {
-                    annotationRefs.current.set(annotation.id, el);
-                  } else {
-                    annotationRefs.current.delete(annotation.id);
-                  }
-                }}
-                className={`shadow-sm hover:shadow-md transition-all ${
-                  isActive
-                    ? 'ring-2 ring-primary shadow-lg scale-[1.02]'
-                    : ''
-                }`}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      {annotation.emoji && (
-                        <span className="text-lg" title="Category">
-                          {annotation.emoji}
-                        </span>
-                      )}
+                <Card
+                  key={annotation.id}
+                  ref={(el) => {
+                    if (el) {
+                      annotationRefs.current.set(annotation.id, el);
+                    } else {
+                      annotationRefs.current.delete(annotation.id);
+                    }
+                  }}
+                  className={`shadow-sm transition-all hover:shadow-md ${
+                    isActive ? "scale-[1.02] shadow-lg ring-2 ring-primary" : ""
+                  }`}
+                >
+                  <CardContent className="p-3">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {annotation.emoji && (
+                          <span className="text-lg" title="Category">
+                            {annotation.emoji}
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSeek(annotation.timestampSeconds)}
+                          className="flex h-auto items-center gap-1 p-1 text-xs text-primary hover:text-primary/80"
+                        >
+                          <Clock className="h-3 w-3" />
+                          {formatTimestamp(annotation.timestampSeconds)}
+                        </Button>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleSeek(annotation.timestampSeconds)}
-                        className="h-auto p-1 flex items-center gap-1 text-xs text-primary hover:text-primary/80"
+                        onClick={() => deleteAnnotationMutation.mutate(annotation.id)}
+                        className="h-auto p-1 text-destructive hover:bg-destructive/10 hover:text-destructive/80"
                       >
-                        <Clock className="w-3 h-3" />
-                        {formatTimestamp(annotation.timestampSeconds)}
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteAnnotationMutation.mutate(annotation.id)}
-                      className="h-auto p-1 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
 
-                  {annotation.selectedText && (
-                    <div className="bg-muted/50 p-2 rounded text-xs mb-2 italic border-l-2 border-primary/30">
-                      "{annotation.selectedText}"
-                    </div>
-                  )}
+                    {annotation.selectedText && (
+                      <div className="mb-2 rounded border-l-2 border-primary/30 bg-muted/50 p-2 text-xs italic">
+                        "{annotation.selectedText}"
+                      </div>
+                    )}
 
-                  <p className="text-sm whitespace-pre-wrap break-words">
-                    {annotation.note}
-                  </p>
+                    <p className="whitespace-pre-wrap break-words text-sm">{annotation.note}</p>
 
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {new Date(annotation.createdAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </CardContent>
-              </Card>
-            );
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {new Date(annotation.createdAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </CardContent>
+                </Card>
+              );
             })}
           </div>
         )}
@@ -264,4 +261,3 @@ export function AnnotationsSidebar({
     </div>
   );
 }
-

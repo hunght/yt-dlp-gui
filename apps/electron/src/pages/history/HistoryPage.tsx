@@ -7,7 +7,7 @@ import { Play, Loader2 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import Thumbnail from "@/components/Thumbnail";
 
-export default function HistoryPage() {
+export default function HistoryPage(): React.JSX.Element {
   const navigate = useNavigate();
 
   // Queue status for in-progress downloads and recent completed

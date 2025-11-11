@@ -1,6 +1,7 @@
 // Configuration file for application download links and version information
 
 // Function to build download URLs based on a version
+// eslint-disable-next-line import/no-unused-modules -- Used dynamically in update checker
 export const buildAppLinks = (version: string) => ({
   // Main platform download links (for manual downloads)
   windows: `https://github.com/yt-dlp-gui/yt-dlp-gui/releases/download/v${version}/yt-dlp-gui-${version}.Setup.exe`,

@@ -36,6 +36,30 @@ interface ClockState {
   dailyProgress: DailyProgress | null;
 }
 
+// Type for clock update data from main process
+interface ClockUpdateData {
+  activeEntry?: TimeEntry | null;
+  focusTarget?: FocusTarget | null;
+  dailyProgress?: DailyProgress | null;
+}
+
+// Type for the electronClock API exposed via contextBridge
+interface ElectronClockAPI {
+  control: (action: string, data?: unknown) => Promise<unknown>;
+  hide: () => Promise<void>;
+  showMain: () => Promise<void>;
+  onUpdate: (callback: (data: ClockUpdateData) => void) => void;
+  onShow: (callback: () => void) => void;
+  removeAllListeners: () => void;
+}
+
+// Extend Window interface to include the API
+declare global {
+  interface Window {
+    electronClock?: ElectronClockAPI;
+  }
+}
+
 const ClockApp: React.FC = () => {
   const [clockState, setClockState] = useState<ClockState>({
     activeEntry: null,
@@ -56,16 +80,18 @@ const ClockApp: React.FC = () => {
 
   // Listen for updates from main process
   useEffect(() => {
-    const electronClock = (window as any).electronClock;
+    const electronClock = window.electronClock;
 
     if (electronClock) {
-      const handleUpdate = (data: any) => {
+      const handleUpdate = (data: ClockUpdateData) => {
         setClockState((prev) => ({
           ...prev,
-          activeEntry: data.activeEntry,
-          isRunning: !!data.activeEntry && !data.activeEntry.endTime,
-          focusTarget: data.focusTarget || prev.focusTarget,
-          dailyProgress: data.dailyProgress || prev.dailyProgress,
+          activeEntry: data.activeEntry ?? prev.activeEntry,
+          isRunning:
+            !!(data.activeEntry ?? prev.activeEntry) &&
+            !(data.activeEntry ?? prev.activeEntry)?.endTime,
+          focusTarget: data.focusTarget ?? prev.focusTarget,
+          dailyProgress: data.dailyProgress ?? prev.dailyProgress,
         }));
       };
 
@@ -81,9 +107,9 @@ const ClockApp: React.FC = () => {
     event.preventDefault();
     event.stopPropagation();
 
-    if ((window as any).electronClock) {
+    if (window.electronClock) {
       try {
-        await (window as any).electronClock.hide();
+        await window.electronClock.hide();
       } catch (error) {
         // Silently handle hide errors
       }
@@ -92,16 +118,17 @@ const ClockApp: React.FC = () => {
 
   const handleShowMain = useCallback(async (event: React.MouseEvent) => {
     // Don't trigger if clicking on the close button
-    if ((event.target as HTMLElement).closest(".close-btn")) {
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest(".close-btn")) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
 
-    if ((window as any).electronClock) {
+    if (window.electronClock) {
       try {
-        await (window as any).electronClock.showMain();
+        await window.electronClock.showMain();
       } catch (error) {
         // Silently handle show main window errors
       }

@@ -14,15 +14,115 @@ import { upsertChannelData } from "@/api/utils/ytdlp-utils/database";
 import { spawnYtDlpWithLogging, extractVideoId, runYtDlpJson } from "@/api/utils/ytdlp-utils/ytdlp";
 import { downloadImageToCache } from "@/api/utils/ytdlp-utils/cache";
 import { eq, desc, inArray, sql } from "drizzle-orm";
-import { youtubeVideos, channels, channelPlaylists, videoWatchStats } from "@/api/db/schema";
-import defaultDb from "@/api/db";
+import {
+  youtubeVideos,
+  channels,
+  channelPlaylists,
+  videoWatchStats,
+  type YoutubeVideo,
+  type ChannelPlaylist,
+} from "@/api/db/schema";
+import defaultDb, { type Database } from "@/api/db";
 import { getYtDlpAssetName } from "@/api/utils/ytdlp-utils/ytdlp-utils";
+import crypto from "crypto";
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getBinaryFilePath = () => path.join(getBinDir(), getYtDlpAssetName(process.platform));
 
+// Helper type for video update fields to avoid repetition
+type VideoUpdateFields = {
+  title: string;
+  description: string | null;
+  channelId: string | null;
+  channelTitle: string | null;
+  durationSeconds: number | null;
+  viewCount: number | null;
+  likeCount: number | null;
+  thumbnailUrl: string | null;
+  publishedAt: number | null;
+  tags: string | null;
+  raw: string;
+};
+
+// Helper to transform DB video record to API response format
+function toVideoResponse(v: YoutubeVideo) {
+  return {
+    id: v.id,
+    videoId: v.videoId,
+    title: v.title,
+    description: v.description,
+    thumbnailUrl: v.thumbnailUrl,
+    thumbnailPath: v.thumbnailPath,
+    durationSeconds: v.durationSeconds,
+    viewCount: v.viewCount,
+    publishedAt: v.publishedAt,
+    url: `https://www.youtube.com/watch?v=${v.videoId}`,
+    downloadStatus: v.downloadStatus,
+    downloadProgress: v.downloadProgress,
+    downloadFilePath: v.downloadFilePath,
+  };
+}
+
+// Helper to transform DB playlist record to API response format
+function toPlaylistResponse(p: ChannelPlaylist) {
+  return {
+    id: p.id,
+    playlistId: p.playlistId,
+    title: p.title,
+    url: p.url ?? `https://www.youtube.com/playlist?list=${p.playlistId}`,
+    thumbnailUrl: p.thumbnailUrl,
+    thumbnailPath: p.thumbnailPath,
+    itemCount: p.itemCount,
+    lastFetchedAt: p.lastFetchedAt,
+  };
+}
+
+// Zod schema for yt-dlp flat-playlist response (used in listChannelLatest/Popular)
+const playlistResponseSchema = z.object({
+  channel_id: z.string().optional(),
+  channel: z.string().optional(),
+  uploader: z.string().optional(),
+  channel_url: z.string().optional(),
+  entries: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string().optional(),
+        duration: z.number().optional(),
+        view_count: z.number().optional(),
+        channel: z.string().optional(),
+        uploader: z.string().optional(),
+        thumbnails: z.array(z.object({ url: z.string() })).optional(),
+        thumbnail: z.string().optional(),
+      })
+    )
+    .optional(),
+});
+
+// Zod schema for yt-dlp playlist metadata response (for channel playlists)
+const playlistEntrySchema = z.object({
+  id: z.string().optional(),
+  playlist_id: z.string().optional(),
+  title: z.string().optional(),
+  url: z.string().optional(),
+  webpage_url: z.string().optional(),
+  playlist_count: z.number().optional(),
+  n_entries: z.number().optional(),
+  thumbnails: z.array(z.object({ url: z.string() })).optional(),
+  thumbnail: z.string().optional(),
+});
+
+const playlistsListResponseSchema = z.object({
+  entries: z.array(playlistEntrySchema).optional(),
+});
+
+// Zod schema for playlist detail response (thumbnails enrichment)
+const playlistDetailSchema = z.object({
+  thumbnails: z.array(z.object({ url: z.string() })).optional(),
+});
+
 async function upsertVideoSearchFts(
-  db: any,
+  db: Database,
   videoId: string,
   title: string | null | undefined,
   transcript: string | null | undefined
@@ -101,7 +201,7 @@ export const ytdlpRouter = t.router({
           }> = [];
           try {
             if (existing.raw) {
-              const rawMeta = JSON.parse(existing.raw);
+              const rawMeta: unknown = JSON.parse(existing.raw);
               availableLanguages = extractSubtitleLanguages(rawMeta);
             }
           } catch (e) {
@@ -121,7 +221,7 @@ export const ytdlpRouter = t.router({
 
       // Run yt-dlp -J to fetch metadata (cache miss or store=false)
       logger.info("[ytdlp] fetchVideoInfo fetching from yt-dlp", { url: input.url });
-      let meta: any | null = null;
+      let meta: unknown = null;
       try {
         const metaJson = await new Promise<string>((resolve, reject) => {
           const proc = spawnYtDlpWithLogging(
@@ -136,8 +236,8 @@ export const ytdlpRouter = t.router({
           );
           let out = "";
           let err = "";
-          proc.stdout?.on("data", (d) => (out += d.toString()));
-          proc.stderr?.on("data", (d) => (err += d.toString()));
+          proc.stdout?.on("data", (d: Buffer | string) => (out += d.toString()));
+          proc.stderr?.on("data", (d: Buffer | string) => (err += d.toString()));
           proc.on("error", reject);
           proc.on("close", (code) => {
             if (code === 0) resolve(out);
@@ -146,7 +246,7 @@ export const ytdlpRouter = t.router({
         });
         meta = JSON.parse(metaJson);
       } catch (e) {
-        logger.error("[ytdlp] fetchVideoInfo failed", e as Error);
+        logger.error("[ytdlp] fetchVideoInfo failed", e);
         return { success: false as const, message: String(e) } as const;
       }
 
@@ -185,24 +285,29 @@ export const ytdlpRouter = t.router({
             .where(eq(youtubeVideos.videoId, mapped.videoId))
             .limit(1);
 
+          // Common fields for both insert and update
+          const commonFields: VideoUpdateFields = {
+            title: mapped.title,
+            description: mapped.description,
+            channelId: mapped.channelId,
+            channelTitle: mapped.channelTitle,
+            durationSeconds: mapped.durationSeconds,
+            viewCount: mapped.viewCount,
+            likeCount: mapped.likeCount,
+            thumbnailUrl: mapped.thumbnailUrl,
+            publishedAt: mapped.publishedAt,
+            tags: mapped.tags,
+            raw: mapped.raw,
+          };
+
           if (existing.length === 0) {
             await db.insert(youtubeVideos).values({
               id: crypto.randomUUID(),
               videoId: mapped.videoId,
-              title: mapped.title,
-              description: mapped.description,
-              channelId: mapped.channelId,
-              channelTitle: mapped.channelTitle,
-              durationSeconds: mapped.durationSeconds,
-              viewCount: mapped.viewCount,
-              likeCount: mapped.likeCount,
-              thumbnailUrl: mapped.thumbnailUrl,
               thumbnailPath: mappedThumbPath,
-              publishedAt: mapped.publishedAt,
-              tags: mapped.tags,
-              raw: mapped.raw,
               createdAt: now,
               updatedAt: now,
+              ...commonFields,
             });
             // Seed FTS with title only (transcript may come later)
             await upsertVideoSearchFts(db, mapped.videoId, mapped.title, "");
@@ -210,25 +315,15 @@ export const ytdlpRouter = t.router({
             await db
               .update(youtubeVideos)
               .set({
-                title: mapped.title,
-                description: mapped.description,
-                channelId: mapped.channelId,
-                channelTitle: mapped.channelTitle,
-                durationSeconds: mapped.durationSeconds,
-                viewCount: mapped.viewCount,
-                likeCount: mapped.likeCount,
-                thumbnailUrl: mapped.thumbnailUrl,
+                ...commonFields,
                 thumbnailPath: mappedThumbPath ?? existing[0]?.thumbnailPath ?? null,
-                publishedAt: mapped.publishedAt,
-                tags: mapped.tags,
-                raw: mapped.raw,
                 updatedAt: now,
               })
               .where(eq(youtubeVideos.videoId, mapped.videoId));
             await upsertVideoSearchFts(db, mapped.videoId, mapped.title, undefined);
           }
         } catch (e) {
-          logger.error("[ytdlp] DB upsert in fetchVideoInfo failed", e as Error);
+          logger.error("[ytdlp] DB upsert in fetchVideoInfo failed", e);
         }
       }
 
@@ -262,7 +357,7 @@ export const ytdlpRouter = t.router({
         return rows;
       } catch (e) {
         // If unified columns missing, return empty list instead of falling back
-        logger.error("[ytdlp] listCompletedDownloads failed", e as Error);
+        logger.error("[ytdlp] listCompletedDownloads failed", e);
         return [];
       }
     }),
@@ -305,7 +400,7 @@ export const ytdlpRouter = t.router({
           updatedAt: video.updatedAt,
         };
       } catch (e) {
-        logger.error("[ytdlp] getVideoById failed", e as Error);
+        logger.error("[ytdlp] getVideoById failed", e);
         return null;
       }
     }),
@@ -345,7 +440,7 @@ export const ytdlpRouter = t.router({
           updatedAt: v.updatedAt,
         };
       } catch (e) {
-        logger.error("[ytdlp] getVideoByVideoId failed", e as Error);
+        logger.error("[ytdlp] getVideoByVideoId failed", e);
         return null;
       }
     }),
@@ -449,7 +544,9 @@ export const ytdlpRouter = t.router({
         .orderBy(desc(youtubeVideos.publishedAt))
         .limit(50);
 
-      const videoIds = videoRows.map((v) => v.videoId).filter(Boolean) as string[];
+      const videoIds = videoRows
+        .map((v) => v.videoId)
+        .filter((id): id is string => id !== null && id !== "");
 
       // No videos -> early return
       if (videoIds.length === 0) {
@@ -515,7 +612,7 @@ export const ytdlpRouter = t.router({
       }> = [];
       if (v.raw) {
         try {
-          const meta = JSON.parse(v.raw);
+          const meta: unknown = JSON.parse(v.raw);
           availableLanguages = extractSubtitleLanguages(meta);
         } catch {
           // Silently fail - raw JSON might not exist or be malformed
@@ -558,20 +655,29 @@ export const ytdlpRouter = t.router({
         const rows = await db.all(
           sql`SELECT video_id, title FROM video_search_fts WHERE video_search_fts MATCH ${input.q} LIMIT ${limit * 2}`
         );
+
+        // Validate FTS results
+        const ftsResultSchema = z.array(z.object({ video_id: z.string(), title: z.string() }));
+        const parseResult = ftsResultSchema.safeParse(rows);
+        if (!parseResult.success) {
+          logger.error("[fts] Invalid FTS result structure", parseResult.error);
+          return [];
+        }
+
         // Deduplicate video_ids (FTS may contain duplicates since video_id is UNINDEXED)
-        const uniqueIds = [...new Set(rows.map((r: any) => r.video_id))].slice(0, limit);
-        if (uniqueIds.length === 0) return [] as any[];
+        const uniqueIds = [...new Set(parseResult.data.map((r) => r.video_id))].slice(0, limit);
+        if (uniqueIds.length === 0) return [];
 
         // Join with youtube_videos to return richer info
         const vids = await db
           .select()
           .from(youtubeVideos)
           .where(inArray(youtubeVideos.videoId, uniqueIds));
-        const map = new Map(vids.map((v: any) => [v.videoId, v]));
-        return uniqueIds.map((id) => map.get(id)).filter(Boolean);
+        const map = new Map(vids.map((v) => [v.videoId, v]));
+        return uniqueIds.map((id) => map.get(id)).filter((v): v is YoutubeVideo => v !== undefined);
       } catch (e) {
-        logger.error("[fts] search failed", e as Error);
-        return [] as any[];
+        logger.error("[fts] search failed", e);
+        return [];
       }
     }),
 
@@ -616,14 +722,15 @@ export const ytdlpRouter = t.router({
           success: true,
           channel: updatedChannel[0] || null,
         };
-      } catch (error: any) {
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
         logger.error("[ytdlp] Failed to refresh channel info", {
           channelId: input.channelId,
-          error: error.message,
+          error: errorMsg,
         });
         return {
           success: false,
-          error: error.message || "Failed to refresh channel information",
+          error: errorMsg || "Failed to refresh channel information",
           channel: null,
         };
       }
@@ -651,21 +758,7 @@ export const ytdlpRouter = t.router({
           .orderBy(desc(youtubeVideos.publishedAt))
           .limit(limit);
         if (cached.length > 0 && !input.forceRefresh) {
-          return cached.map((v: any) => ({
-            id: v.id,
-            videoId: v.videoId,
-            title: v.title,
-            description: v.description,
-            thumbnailUrl: v.thumbnailUrl,
-            thumbnailPath: v.thumbnailPath,
-            durationSeconds: v.durationSeconds,
-            viewCount: v.viewCount,
-            publishedAt: v.publishedAt,
-            url: `https://www.youtube.com/watch?v=${v.videoId}`,
-            downloadStatus: v.downloadStatus,
-            downloadProgress: v.downloadProgress,
-            downloadFilePath: v.downloadFilePath,
-          }));
+          return cached.map(toVideoResponse);
         }
       } catch (e) {
         logger.error("[ytdlp] Failed to get cached videos (latest)", {
@@ -683,21 +776,7 @@ export const ytdlpRouter = t.router({
           .where(eq(youtubeVideos.channelId, input.channelId))
           .orderBy(desc(youtubeVideos.publishedAt))
           .limit(limit);
-        return fallback.map((v: any) => ({
-          id: v.id,
-          videoId: v.videoId,
-          title: v.title,
-          description: v.description,
-          thumbnailUrl: v.thumbnailUrl,
-          thumbnailPath: v.thumbnailPath,
-          durationSeconds: v.durationSeconds,
-          viewCount: v.viewCount,
-          publishedAt: v.publishedAt,
-          url: `https://www.youtube.com/watch?v=${v.videoId}`,
-          downloadStatus: v.downloadStatus,
-          downloadProgress: v.downloadProgress,
-          downloadFilePath: v.downloadFilePath,
-        }));
+        return fallback.map(toVideoResponse);
       }
 
       const url = `https://www.youtube.com/channel/${input.channelId}/videos?view=0&sort=dd&flow=grid`;
@@ -715,26 +794,25 @@ export const ytdlpRouter = t.router({
         );
         let out = "";
         let err = "";
-        proc.stdout?.on("data", (d) => (out += d.toString()));
-        proc.stderr?.on("data", (d) => (err += d.toString()));
+        proc.stdout?.on("data", (d: Buffer | string) => (out += d.toString()));
+        proc.stderr?.on("data", (d: Buffer | string) => (err += d.toString()));
         proc.on("error", reject);
         proc.on("close", (code) =>
           code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))
         );
       });
-      const listData = JSON.parse(listing);
+
+      const listData = playlistResponseSchema.parse(JSON.parse(listing));
 
       // Log available fields from the first entry to understand the data structure
-      if (listData?.entries?.[0]) {
+      if (listData.entries?.[0]) {
         logger.info("[ytdlp] listChannelLatest flat-playlist entry fields", {
           sampleEntry: listData.entries[0],
           availableFields: Object.keys(listData.entries[0]),
         });
       }
 
-      const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter(
-        (e: any) => e?.id
-      );
+      const entries = (listData.entries ?? []).filter((e) => e.id);
       // limit already computed above
       const now = Date.now();
 
@@ -776,23 +854,20 @@ export const ytdlpRouter = t.router({
             .where(eq(youtubeVideos.videoId, entry.id))
             .limit(1);
 
-          const thumbPath =
-            entry.thumbnails?.[0]?.url || entry.thumbnail
-              ? await downloadImageToCache(
-                  entry.thumbnails?.[0]?.url || entry.thumbnail,
-                  `video_${entry.id}`
-                )
-              : null;
+          const thumbUrl = entry.thumbnails?.[0]?.url ?? entry.thumbnail;
+          const thumbPath = thumbUrl
+            ? await downloadImageToCache(thumbUrl, `video_${entry.id}`)
+            : null;
           const videoData = {
             videoId: entry.id,
-            title: entry.title || "Untitled",
+            title: entry.title ?? "Untitled",
             description: null,
             channelId: input.channelId,
-            channelTitle: entry.channel || entry.uploader || null,
-            durationSeconds: entry.duration || null,
-            viewCount: entry.view_count || null,
+            channelTitle: entry.channel ?? entry.uploader ?? null,
+            durationSeconds: entry.duration ?? null,
+            viewCount: entry.view_count ?? null,
             likeCount: null,
-            thumbnailUrl: entry.thumbnails?.[0]?.url || entry.thumbnail || null,
+            thumbnailUrl: entry.thumbnails?.[0]?.url ?? entry.thumbnail ?? null,
             thumbnailPath: thumbPath,
             publishedAt: null,
             tags: null,
@@ -831,21 +906,7 @@ export const ytdlpRouter = t.router({
         .where(inArray(youtubeVideos.videoId, videoIds))
         .orderBy(desc(youtubeVideos.publishedAt));
 
-      return videos.map((v) => ({
-        id: v.id,
-        videoId: v.videoId,
-        title: v.title,
-        description: v.description,
-        thumbnailUrl: v.thumbnailUrl,
-        thumbnailPath: v.thumbnailPath,
-        durationSeconds: v.durationSeconds,
-        viewCount: v.viewCount,
-        publishedAt: v.publishedAt,
-        url: `https://www.youtube.com/watch?v=${v.videoId}`,
-        downloadStatus: v.downloadStatus,
-        downloadProgress: v.downloadProgress,
-        downloadFilePath: v.downloadFilePath,
-      }));
+      return videos.map(toVideoResponse);
     }),
 
   // List popular videos from a channel via yt-dlp (metadata-only, fast)
@@ -870,24 +931,8 @@ export const ytdlpRouter = t.router({
           .limit(limit);
         if (cached.length > 0 && !input.forceRefresh) {
           // Sort by viewCount desc locally, fallback by updatedAt
-          const sorted = [...cached].sort(
-            (a: any, b: any) => (b.viewCount ?? 0) - (a.viewCount ?? 0)
-          );
-          return sorted.map((v: any) => ({
-            id: v.id,
-            videoId: v.videoId,
-            title: v.title,
-            description: v.description,
-            thumbnailUrl: v.thumbnailUrl,
-            thumbnailPath: v.thumbnailPath,
-            durationSeconds: v.durationSeconds,
-            viewCount: v.viewCount,
-            publishedAt: v.publishedAt,
-            url: `https://www.youtube.com/watch?v=${v.videoId}`,
-            downloadStatus: v.downloadStatus,
-            downloadProgress: v.downloadProgress,
-            downloadFilePath: v.downloadFilePath,
-          }));
+          const sorted = [...cached].sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
+          return sorted.map(toVideoResponse);
         }
       } catch (e) {
         logger.error("[ytdlp] Failed to get cached videos (popular)", {
@@ -903,24 +948,8 @@ export const ytdlpRouter = t.router({
           .from(youtubeVideos)
           .where(eq(youtubeVideos.channelId, input.channelId))
           .limit(limit);
-        const sorted = [...fallback].sort(
-          (a: any, b: any) => (b.viewCount ?? 0) - (a.viewCount ?? 0)
-        );
-        return sorted.map((v: any) => ({
-          id: v.id,
-          videoId: v.videoId,
-          title: v.title,
-          description: v.description,
-          thumbnailUrl: v.thumbnailUrl,
-          thumbnailPath: v.thumbnailPath,
-          durationSeconds: v.durationSeconds,
-          viewCount: v.viewCount,
-          publishedAt: v.publishedAt,
-          url: `https://www.youtube.com/watch?v=${v.videoId}`,
-          downloadStatus: v.downloadStatus,
-          downloadProgress: v.downloadProgress,
-          downloadFilePath: v.downloadFilePath,
-        }));
+        const sorted = [...fallback].sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
+        return sorted.map(toVideoResponse);
       }
 
       const url = `https://www.youtube.com/channel/${input.channelId}/videos?view=0&sort=p&flow=grid`;
@@ -938,26 +967,25 @@ export const ytdlpRouter = t.router({
         );
         let out = "";
         let err = "";
-        proc.stdout?.on("data", (d) => (out += d.toString()));
-        proc.stderr?.on("data", (d) => (err += d.toString()));
+        proc.stdout?.on("data", (d: Buffer | string) => (out += d.toString()));
+        proc.stderr?.on("data", (d: Buffer | string) => (err += d.toString()));
         proc.on("error", reject);
         proc.on("close", (code) =>
           code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))
         );
       });
-      const listData = JSON.parse(listing);
+
+      const listData = playlistResponseSchema.parse(JSON.parse(listing));
 
       // Log available fields from the first entry to understand the data structure
-      if (listData?.entries?.[0]) {
+      if (listData.entries?.[0]) {
         logger.info("[ytdlp] listChannelPopular flat-playlist entry fields", {
           sampleEntry: listData.entries[0],
           availableFields: Object.keys(listData.entries[0]),
         });
       }
 
-      const entries = (Array.isArray(listData?.entries) ? listData.entries : []).filter(
-        (e: any) => e?.id
-      );
+      const entries = (listData.entries ?? []).filter((e) => e.id);
       // limit already computed above
       const now = Date.now();
 
@@ -999,23 +1027,20 @@ export const ytdlpRouter = t.router({
             .where(eq(youtubeVideos.videoId, entry.id))
             .limit(1);
 
-          const thumbPath =
-            entry.thumbnails?.[0]?.url || entry.thumbnail
-              ? await downloadImageToCache(
-                  entry.thumbnails?.[0]?.url || entry.thumbnail,
-                  `video_${entry.id}`
-                )
-              : null;
+          const thumbUrl = entry.thumbnails?.[0]?.url ?? entry.thumbnail;
+          const thumbPath = thumbUrl
+            ? await downloadImageToCache(thumbUrl, `video_${entry.id}`)
+            : null;
           const videoData = {
             videoId: entry.id,
-            title: entry.title || "Untitled",
+            title: entry.title ?? "Untitled",
             description: null,
             channelId: input.channelId,
-            channelTitle: entry.channel || entry.uploader || null,
-            durationSeconds: entry.duration || null,
-            viewCount: entry.view_count || null,
+            channelTitle: entry.channel ?? entry.uploader ?? null,
+            durationSeconds: entry.duration ?? null,
+            viewCount: entry.view_count ?? null,
             likeCount: null,
-            thumbnailUrl: entry.thumbnails?.[0]?.url || entry.thumbnail || null,
+            thumbnailUrl: entry.thumbnails?.[0]?.url ?? entry.thumbnail ?? null,
             thumbnailPath: thumbPath,
             publishedAt: null,
             tags: null,
@@ -1054,21 +1079,7 @@ export const ytdlpRouter = t.router({
         .where(inArray(youtubeVideos.videoId, videoIds))
         .orderBy(desc(youtubeVideos.publishedAt));
 
-      return videos.map((v) => ({
-        id: v.id,
-        videoId: v.videoId,
-        title: v.title,
-        description: v.description,
-        thumbnailUrl: v.thumbnailUrl,
-        thumbnailPath: v.thumbnailPath,
-        durationSeconds: v.durationSeconds,
-        viewCount: v.viewCount,
-        publishedAt: v.publishedAt,
-        url: `https://www.youtube.com/watch?v=${v.videoId}`,
-        downloadStatus: v.downloadStatus,
-        downloadProgress: v.downloadProgress,
-        downloadFilePath: v.downloadFilePath,
-      }));
+      return videos.map(toVideoResponse);
     }),
 
   // List playlists of a channel via yt-dlp (offline-first, cached in DB)
@@ -1093,16 +1104,7 @@ export const ytdlpRouter = t.router({
           .orderBy(desc(channelPlaylists.updatedAt))
           .limit(limit);
         if (cached.length > 0 && !input.forceRefresh) {
-          return cached.map((p: any) => ({
-            id: p.id,
-            playlistId: p.playlistId,
-            title: p.title,
-            url: p.url ?? `https://www.youtube.com/playlist?list=${p.playlistId}`,
-            thumbnailUrl: p.thumbnailUrl,
-            thumbnailPath: p.thumbnailPath,
-            itemCount: p.itemCount,
-            lastFetchedAt: p.lastFetchedAt,
-          }));
+          return cached.map(toPlaylistResponse);
         }
       } catch (e) {
         logger.error("[ytdlp] Failed to get cached playlists (playlists)", {
@@ -1120,16 +1122,7 @@ export const ytdlpRouter = t.router({
           .where(eq(channelPlaylists.channelId, input.channelId))
           .orderBy(desc(channelPlaylists.updatedAt))
           .limit(limit);
-        return fallback.map((p: any) => ({
-          id: p.id,
-          playlistId: p.playlistId,
-          title: p.title,
-          url: p.url ?? `https://www.youtube.com/playlist?list=${p.playlistId}`,
-          thumbnailUrl: p.thumbnailUrl,
-          thumbnailPath: p.thumbnailPath,
-          itemCount: p.itemCount,
-          lastFetchedAt: p.lastFetchedAt,
-        }));
+        return fallback.map(toPlaylistResponse);
       }
 
       // 2) Refresh from yt-dlp
@@ -1148,34 +1141,34 @@ export const ytdlpRouter = t.router({
         );
         let out = "";
         let err = "";
-        proc.stdout?.on("data", (d) => (out += d.toString()));
-        proc.stderr?.on("data", (d) => (err += d.toString()));
+        proc.stdout?.on("data", (d: Buffer | string) => (out += d.toString()));
+        proc.stderr?.on("data", (d: Buffer | string) => (err += d.toString()));
         proc.on("error", reject);
         proc.on("close", (code) =>
           code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))
         );
       });
-      const data = JSON.parse(json);
-      const entries = (Array.isArray(data?.entries) ? data.entries : []).slice(0, limit);
+      const data = playlistsListResponseSchema.parse(JSON.parse(json));
+      const entries = (data.entries ?? []).slice(0, limit);
       const now = Date.now();
 
       if (entries[0]) {
         logger.info("[ytdlp] listChannelPlaylists flat entry sample", {
-          keys: Object.keys(entries[0] || {}),
-          id: entries[0]?.id || entries[0]?.playlist_id,
-          title: entries[0]?.title,
-          thumbTop: entries[0]?.thumbnails?.[0]?.url || entries[0]?.thumbnail || null,
+          keys: Object.keys(entries[0]),
+          id: entries[0].id ?? entries[0].playlist_id,
+          title: entries[0].title,
+          thumbTop: entries[0].thumbnails?.[0]?.url ?? entries[0].thumbnail ?? null,
         });
       }
 
       for (let idx = 0; idx < entries.length; idx++) {
         const e = entries[idx];
-        const pid = e?.id || e?.playlist_id;
+        const pid = e.id ?? e.playlist_id;
         if (!pid) continue;
-        const title = e?.title || "Untitled";
-        let thumb = e?.thumbnails?.[0]?.url || e?.thumbnail || null;
-        const url = e?.url || e?.webpage_url || `https://www.youtube.com/playlist?list=${pid}`;
-        const itemCount = e?.playlist_count || e?.n_entries || null;
+        const title = e.title ?? "Untitled";
+        let thumb = e.thumbnails?.[0]?.url ?? e.thumbnail ?? null;
+        const url = e.url ?? e.webpage_url ?? `https://www.youtube.com/playlist?list=${pid}`;
+        const itemCount = e.playlist_count ?? e.n_entries ?? null;
 
         if (!thumb) {
           logger.debug("[ytdlp] playlist thumbnail missing, enriching", { playlistId: pid, url });
@@ -1195,24 +1188,23 @@ export const ytdlpRouter = t.router({
               );
               let out = "";
               let err = "";
-              proc.stdout?.on("data", (d) => (out += d.toString()));
-              proc.stderr?.on("data", (d) => (err += d.toString()));
+              proc.stdout?.on("data", (d: Buffer | string) => (out += d.toString()));
+              proc.stderr?.on("data", (d: Buffer | string) => (err += d.toString()));
               proc.on("error", reject);
               proc.on("close", (code) =>
                 code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))
               );
             });
-            const detail = JSON.parse(detailJson);
-            if (Array.isArray(detail?.thumbnails) && detail.thumbnails.length > 0) {
+            const detail = playlistDetailSchema.parse(JSON.parse(detailJson));
+            if (detail.thumbnails && detail.thumbnails.length > 0) {
               thumb =
-                detail.thumbnails[detail.thumbnails.length - 1]?.url ||
-                detail.thumbnails[0]?.url ||
+                detail.thumbnails[detail.thumbnails.length - 1]?.url ??
+                detail.thumbnails[0]?.url ??
                 null;
               logger.debug("[ytdlp] playlist thumbnail enriched", { playlistId: pid, thumb });
             } else {
               logger.warn("[ytdlp] playlist detail has no thumbnails", {
                 playlistId: pid,
-                detailKeys: Object.keys(detail || {}),
               });
             }
           } catch (err) {
@@ -1278,16 +1270,7 @@ export const ytdlpRouter = t.router({
         .where(eq(channelPlaylists.channelId, input.channelId))
         .orderBy(desc(channelPlaylists.updatedAt))
         .limit(limit);
-      return cached.map((p: any) => ({
-        id: p.id,
-        playlistId: p.playlistId,
-        title: p.title,
-        url: p.url ?? `https://www.youtube.com/playlist?list=${p.playlistId}`,
-        thumbnailUrl: p.thumbnailUrl,
-        thumbnailPath: p.thumbnailPath,
-        itemCount: p.itemCount,
-        lastFetchedAt: p.lastFetchedAt,
-      }));
+      return cached.map(toPlaylistResponse);
     }),
 });
 

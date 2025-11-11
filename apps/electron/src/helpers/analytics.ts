@@ -10,7 +10,7 @@ export const analytics = {
    * @param userId User identifier
    * @param properties Additional properties
    */
-  identify: (userId: string, properties?: Record<string, any>): void => {
+  identify: (userId: string, properties?: Record<string, unknown>): void => {
     try {
       posthog.identify(userId, properties);
     } catch (error) {
@@ -24,7 +24,7 @@ export const analytics = {
    * @param eventName Name of the event
    * @param properties Additional properties
    */
-  track: (eventName: string, properties?: Record<string, any>): void => {
+  track: (eventName: string, properties?: Record<string, unknown>): void => {
     try {
       posthog.capture(eventName, properties);
     } catch (error) {
@@ -38,7 +38,7 @@ export const analytics = {
    * @param path Page path
    * @param properties Additional properties
    */
-  pageView: (path: string, properties?: Record<string, any>): void => {
+  pageView: (path: string, properties?: Record<string, unknown>): void => {
     try {
       posthog.capture("$pageview", {
         $current_url: path,
@@ -55,7 +55,7 @@ export const analytics = {
    * Update user properties
    * @param properties Properties to update
    */
-  updateUserProperties: (properties: Record<string, any>): void => {
+  updateUserProperties: (properties: Record<string, unknown>): void => {
     try {
       posthog.people.set(properties);
     } catch (error) {
@@ -68,7 +68,7 @@ export const analytics = {
    * Register global properties to be sent with all events
    * @param properties Properties to register
    */
-  registerGlobalProperties: (properties: Record<string, any>): void => {
+  registerGlobalProperties: (properties: Record<string, unknown>): void => {
     try {
       posthog.register(properties);
     } catch (error) {

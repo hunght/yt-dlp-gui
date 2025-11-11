@@ -5,9 +5,7 @@ import {
 } from "./blocking-notification-channels";
 
 import { safelyRegisterListener } from "../safelyRegisterListener";
-import {
-  closeBlockingNotificationWindow,
-} from "../../../main/windows/blocking-notification";
+import { closeBlockingNotificationWindow } from "../../../main/windows/blocking-notification";
 import { sendBlockingNotificationToWindow } from "../../blocking-notification/blocking-notification-utils";
 import { logger } from "../../logger";
 
@@ -24,7 +22,7 @@ export const addBlockingNotificationEventListeners = () => {
       const response = await sendBlockingNotificationToWindow(data);
       return response;
     } catch (error) {
-      logger.error("Failed to send blocking notification", { error, data });
+      logger.error("Failed to send blocking notification", error);
       throw error;
     }
   });

@@ -18,7 +18,7 @@ export const addNotificationEventListeners = () => {
       logger.debug("Notification requested", data);
       await sendNotificationToWindow(data);
     } catch (error) {
-      logger.error("Failed to send notification", { error, data });
+      logger.error("Failed to send notification", error);
     }
   });
 

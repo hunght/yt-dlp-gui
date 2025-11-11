@@ -5,11 +5,12 @@ import {
   NOTIFICATION_ACTION_CHANNEL,
   NOTIFICATION_SHOW_CHANNEL,
 } from "./notification-channels";
+import { NotificationData } from "@/helpers/notification/notification-window-utils";
 
 export function exposeNotificationContext() {
   contextBridge.exposeInMainWorld("electronNotification", {
     // Function to send a notification
-    send: (data: any) => {
+    send: (data: NotificationData) => {
       return ipcRenderer.invoke(NOTIFICATION_SEND_CHANNEL, data);
     },
 
@@ -24,7 +25,7 @@ export function exposeNotificationContext() {
     },
 
     // Function to listen for show-notification events
-    onNotification: (callback: (data: any) => void) => {
+    onNotification: (callback: (data: NotificationData) => void) => {
       ipcRenderer.on(NOTIFICATION_SHOW_CHANNEL, (_event, data) => {
         callback(data);
       });

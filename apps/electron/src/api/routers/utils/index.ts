@@ -40,26 +40,26 @@ const dictionaryEntrySchema = z.object({
 const dictionaryResponseSchema = z.union([z.array(dictionaryEntrySchema), dictionaryEntrySchema]);
 
 // Zod schema for Google Translate API response
-// Based on actual API response:
-// [
-//   [[translatedText, originalText, null, null, count], ...more translations],  // index 0: translations
-//   null,                                                                       // index 1: unused
-//   detectedSourceLang,                                                         // index 2: detected language
-//   ...other fields (pronunciation, etc)
-// ]
-const googleTranslateResponseSchema = z
-  .tuple([
-    z.array(z.array(z.union([z.string(), z.number(), z.null()]))), // translations array
-    z.null().optional(), // unused field
-    z.string().optional(), // detected language
-    z.unknown().optional(), // other fields
-    z.unknown().optional(),
-    z.unknown().optional(),
-    z.unknown().optional(),
-    z.unknown().optional(),
-    z.unknown().optional(),
-  ])
-  .rest(z.unknown());
+// Actual response: [[["translated","original",null,null,10]],null,"en",null,null,null,1,[],[["en"],null,[1],["en"]]]
+// Structure:
+// [0] translations: [["translated", "original", null, null, wordCount], ...]
+// [1] null
+// [2] detectedLanguage: "en"
+// [3-5] null
+// [6] confidence: 1
+// [7] []
+// [8] language metadata: [["en"], null, [1], ["en"]]
+const googleTranslateResponseSchema = z.tuple([
+  z.array(z.tuple([z.string(), z.string(), z.null(), z.null(), z.number().optional()])), // translations
+  z.null(), // unused
+  z.string(), // detected language (required)
+  z.null().optional(),
+  z.null().optional(),
+  z.null().optional(),
+  z.number().optional(), // confidence score
+  z.array(z.unknown()).optional(),
+  z.array(z.unknown()).optional(), // language metadata
+]);
 
 export const utilsRouter = t.router({
   openExternalUrl: publicProcedure

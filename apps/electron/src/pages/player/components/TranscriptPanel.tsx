@@ -163,7 +163,7 @@ export function TranscriptPanel({
   useEffect(() => {
     const available = (availableSubsQuery.data?.languages ?? []).map((l) => l.lang);
     if (selectedLang && !available.includes(selectedLang)) {
-      toast({
+      toastHook({
         title: "Subtitle not available",
         description: `No transcript available in ${selectedLang.toUpperCase()} for this video. Showing default transcript instead.`,
         variant: "destructive",

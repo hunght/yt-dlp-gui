@@ -102,11 +102,11 @@ export function AnnotationsSidebar({
         id: string;
         videoId: string;
         timestampSeconds: number;
-        note: string | null;
+        note: string;
         emoji: string | null;
         selectedText: string | null;
         createdAt: number;
-        updatedAt: number;
+        updatedAt: number | null;
       }>
     > => {
       if (!videoId) return [] as const;

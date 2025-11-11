@@ -236,7 +236,11 @@ export default function ChannelPage(): React.JSX.Element {
             </TabsContent>
 
             <TabsContent value="library" className="mt-4">
-              <LibraryTab channelId={channelId!} isActive={activeTab === "library"} />
+              <LibraryTab
+                channelId={channelId!}
+                isActive={activeTab === "library"}
+                onDownload={handleDownloadVideo}
+              />
             </TabsContent>
 
             <TabsContent value="playlists" className="mt-4">

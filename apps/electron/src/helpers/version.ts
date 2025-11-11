@@ -7,7 +7,8 @@ import { logger } from "./logger";
  */
 export async function getAppVersion(): Promise<string> {
   try {
-    return await trpcClient.utils.getAppVersion.query();
+    const result = await trpcClient.utils.getAppVersion.query();
+    return result.version;
   } catch (error) {
     logger.error("Failed to get app version via tRPC", error);
   }

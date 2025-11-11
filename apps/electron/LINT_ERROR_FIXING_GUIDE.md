@@ -312,13 +312,13 @@ npm run lint
    git add src/api/routers/playlists/index.ts
    git commit -m "refactor: fix type safety in playlists router"
    ```
-   
+
    This triggers pre-commit hooks which will:
    - ✅ Auto-format code
    - ✅ Run linter with auto-fix
    - ✅ Run tests for changed files
    - ✅ Run type-check
-   
+
    If hooks fail, fix issues and amend the commit:
    ```bash
    # Fix issues

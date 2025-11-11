@@ -38,7 +38,7 @@ export function ExternalLink({
     try {
       await trpcClient.utils.openExternalUrl.mutate({ url: href });
     } catch (error) {
-      logger.error("Failed to open external link", error as Error, { href });
+      logger.error("Failed to open external link", error, { href });
       // Fallback to standard link behavior if tRPC fails
       window.open(href, "_blank", "noopener,noreferrer");
     }

@@ -156,16 +156,33 @@ const mod = require("some-module");
 const value = mod.something; // Unsafe
 ```
 
-### ✅ Good - Use dynamic import
+### ✅ Good - Use dynamic import (Node.js/main process)
 ```typescript
 const mod = await import("some-module");
 const value = mod.something; // Fully typed!
 ```
 
-### ✅ Good - For Electron modules
+### ✅ Good - For Electron modules (main process)
 ```typescript
 const { app } = await import("electron");
 const userData = app.getPath("userData"); // Type-safe!
+```
+
+### ✅ Good - For Electron preload scripts (synchronous)
+```typescript
+import type { ContextBridge, IpcRenderer } from "electron";
+
+// Preload scripts require synchronous access
+// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+const { contextBridge, ipcRenderer } = require("electron") as {
+  contextBridge: ContextBridge;
+  ipcRenderer: IpcRenderer;
+};
+
+// Now fully typed!
+contextBridge.exposeInMainWorld("api", {
+  invoke: (channel: string) => ipcRenderer.invoke(channel),
+});
 ```
 
 ---

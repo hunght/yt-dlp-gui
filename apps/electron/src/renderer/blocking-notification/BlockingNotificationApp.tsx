@@ -8,17 +8,31 @@ interface BlockingNotificationData {
   appOrDomain: string;
 }
 
+// Type for the electronBlockingNotification API exposed via contextBridge
+interface ElectronBlockingNotificationAPI {
+  respond: (response: number) => Promise<void>;
+  close: () => Promise<void>;
+  onNotification: (callback: (data: BlockingNotificationData) => void) => void;
+}
+
+// Extend Window interface to include the API
+declare global {
+  interface Window {
+    electronBlockingNotification?: ElectronBlockingNotificationAPI;
+  }
+}
+
 const BlockingNotificationApp: React.FC = () => {
   const [notificationData, setNotificationData] = useState<BlockingNotificationData | null>(null);
 
   useEffect(() => {
     // Listen for blocking notification data from main process
-    if ((window as any).electronBlockingNotification) {
+    if (window.electronBlockingNotification) {
       const handleNotification = (data: BlockingNotificationData) => {
         setNotificationData(data);
       };
 
-      (window as any).electronBlockingNotification.onNotification(handleNotification);
+      window.electronBlockingNotification.onNotification(handleNotification);
 
       // Add keyboard event listener for Escape key
       const handleKeyDown = (event: KeyboardEvent) => {
@@ -45,9 +59,9 @@ const BlockingNotificationApp: React.FC = () => {
   }, []);
 
   const handleResponse = async (response: number) => {
-    if ((window as any).electronBlockingNotification) {
+    if (window.electronBlockingNotification) {
       try {
-        await (window as any).electronBlockingNotification.respond(response);
+        await window.electronBlockingNotification.respond(response);
       } catch (error) {
         // Silently handle response errors
       }
@@ -59,9 +73,9 @@ const BlockingNotificationApp: React.FC = () => {
   const handleTakeBreak = () => handleResponse(2);
 
   const handleClose = async () => {
-    if ((window as any).electronBlockingNotification) {
+    if (window.electronBlockingNotification) {
       try {
-        await (window as any).electronBlockingNotification.close();
+        await window.electronBlockingNotification.close();
       } catch (error) {
         // Silently handle close errors
       }

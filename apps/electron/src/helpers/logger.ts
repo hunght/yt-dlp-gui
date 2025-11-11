@@ -120,7 +120,10 @@ const getRendererLogger = async (): Promise<LogFunctions> => {
 };
 
 // Initialize the logger asynchronously (skip in test environment to avoid Jest warnings)
-const isTest = process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined;
+const isTest =
+  (typeof process !== "undefined" && process.env?.NODE_ENV === "test") ||
+  (typeof process !== "undefined" && process.env?.JEST_WORKER_ID !== undefined);
+
 const internalPromise = !isTest
   ? isMain
     ? getMainLogger()

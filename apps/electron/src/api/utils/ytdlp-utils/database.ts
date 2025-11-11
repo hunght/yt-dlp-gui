@@ -4,9 +4,10 @@ import { channels } from "@yt-dlp-gui/database";
 import { logger } from "@/helpers/logger";
 import { extractChannelData } from "./metadata";
 import { downloadImageToCache } from "./thumbnail";
+import type { Database } from "../../db";
 
 export const upsertChannelData = async (
-  db: any,
+  db: Database,
   channelData: ReturnType<typeof extractChannelData>
 ) => {
   if (!channelData || !channelData.channelId) return;
@@ -73,6 +74,6 @@ export const upsertChannelData = async (
       });
     }
   } catch (e) {
-    logger.error("[database] Failed to upsert channel", e as Error);
+    logger.error("[database] Failed to upsert channel", e);
   }
 };

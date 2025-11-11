@@ -1,53 +1,109 @@
+import { z } from "zod";
 import { logger } from "@/helpers/logger";
 
-export const mapYtDlpMetadata = (meta: any) => {
+// Zod schema for yt-dlp video metadata (lenient for optional fields)
+const ytDlpMetadataSchema = z
+  .object({
+    id: z.string().optional(),
+    video_id: z.string().optional(),
+    fulltitle: z.string().optional(),
+    title: z.string().optional(),
+    description: z.string().optional().nullable(),
+    channel_id: z.string().optional(),
+    channelId: z.string().optional(),
+    channel: z.string().optional(),
+    uploader: z.string().optional(),
+    channel_title: z.string().optional(),
+    duration: z.number().optional(),
+    view_count: z.number().optional(),
+    like_count: z.number().optional(),
+    thumbnails: z.array(z.object({ url: z.string().optional() })).optional(),
+    thumbnail: z.string().optional(),
+    upload_date: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  })
+  .passthrough(); // Allow other properties
+
+export const mapYtDlpMetadata = (meta: unknown) => {
+  const validated = ytDlpMetadataSchema.parse(meta);
+
   return {
-    videoId: meta?.id || meta?.video_id || "",
-    title: meta?.fulltitle || meta?.title || "Untitled",
-    description: meta?.description ?? null,
-    channelId: meta?.channel_id || meta?.channelId || null,
-    channelTitle: meta?.channel || meta?.uploader || meta?.channel_title || null,
-    durationSeconds: meta?.duration ? Math.round(meta.duration) : null,
-    viewCount: meta?.view_count ?? null,
-    likeCount: meta?.like_count ?? null,
-    thumbnailUrl: Array.isArray(meta?.thumbnails)
-      ? meta.thumbnails[meta.thumbnails.length - 1]?.url ?? null
-      : meta?.thumbnail ?? null,
-    publishedAt: meta?.upload_date
+    videoId: validated.id ?? validated.video_id ?? "",
+    title: validated.fulltitle ?? validated.title ?? "Untitled",
+    description: validated.description ?? null,
+    channelId: validated.channel_id ?? validated.channelId ?? null,
+    channelTitle: validated.channel ?? validated.uploader ?? validated.channel_title ?? null,
+    durationSeconds: validated.duration ? Math.round(validated.duration) : null,
+    viewCount: validated.view_count ?? null,
+    likeCount: validated.like_count ?? null,
+    thumbnailUrl: Array.isArray(validated.thumbnails)
+      ? (validated.thumbnails[validated.thumbnails.length - 1]?.url ?? null)
+      : (validated.thumbnail ?? null),
+    publishedAt: validated.upload_date
       ? Date.parse(
-          `${meta.upload_date.slice(0, 4)}-${meta.upload_date.slice(4, 6)}-${meta.upload_date.slice(6, 8)}`
+          `${validated.upload_date.slice(0, 4)}-${validated.upload_date.slice(4, 6)}-${validated.upload_date.slice(6, 8)}`
         )
       : null,
-    tags: Array.isArray(meta?.tags) ? JSON.stringify(meta.tags) : null,
-    raw: JSON.stringify(meta),
+    tags: Array.isArray(validated.tags) ? JSON.stringify(validated.tags) : null,
+    raw: JSON.stringify(validated),
   } as const;
 };
+
+// Schema for subtitle metadata
+const subtitleMetadataSchema = z
+  .object({
+    subtitles: z.record(z.array(z.object({ ext: z.string().optional() }))).optional(),
+    automatic_captions: z.record(z.array(z.object({ ext: z.string().optional() }))).optional(),
+  })
+  .passthrough();
 
 /**
  * Extract available subtitle languages from yt-dlp metadata
  */
-export const extractSubtitleLanguages = (meta: any): Array<{
+export const extractSubtitleLanguages = (
+  meta: unknown
+): Array<{
   lang: string;
   hasManual: boolean;
   hasAuto: boolean;
   manualFormats: string[];
   autoFormats: string[];
 }> => {
-  const subs = meta?.subtitles || {};
-  const autos = meta?.automatic_captions || {};
+  const validated = subtitleMetadataSchema.parse(meta);
+  const subs = validated.subtitles ?? {};
+  const autos = validated.automatic_captions ?? {};
 
-  const map = new Map<string, { hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }>();
+  const map = new Map<
+    string,
+    { hasManual: boolean; hasAuto: boolean; manualFormats: string[]; autoFormats: string[] }
+  >();
+
   for (const key of Object.keys(subs)) {
     const k = String(key).toLowerCase();
-    const fmts = Array.isArray(subs[key]) ? subs[key].map((f: any) => f?.ext).filter(Boolean) : [];
-    map.set(k, { hasManual: true, hasAuto: false, manualFormats: Array.from(new Set(fmts)), autoFormats: [] });
+    const fmts = Array.isArray(subs[k])
+      ? subs[k].map((f) => f.ext).filter((ext): ext is string => typeof ext === "string")
+      : [];
+    map.set(k, {
+      hasManual: true,
+      hasAuto: false,
+      manualFormats: Array.from(new Set(fmts)),
+      autoFormats: [],
+    });
   }
+
   for (const key of Object.keys(autos)) {
     const k = String(key).toLowerCase();
-    const fmts = Array.isArray(autos[key]) ? autos[key].map((f: any) => f?.ext).filter(Boolean) : [];
-    const prev = map.get(k) || { hasManual: false, hasAuto: false, manualFormats: [], autoFormats: [] };
+    const fmts = Array.isArray(autos[k])
+      ? autos[k].map((f) => f.ext).filter((ext): ext is string => typeof ext === "string")
+      : [];
+    const prev = map.get(k) ?? {
+      hasManual: false,
+      hasAuto: false,
+      manualFormats: [],
+      autoFormats: [],
+    };
     prev.hasAuto = true;
-    prev.autoFormats = Array.from(new Set([...(prev.autoFormats || []), ...fmts]));
+    prev.autoFormats = Array.from(new Set([...(prev.autoFormats ?? []), ...fmts]));
     map.set(k, prev);
   }
 
@@ -57,28 +113,60 @@ export const extractSubtitleLanguages = (meta: any): Array<{
       if (a.lang === "en") return -1;
       if (b.lang === "en") return 1;
       if (a.hasManual && !b.hasManual) return -1;
-      if (!a.hasManual && b.hasManual) return 1;
+      if (!a.hasManual && b.hasManual) return -1;
       return a.lang.localeCompare(b.lang);
     });
 };
 
-export const extractChannelData = (meta: any) => {
-  const channelId = meta?.channel_id || meta?.channelId || null;
+// Schema for channel metadata
+const channelMetadataSchema = z
+  .object({
+    channel_id: z.string().optional(),
+    channelId: z.string().optional(),
+    uploader_id: z.string().optional(),
+    channel: z.string().optional(),
+    uploader: z.string().optional(),
+    channel_title: z.string().optional(),
+    channel_description: z.string().optional(),
+    channel_url: z.string().optional(),
+    channel_thumbnails: z.array(z.object({ url: z.string().optional() })).optional(),
+    uploader_avatar: z.string().optional(),
+    channel_avatar: z.string().optional(),
+    channel_follower_count: z.number().optional(),
+    uploader_url: z.string().optional(),
+  })
+  .passthrough();
+
+interface ExtractedChannelData {
+  channelId: string;
+  channelTitle: string;
+  channelDescription: string | null;
+  channelUrl: string | null;
+  thumbnailUrl: string | null;
+  subscriberCount: number | null;
+  videoCount: null;
+  viewCount: null;
+  customUrl: string | null;
+  raw: string;
+}
+
+export const extractChannelData = (meta: unknown): ExtractedChannelData | null => {
+  const validated = channelMetadataSchema.parse(meta);
+  const channelId = validated.channel_id ?? validated.channelId ?? null;
 
   logger.debug("[metadata] Processing channel data", {
     hasChannelId: !!channelId,
     channelId,
-    channel_id: meta?.channel_id,
-    channelIdAlt: meta?.channelId,
-    uploader_id: meta?.uploader_id,
-    channel: meta?.channel,
-    uploader: meta?.uploader,
-    hasChannelThumbnails: Array.isArray(meta?.channel_thumbnails)
-      ? meta.channel_thumbnails.length
+    channel_id: validated.channel_id,
+    channelIdAlt: validated.channelId,
+    uploader_id: validated.uploader_id,
+    channel: validated.channel,
+    uploader: validated.uploader,
+    hasChannelThumbnails: Array.isArray(validated.channel_thumbnails)
+      ? validated.channel_thumbnails.length
       : 0,
-    hasThumbnails: Array.isArray(meta?.thumbnails) ? meta.thumbnails.length : 0,
-    uploader_avatar: meta?.uploader_avatar,
-    channel_avatar: meta?.channel_avatar,
+    uploader_avatar: validated.uploader_avatar,
+    channel_avatar: validated.channel_avatar,
   });
 
   if (!channelId) {
@@ -87,35 +175,40 @@ export const extractChannelData = (meta: any) => {
   }
 
   // Extract channel thumbnail (profile photo)
-  let channelThumbnail = null;
+  let channelThumbnail: string | null = null;
   if (
-    meta?.channel_thumbnails &&
-    Array.isArray(meta.channel_thumbnails) &&
-    meta.channel_thumbnails.length > 0
+    validated.channel_thumbnails &&
+    Array.isArray(validated.channel_thumbnails) &&
+    validated.channel_thumbnails.length > 0
   ) {
     // Get the highest quality thumbnail
-    channelThumbnail = meta.channel_thumbnails[meta.channel_thumbnails.length - 1]?.url ?? null;
-  } else if (meta?.uploader_avatar || meta?.channel_avatar) {
-    channelThumbnail = meta.uploader_avatar || meta.channel_avatar;
+    channelThumbnail =
+      validated.channel_thumbnails[validated.channel_thumbnails.length - 1]?.url ?? null;
+  } else if (validated.uploader_avatar ?? validated.channel_avatar) {
+    channelThumbnail = validated.uploader_avatar ?? validated.channel_avatar ?? null;
   }
 
   logger.debug("[metadata] thumbnail selection", {
     selected: channelThumbnail,
-    channel_thumbnails_last: Array.isArray(meta?.channel_thumbnails)
-      ? meta.channel_thumbnails[meta.channel_thumbnails.length - 1]?.url
+    channel_thumbnails_last: Array.isArray(validated.channel_thumbnails)
+      ? validated.channel_thumbnails[validated.channel_thumbnails.length - 1]?.url
       : undefined,
   });
 
   return {
     channelId,
-    channelTitle: meta?.channel || meta?.uploader || meta?.channel_title || "Unknown Channel",
-    channelDescription: meta?.channel_description ?? null,
-    channelUrl: meta?.channel_url || (channelId ? `https://www.youtube.com/channel/${channelId}` : null),
+    channelTitle:
+      validated.channel ?? validated.uploader ?? validated.channel_title ?? "Unknown Channel",
+    channelDescription: validated.channel_description ?? null,
+    channelUrl:
+      validated.channel_url ?? (channelId ? `https://www.youtube.com/channel/${channelId}` : null),
     thumbnailUrl: channelThumbnail,
-    subscriberCount: meta?.channel_follower_count ?? null,
+    subscriberCount: validated.channel_follower_count ?? null,
     videoCount: null, // Not typically in video metadata
     viewCount: null, // Not typically in video metadata
-    customUrl: meta?.uploader_url?.includes("@") ? meta.uploader_url.split("@")[1] : null,
-    raw: JSON.stringify(meta),
-  } as const;
+    customUrl: validated.uploader_url?.includes("@")
+      ? (validated.uploader_url.split("@")[1] ?? null)
+      : null,
+    raw: JSON.stringify(validated),
+  };
 };

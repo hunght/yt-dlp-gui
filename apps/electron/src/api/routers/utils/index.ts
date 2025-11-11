@@ -40,17 +40,17 @@ const dictionaryEntrySchema = z.object({
 const dictionaryResponseSchema = z.union([z.array(dictionaryEntrySchema), dictionaryEntrySchema]);
 
 // Zod schema for Google Translate API response
-// Actual response: [[["translated","original",null,null,10]],null,"en",null,null,null,1,[],[["en"],null,[1],["en"]]]
+// Actual response: [[["nhiễm trùng","infections",null,null,3,null,null,[[]],[[...]]]],null,"en",null,null,null,1,[],[...]]
 // Structure:
-// [0] translations: [["translated", "original", null, null, wordCount], ...]
+// [0] translations: [["translated", "original", null, null, wordCount, null, null, [[]], metadata], ...]
 // [1] null
 // [2] detectedLanguage: "en"
 // [3-5] null
 // [6] confidence: 1
 // [7] []
-// [8] language metadata: [["en"], null, [1], ["en"]]
+// [8] language metadata
 const googleTranslateResponseSchema = z.tuple([
-  z.array(z.tuple([z.string(), z.string(), z.null(), z.null(), z.number().optional()])), // translations
+  z.array(z.array(z.unknown())), // translations - flexible to handle varying array lengths
   z.null(), // unused
   z.string(), // detected language (required)
   z.null().optional(),

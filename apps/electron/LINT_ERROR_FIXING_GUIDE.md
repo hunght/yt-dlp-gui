@@ -387,7 +387,53 @@ const downloadTranscriptMutation = useMutation({
 
 ---
 
-## 11. Router Navigation with Optional Properties
+## 11. LocalStorage JSON Parsing with Type Guards
+
+### ❌ Bad - Type assertions for localStorage data
+```typescript
+const raw = localStorage.getItem("my-data");
+const parsed: unknown = raw ? JSON.parse(raw) : {};
+const map: Record<string, number> = parsed as Record<string, number>; // Type assertion!
+```
+
+### ✅ Good - Type guard pattern
+```typescript
+// Define type guard
+function isMyDataMap(value: unknown): value is Record<string, number> {
+  if (!value || typeof value !== "object") return false;
+  
+  return Object.entries(value).every(
+    ([key, val]) => typeof key === "string" && typeof val === "number"
+  );
+}
+
+// Safe parser function
+function parseMyData(raw: string | null): Record<string, number> {
+  if (!raw) return {};
+  
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isMyDataMap(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+// Usage - fully type-safe!
+const raw = localStorage.getItem("my-data");
+const map = parseMyData(raw);
+map["key"] = 123; // Type-safe
+```
+
+**Benefits:**
+- No type assertions needed
+- Runtime validation ensures data structure
+- Handles corrupt localStorage gracefully
+- Reusable parser pattern
+
+---
+
+## 12. Router Navigation with Optional Properties
 
 ### ❌ Bad - Explicitly sending undefined
 ```typescript

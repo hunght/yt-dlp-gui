@@ -9,7 +9,11 @@ interface ThemePreferences {
 
 export async function getCurrentTheme(): Promise<ThemePreferences> {
   const currentTheme = await window.themeMode.current();
-  const localTheme = localStorage.getItem(THEME_KEY) as ThemeMode | null;
+  const storedTheme = localStorage.getItem(THEME_KEY);
+  const localTheme: ThemeMode | null =
+    storedTheme === "dark" || storedTheme === "light" || storedTheme === "system"
+      ? storedTheme
+      : null;
 
   return {
     system: currentTheme,
@@ -19,18 +23,21 @@ export async function getCurrentTheme(): Promise<ThemePreferences> {
 
 export async function setTheme(newTheme: ThemeMode) {
   switch (newTheme) {
-    case "dark":
+    case "dark": {
       await window.themeMode.dark();
       updateDocumentTheme(true);
       break;
-    case "light":
+    }
+    case "light": {
       await window.themeMode.light();
       updateDocumentTheme(false);
       break;
-    case "system":
+    }
+    case "system": {
       const isDarkMode = await window.themeMode.system();
       updateDocumentTheme(isDarkMode);
       break;
+    }
   }
 
   localStorage.setItem(THEME_KEY, newTheme);

@@ -31,6 +31,7 @@ export default [
       'drizzle/**',
       '.storybook/**',
       'debug-formats.js',
+      'src/components/ui/**',
     ],
   },
 

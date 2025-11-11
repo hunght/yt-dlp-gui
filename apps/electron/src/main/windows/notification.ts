@@ -5,7 +5,7 @@ import path from "path";
 
 let notificationWindow: BrowserWindow | null = null;
 
-export function createNotificationWindow(): BrowserWindow {
+export async function createNotificationWindow(): Promise<BrowserWindow> {
   logger.info("Creating notification window");
   // Don't create multiple notification windows
   if (notificationWindow && !notificationWindow.isDestroyed()) {
@@ -18,7 +18,7 @@ export function createNotificationWindow(): BrowserWindow {
   logger.info("Creating new notification window");
 
   // Get the primary display to position the notification
-  const { screen } = require("electron");
+  const { screen } = await import("electron");
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth } = primaryDisplay.workAreaSize;
 

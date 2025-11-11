@@ -520,10 +520,10 @@ export const utilsRouter = t.router({
     )
     .mutation(async ({ input }) => {
       try {
-        const window = createNotificationWindow();
+        const window = await createNotificationWindow();
 
         // If data is provided, send it to the notification window
-        if (input && window) {
+        if (input) {
           const success = await sendNotificationToWindow({
             title: input.title,
             body: input.description,

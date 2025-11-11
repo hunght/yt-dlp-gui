@@ -27,7 +27,7 @@ export const sendNotificationToWindow = async (data: NotificationData): Promise<
   try {
     logger.debug("Sending notification to window", data);
 
-    const notificationWindow = createNotificationWindow();
+    const notificationWindow = await createNotificationWindow();
 
     // Wait for the window to be ready before sending the message
     if (notificationWindow.webContents.isLoading()) {

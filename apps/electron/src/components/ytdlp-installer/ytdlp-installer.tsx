@@ -33,7 +33,7 @@ export const YtDlpInstaller = () => {
       }
     },
     onError: (error) => {
-      logger.error("[YtDlpInstaller] Download mutation failed", error as Error);
+      logger.error("[YtDlpInstaller] Download mutation failed", error);
     },
   });
 

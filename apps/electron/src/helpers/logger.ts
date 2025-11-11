@@ -14,137 +14,180 @@
 import * as fs from "fs";
 import * as path from "path";
 
+// Helper to normalize unknown errors to Error objects
+function normalizeError(value: unknown): Error {
+  if (value instanceof Error) {
+    return value;
+  }
+  if (typeof value === "string") {
+    return new Error(value);
+  }
+  if (typeof value === "object" && value !== null && "message" in value) {
+    return new Error(String(value.message));
+  }
+  return new Error(String(value));
+}
+
+// Helper to normalize log arguments - converts unknown errors to Error objects
+function normalizeLogArgs(args: unknown[]): unknown[] {
+  return args.map((arg) => {
+    // If it looks like an error (has stack, message, or is Error instance), normalize it
+    if (
+      arg instanceof Error ||
+      (typeof arg === "object" &&
+        arg !== null &&
+        ("stack" in arg || "message" in arg || "name" in arg))
+    ) {
+      return normalizeError(arg);
+    }
+    return arg;
+  });
+}
+
 type LogFunctions = {
-	debug: (...args: any[]) => void;
-	info: (...args: any[]) => void;
-	warn: (...args: any[]) => void;
-	error: (...args: any[]) => void;
+  debug: (...args: unknown[]) => void;
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
 };
 
 interface UniversalLogger extends LogFunctions {
-	fatal: (...args: any[]) => void;
-	clearLogFile: () => Promise<void>;
-	getFileContent: () => Promise<string>;
+  fatal: (...args: unknown[]) => void;
+  clearLogFile: () => Promise<void>;
+  getFileContent: () => Promise<string>;
 }
 
-const isMain = typeof process !== "undefined" && (process as any).type === "browser";
+// Check if we're in main process
+const isMain =
+  typeof process !== "undefined" &&
+  "type" in process &&
+  typeof process.type === "string" &&
+  process.type === "browser";
 
 // Lazily load electron-log for the current context to avoid bundling the wrong entry
-const getMainLogger = () => {
+const getMainLogger = async (): Promise<LogFunctions> => {
+  try {
+    const mod = await import("electron-log/main");
+    const log = mod.default ?? mod;
 
-	const mod = require("electron-log/main");
-	const log = mod.default ?? mod;
+    // Ensure renderer bridge is initialized from main
+    if (typeof log.initialize === "function") {
+      log.initialize();
+    }
 
-	// Ensure renderer bridge is initialized from main
-	try {
-		if (typeof log.initialize === "function") {
-			log.initialize();
-		}
-	} catch {
-		// ignore
-	}
-
-	// Optionally, customize log file location or levels here
-	// Example: keep default path at ~/Library/Logs/{app name}/main.log on macOS
-	return log as LogFunctions & {
-		transports: any;
-	};
+    return log;
+  } catch {
+    // Fallback to console if something went wrong
+    return console;
+  }
 };
 
-const getRendererLogger = (): LogFunctions => {
-	// Prefer a direct renderer import to be able to configure transports (IPC in prod)
-	try {
+const getRendererLogger = async (): Promise<LogFunctions> => {
+  // Prefer a direct renderer import to be able to configure transports (IPC in prod)
+  try {
+    const mod = await import("electron-log/renderer");
+    const rlog = mod.default ?? mod;
 
-		const mod = require("electron-log/renderer");
-		const rlog = (mod.default ?? mod) as LogFunctions & { transports?: any };
-		// Ensure IPC transport is enabled in production so logs reach the main/file transport
-		try {
-			const isProd = process.env.NODE_ENV === "production";
-			if (rlog?.transports?.ipc && isProd) {
-				rlog.transports.ipc.level = "info"; // forward renderer logs in production
-			}
-		} catch {
-			// ignore transport tweaks if unavailable
-		}
-		return rlog;
-	} catch {
-		// Fallback: rely on global injected by log.initialize() from main
-		const gl = (globalThis as any).__electronLog as LogFunctions | undefined;
-		if (gl) return gl;
-		// Final fallback to console to avoid crashes
-		return console as unknown as LogFunctions;
-	}
+    // Ensure IPC transport is enabled in production so logs reach the main/file transport
+    const isProd = process.env.NODE_ENV === "production";
+    if (rlog.transports?.ipc && isProd) {
+      rlog.transports.ipc.level = "info";
+    }
+
+    return rlog;
+  } catch {
+    // Fallback: rely on global injected by log.initialize() from main
+    if ("__electronLog" in globalThis) {
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      const electronLog: unknown = (globalThis as Record<string, unknown>).__electronLog;
+      // Check if it has the required log methods
+      if (
+        typeof electronLog === "object" &&
+        electronLog !== null &&
+        "debug" in electronLog &&
+        "info" in electronLog &&
+        "warn" in electronLog &&
+        "error" in electronLog
+      ) {
+        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+        return electronLog as LogFunctions;
+      }
+    }
+
+    // Final fallback to console to avoid crashes
+    return console;
+  }
 };
 
-const internal = isMain ? getMainLogger() : getRendererLogger();
+// Initialize the logger asynchronously (skip in test environment to avoid Jest warnings)
+const isTest = process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined;
+const internalPromise = !isTest
+  ? isMain
+    ? getMainLogger()
+    : getRendererLogger()
+  : Promise.resolve(console);
+let internal: LogFunctions = console;
+
+// Initialize immediately (but don't block) - skip in test environment
+if (!isTest) {
+  void internalPromise.then((log) => {
+    internal = log;
+  });
+}
 
 // Adapter that preserves previous API surface
 export const logger: UniversalLogger = {
-	debug: (...args: any[]) => internal.debug?.(...args),
-	info: (...args: any[]) => internal.info?.(...args),
-	warn: (...args: any[]) => internal.warn?.(...args),
-	error: (...args: any[]) => internal.error?.(...args),
-	fatal: (...args: any[]) => internal.error?.("FATAL:", ...args),
-	clearLogFile: async () => {
-		if (!isMain) return; // no-op in renderer
-		try {
+  debug: (...args: unknown[]) => internal.debug?.(...args),
+  info: (...args: unknown[]) => internal.info?.(...args),
+  warn: (...args: unknown[]) => internal.warn?.(...normalizeLogArgs(args)),
+  error: (...args: unknown[]) => internal.error?.(...normalizeLogArgs(args)),
+  fatal: (...args: unknown[]) => internal.error?.("FATAL:", ...normalizeLogArgs(args)),
+  clearLogFile: async () => {
+    if (!isMain) return; // no-op in renderer
+    try {
+      const mod = await import("electron-log/main");
+      const log = mod.default ?? mod;
 
-			const mod = require("electron-log/main");
-			const log = mod.default ?? mod;
-			if (log?.transports?.file?.getFile) {
-				const file = log.transports.file.getFile();
-				if (file?.path) {
-					await fs.promises.writeFile(file.path, "", { encoding: "utf-8" });
-			}
-		}
-	} catch {
-		// As a last resort, try typical default path
-			try {
-				// electron-log default dir: {userData}/logs/main.log
-				// userData is one level up from the logs dir.
-				// We'll attempt to compute a reasonable fallback if available via app.getPath
-				// Delay requiring electron only here to avoid renderer usage
+      const file = log.transports?.file?.getFile?.();
+      if (file?.path) {
+        await fs.promises.writeFile(file.path, "", { encoding: "utf-8" });
+      }
+    } catch {
+      // As a last resort, try typical default path
+      try {
+        // electron-log default dir: {userData}/logs/main.log
+        const { app } = await import("electron");
+        const userData = app.getPath("userData");
+        const p = path.join(userData, "logs", "main.log");
+        await fs.promises.writeFile(p, "", { encoding: "utf-8" });
+      } catch {
+        // ignore
+      }
+    }
+  },
+  getFileContent: async () => {
+    if (!isMain) return ""; // not available in renderer
+    try {
+      const mod = await import("electron-log/main");
+      const log = mod.default ?? mod;
 
-				const { app } = require("electron");
-				const userData = app?.getPath?.("userData");
-				if (userData) {
-					const p = path.join(userData, "logs", "main.log");
-					await fs.promises.writeFile(p, "", { encoding: "utf-8" });
-				}
-			} catch {
-				// ignore
-			}
-		}
-	},
-	getFileContent: async () => {
-		if (!isMain) return ""; // not available in renderer
-		try {
-
-			const mod = require("electron-log/main");
-			const log = mod.default ?? mod;
-			if (log?.transports?.file?.getFile) {
-				const file = log.transports.file.getFile();
-				if (file?.path && fs.existsSync(file.path)) {
-					return await fs.promises.readFile(file.path, "utf8");
-			}
-		}
-	} catch {
-		// Fallback to default path if needed
-			try {
-
-				const { app } = require("electron");
-				const userData = app?.getPath?.("userData");
-				if (userData) {
-					const p = path.join(userData, "logs", "main.log");
-					if (fs.existsSync(p)) {
-						return await fs.promises.readFile(p, "utf8");
-					}
-				}
-			} catch {
-				// ignore
-			}
-		}
-		return "";
-	},
+      const file = log.transports?.file?.getFile?.();
+      if (file?.path && fs.existsSync(file.path)) {
+        return await fs.promises.readFile(file.path, "utf8");
+      }
+    } catch {
+      // Fallback to default path if needed
+      try {
+        const { app } = await import("electron");
+        const userData = app.getPath("userData");
+        const p = path.join(userData, "logs", "main.log");
+        if (fs.existsSync(p)) {
+          return await fs.promises.readFile(p, "utf8");
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return "";
+  },
 };
-

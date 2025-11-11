@@ -1,5 +1,6 @@
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { sql } from "drizzle-orm";
+import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import { getDatabasePath } from "../../utils/paths";
@@ -7,12 +8,33 @@ import db from ".";
 import { logger } from "../../helpers/logger";
 
 // Safely import app from electron, might not be available in non-Electron contexts
-let app: any;
-try {
-  app = require("electron").app;
-} catch {
-  app = null;
-}
+let app: Electron.App | null = null;
+
+// Initialize app asynchronously
+const initApp = async (): Promise<void> => {
+  try {
+    const electron = await import("electron");
+    app = electron.app;
+  } catch {
+    app = null;
+  }
+};
+
+// Start initialization immediately
+void initApp();
+
+// Zod schemas for validation
+const packageJsonSchema = z.object({
+  version: z.string(),
+});
+
+const integrityCheckSchema = z.object({
+  integrity_check: z.string(),
+});
+
+const pragmaHashSchema = z.object({
+  hash: z.number(),
+});
 
 interface MigrationOptions {
   verifyOnly?: boolean;
@@ -31,8 +53,14 @@ async function createDatabaseBackup(dbPath: string): Promise<string> {
     appVersion = app?.getVersion() || "unknown";
   } catch {
     // Fallback to package.json version when not in Electron context
-    const packageJson = require("../../../package.json");
-    appVersion = packageJson.version;
+    try {
+      const packageJsonPath = path.join(__dirname, "../../../package.json");
+      const packageJsonContent = fs.readFileSync(packageJsonPath, "utf8");
+      const packageJson = packageJsonSchema.parse(JSON.parse(packageJsonContent));
+      appVersion = packageJson.version;
+    } catch {
+      appVersion = "unknown";
+    }
   }
   const backupPath = `${dbPath}.${appVersion}.${timestamp}.backup`;
 
@@ -75,8 +103,9 @@ async function validateDatabaseIntegrity(): Promise<boolean> {
     await db.run(sql`SELECT 1`);
 
     // Check database pragma for corruption
-    const result = await db.all(sql`PRAGMA integrity_check`);
-    const isValid = result[0] && (result[0] as any).integrity_check === "ok";
+    const result: unknown[] = await db.all(sql`PRAGMA integrity_check`);
+    const parseResult = result[0] ? integrityCheckSchema.safeParse(result[0]) : null;
+    const isValid = parseResult?.success && parseResult.data.integrity_check === "ok";
 
     if (!isValid) {
       logger.error("Database integrity check failed:", result);
@@ -108,16 +137,19 @@ async function getCurrentMigrationState(): Promise<string | null> {
     }
 
     // Get the latest migration
-    const migrationResult = await db.all(sql`
+    const migrationResult: unknown[] = await db.all(sql`
       SELECT hash FROM __drizzle_migrations
       ORDER BY created_at DESC
       LIMIT 1
     `);
 
     if (migrationResult.length > 0) {
-      const latestHash = (migrationResult[0] as any).hash as string;
-      logger.info(`Current migration state: ${latestHash}`);
-      return latestHash;
+      const parseResult = pragmaHashSchema.safeParse(migrationResult[0]);
+      if (parseResult.success) {
+        const latestHash = String(parseResult.data.hash);
+        logger.info(`Current migration state: ${latestHash}`);
+        return latestHash;
+      }
     }
 
     return null;
@@ -202,16 +234,11 @@ async function runMigrations(options: MigrationOptions = {}): Promise<void> {
 
   const migrationsPath = candidatePaths.find((p) => fs.existsSync(p));
 
-  logger.info(
-    "Migrations folder resolution candidates:",
-    JSON.stringify(candidatePaths, null, 2)
-  );
+  logger.info("Migrations folder resolution candidates:", JSON.stringify(candidatePaths, null, 2));
   logger.info("Selected migrations folder:", migrationsPath || "<none>");
 
   if (!migrationsPath) {
-    throw new Error(
-      `Migrations folder not found. Checked: \n${candidatePaths.join("\n")}`
-    );
+    throw new Error(`Migrations folder not found. Checked: \n${candidatePaths.join("\n")}`);
   }
 
   if (options.verifyOnly) {

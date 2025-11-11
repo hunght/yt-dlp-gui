@@ -1,17 +1,32 @@
 import { sql } from "drizzle-orm";
 import fs from "fs";
+import path from "path";
+import { z } from "zod";
 import { getDatabasePath } from "../../utils/paths";
 import db from ".";
 import { logger } from "../../helpers/logger";
 import { runMigrations, validateDatabaseIntegrity } from "./migrate";
 
 // Safely import app from electron, might not be available in non-Electron contexts
-let app: any;
-try {
-  app = require("electron").app;
-} catch {
-  app = null;
-}
+let app: Electron.App | null = null;
+
+// Initialize app asynchronously
+const initApp = async (): Promise<void> => {
+  try {
+    const electron = await import("electron");
+    app = electron.app;
+  } catch {
+    app = null;
+  }
+};
+
+// Start initialization immediately
+void initApp();
+
+// Zod schema for package.json structure
+const packageJsonSchema = z.object({
+  version: z.string(),
+});
 
 interface DatabaseConfig {
   maxRetries: number;
@@ -130,7 +145,7 @@ export const initializeDatabase = async (
       logger.info("Database initialization successful");
       return;
     } catch (error) {
-      lastError = error as Error;
+      lastError = error instanceof Error ? error : new Error(String(error));
       logger.error(`Database initialization attempt ${attempt} failed:`, error);
 
       if (error instanceof Error) {
@@ -163,8 +178,14 @@ export const initializeDatabase = async (
         appVersion = app?.getVersion() || "unknown";
       } catch {
         // Fallback to package.json version when not in Electron context
-        const packageJson = require("../../../package.json");
-        appVersion = packageJson.version;
+        try {
+          const packageJsonPath = path.join(__dirname, "../../../package.json");
+          const packageJsonContent = fs.readFileSync(packageJsonPath, "utf8");
+          const packageJson = packageJsonSchema.parse(JSON.parse(packageJsonContent));
+          appVersion = packageJson.version;
+        } catch {
+          appVersion = "unknown";
+        }
       }
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const backupPath = `${dbPath}.${appVersion}.${timestamp}.corrupted`;

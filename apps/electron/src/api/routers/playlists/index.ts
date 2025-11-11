@@ -3,10 +3,68 @@ import { publicProcedure, t } from "@/api/trpc";
 import { logger } from "@/helpers/logger";
 import fs from "fs";
 import { eq, desc, inArray, and } from "drizzle-orm";
-import { channelPlaylists, playlistItems, youtubeVideos, channels } from "@/api/db/schema";
+import {
+  channelPlaylists,
+  playlistItems,
+  youtubeVideos,
+  channels,
+  type ChannelPlaylist,
+  type YoutubeVideo,
+  type NewYoutubeVideo,
+} from "@/api/db/schema";
 import defaultDb from "@/api/db";
 import { spawnYtDlpWithLogging } from "../../utils/ytdlp-utils/ytdlp";
 import { downloadImageToCache } from "../../utils/ytdlp-utils/cache";
+
+// Zod schemas for yt-dlp JSON responses (external API, not from DB)
+const ytDlpThumbnailSchema = z.object({
+  url: z.string(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+});
+
+const ytDlpPlaylistEntrySchema = z.object({
+  id: z.string().optional(),
+  title: z.string().optional(),
+  duration: z.number().optional(),
+  view_count: z.number().optional(),
+  channel: z.string().optional(),
+  uploader: z.string().optional(),
+  thumbnails: z.array(ytDlpThumbnailSchema).optional(),
+  thumbnail: z.string().optional(),
+});
+
+const ytDlpPlaylistDataSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  channel: z.string().optional(),
+  uploader: z.string().optional(),
+  channel_id: z.string().optional(),
+  channel_url: z.string().optional(),
+  thumbnails: z.array(ytDlpThumbnailSchema).optional(),
+  entries: z.array(ytDlpPlaylistEntrySchema).optional(),
+});
+
+// Infer types from Zod schemas (prefixed with _ as they're primarily for documentation)
+type _YtDlpThumbnail = z.infer<typeof ytDlpThumbnailSchema>;
+type _YtDlpPlaylistEntry = z.infer<typeof ytDlpPlaylistEntrySchema>;
+type _YtDlpPlaylistData = z.infer<typeof ytDlpPlaylistDataSchema>;
+
+// Zod schema for extracted channel data (return type of extractChannelData from metadata.ts)
+const extractedChannelDataSchema = z.object({
+  channelId: z.string(),
+  channelTitle: z.string(),
+  channelDescription: z.string().nullable(),
+  channelUrl: z.string().nullable(),
+  thumbnailUrl: z.string().nullable(),
+  subscriberCount: z.number().nullable(),
+  videoCount: z.null(),
+  viewCount: z.null(),
+  customUrl: z.string().nullable(),
+  raw: z.string(),
+});
+
+type _ExtractedChannelData = z.infer<typeof extractedChannelDataSchema>;
 
 export const playlistsRouter = t.router({
   // Get detailed playlist information with videos
@@ -26,14 +84,14 @@ export const playlistsRouter = t.router({
       const binPath = getBinaryFilePath();
 
       // Try to read basic playlist metadata from DB first
-      let playlistMeta: any | null = null;
+      let playlistMeta: ChannelPlaylist | null = null;
       try {
         const existing = await db
           .select()
           .from(channelPlaylists)
           .where(eq(channelPlaylists.playlistId, input.playlistId))
           .limit(1);
-        playlistMeta = existing?.[0] ?? null;
+        playlistMeta = existing[0] ?? null;
       } catch (e) {
         logger.warn("[playlists] Failed to load playlist meta", {
           playlistId: input.playlistId,
@@ -58,21 +116,21 @@ export const playlistsRouter = t.router({
 
           if (items.length > 0) {
             const videos = items
-              .filter((item) => item.video)
+              .filter((item): item is typeof item & { video: YoutubeVideo } => item.video !== null)
               .map((item) => ({
-                id: item.video!.id,
-                videoId: item.video!.videoId,
-                title: item.video!.title,
-                description: item.video!.description,
-                thumbnailUrl: item.video!.thumbnailUrl,
-                thumbnailPath: item.video!.thumbnailPath,
-                durationSeconds: item.video!.durationSeconds,
-                viewCount: item.video!.viewCount,
-                publishedAt: item.video!.publishedAt,
-                url: `https://www.youtube.com/watch?v=${item.video!.videoId}`,
-                downloadStatus: item.video!.downloadStatus,
-                downloadProgress: item.video!.downloadProgress,
-                downloadFilePath: item.video!.downloadFilePath,
+                id: item.video.id,
+                videoId: item.video.videoId,
+                title: item.video.title,
+                description: item.video.description,
+                thumbnailUrl: item.video.thumbnailUrl,
+                thumbnailPath: item.video.thumbnailPath,
+                durationSeconds: item.video.durationSeconds,
+                viewCount: item.video.viewCount,
+                publishedAt: item.video.publishedAt,
+                url: `https://www.youtube.com/watch?v=${item.video.videoId}`,
+                downloadStatus: item.video.downloadStatus,
+                downloadProgress: item.video.downloadProgress,
+                downloadFilePath: item.video.downloadFilePath,
               }));
 
             return {
@@ -132,16 +190,20 @@ export const playlistsRouter = t.router({
         );
         let out = "";
         let err = "";
-        proc.stdout?.on("data", (d) => (out += d.toString()));
-        proc.stderr?.on("data", (d) => (err += d.toString()));
+        proc.stdout?.on("data", (d: Buffer | string) => {
+          out += d.toString();
+        });
+        proc.stderr?.on("data", (d: Buffer | string) => {
+          err += d.toString();
+        });
         proc.on("error", reject);
         proc.on("close", (code) =>
           code === 0 ? resolve(out) : reject(new Error(err || `yt-dlp exited ${code}`))
         );
       });
 
-      const data = JSON.parse(json);
-      const entries = (Array.isArray(data?.entries) ? data.entries : []).slice(0, limit);
+      const data = ytDlpPlaylistDataSchema.parse(JSON.parse(json));
+      const entries = (data.entries ?? []).slice(0, limit);
       const now = Date.now();
 
       // Ensure channel exists in DB before linking videos to it
@@ -150,18 +212,23 @@ export const playlistsRouter = t.router({
           const { extractChannelData } = await import("@/api/utils/ytdlp-utils/metadata");
           const { upsertChannelData } = await import("@/api/utils/ytdlp-utils/database");
 
-          const channelData = extractChannelData({
-            ...data,
-            channel_id: data?.channel_id || playlistMeta?.channelId,
-            channel: data?.channel || data?.uploader,
+          const channelDataRaw = extractChannelData({
+            channel_id: data.channel_id ?? playlistMeta?.channelId ?? null,
+            channel: data.channel ?? data.uploader ?? null,
+            uploader: data.uploader ?? null,
             channel_url:
-              data?.channel_url ||
+              data.channel_url ??
               (playlistMeta?.channelId
                 ? `https://www.youtube.com/channel/${playlistMeta.channelId}`
                 : null),
+            channel_title: data.title ?? null,
+            channel_description: data.description ?? null,
           });
 
-          if (channelData) {
+          // Validate the channel data with Zod
+          const parseResult = extractedChannelDataSchema.safeParse(channelDataRaw);
+          if (parseResult.success) {
+            const channelData = parseResult.data;
             await upsertChannelData(db, channelData);
             logger.info("[playlists] Upserted channel before linking videos", {
               channelId: channelData.channelId,
@@ -240,14 +307,14 @@ export const playlistsRouter = t.router({
           const thumb = e?.thumbnails?.[0]?.url || e?.thumbnail || null;
           const thumbPath = thumb ? await downloadImageToCache(thumb, `video_${vid}`) : null;
 
-          const videoData = {
+          const videoData: Omit<NewYoutubeVideo, "id" | "createdAt"> = {
             videoId: vid,
-            title: e?.title || "Untitled",
+            title: e.title ?? "Untitled",
             description: null,
-            channelId: playlistMeta?.channelId || null,
-            channelTitle: e?.channel || e?.uploader || null,
-            durationSeconds: e?.duration || null,
-            viewCount: e?.view_count || null,
+            channelId: playlistMeta?.channelId ?? null,
+            channelTitle: e.channel ?? e.uploader ?? null,
+            durationSeconds: e.duration ?? null,
+            viewCount: e.view_count ?? null,
             likeCount: null,
             thumbnailUrl: thumb,
             thumbnailPath: thumbPath,
@@ -255,12 +322,14 @@ export const playlistsRouter = t.router({
             tags: null,
             raw: JSON.stringify(e),
             updatedAt: now,
-          } as any;
+          };
 
           if (existing.length === 0) {
-            await db
-              .insert(youtubeVideos)
-              .values({ id: crypto.randomUUID(), ...videoData, createdAt: now });
+            await db.insert(youtubeVideos).values({
+              id: crypto.randomUUID(),
+              createdAt: now,
+              ...videoData,
+            });
           } else {
             await db
               .update(youtubeVideos)
@@ -311,7 +380,11 @@ export const playlistsRouter = t.router({
 
       const orderMap = new Map<string, number>();
       videoIds.forEach((id, idx) => orderMap.set(id, idx));
-      videos.sort((a: any, b: any) => orderMap.get(a.videoId)! - orderMap.get(b.videoId)!);
+      videos.sort((a: YoutubeVideo, b: YoutubeVideo) => {
+        const aIndex = orderMap.get(a.videoId) ?? 0;
+        const bIndex = orderMap.get(b.videoId) ?? 0;
+        return aIndex - bIndex;
+      });
 
       return {
         playlistId: input.playlistId,
@@ -330,7 +403,7 @@ export const playlistsRouter = t.router({
         currentVideoIndex: playlistMeta?.currentVideoIndex ?? 0,
         url,
         lastFetchedAt: Date.now(),
-        videos: videos.map((v: any) => ({
+        videos: videos.map((v: YoutubeVideo) => ({
           id: v.id,
           videoId: v.videoId,
           title: v.title,
@@ -380,13 +453,12 @@ export const playlistsRouter = t.router({
           .limit(limit);
 
         // Get channel info for each playlist
-        const channelIds = [...new Set(playlists.map((p) => p.channelId).filter(Boolean))];
+        const channelIds = [
+          ...new Set(playlists.map((p) => p.channelId).filter((id): id is string => id !== null)),
+        ];
         const channelsData =
           channelIds.length > 0
-            ? await db
-                .select()
-                .from(channels)
-                .where(inArray(channels.channelId, channelIds as string[]))
+            ? await db.select().from(channels).where(inArray(channels.channelId, channelIds))
             : [];
 
         const channelMap = new Map(channelsData.map((c) => [c.channelId, c]));
@@ -399,7 +471,7 @@ export const playlistsRouter = t.router({
           };
         });
       } catch (e) {
-        logger.error("[playlists] listAll failed", e as Error);
+        logger.error("[playlists] listAll failed", e);
         return [];
       }
     }),
@@ -440,7 +512,7 @@ export const playlistsRouter = t.router({
           lastViewedAt: now,
         };
       } catch (e) {
-        logger.error("[playlists] updateView failed", e as Error);
+        logger.error("[playlists] updateView failed", e);
         return { success: false, message: "Failed to update view stats" };
       }
     }),
@@ -488,7 +560,7 @@ export const playlistsRouter = t.router({
           totalWatchTimeSeconds: newTotalWatchTime,
         };
       } catch (e) {
-        logger.error("[playlists] updatePlayback failed", e as Error);
+        logger.error("[playlists] updatePlayback failed", e);
         return { success: false, message: "Failed to update playback position" };
       }
     }),

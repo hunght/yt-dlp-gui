@@ -126,8 +126,26 @@ export default [
       ...tseslint.configs.recommended.rules,
 
       // TypeScript specific rules - adapted to your codebase
-      '@typescript-eslint/no-explicit-any': 'off', // You use 'any' intentionally in many places
       '@typescript-eslint/no-unused-vars': 'off', // Replaced by unused-imports/no-unused-vars
+
+      /* 🚫 Ban any */
+      '@typescript-eslint/no-explicit-any': 'error',
+
+      /* 🚫 Ban forced type assertions (as/<>), prefer safer narrowing */
+      '@typescript-eslint/consistent-type-assertions': [
+        'error',
+        {
+          assertionStyle: 'never',
+        },
+      ],
+
+      /* 🧠 Encourage using unknown and proper type guards */
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-return': 'error',
+
+
 
       // Unused imports and exports detection
       'unused-imports/no-unused-imports': 'error', // Detect unused imports
@@ -168,7 +186,6 @@ export default [
       ],
       '@typescript-eslint/no-require-imports': 'off', // Allow require() for dynamic imports
       '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-non-null-assertion': 'off', // Allow non-null assertions when you're certain
       '@typescript-eslint/ban-ts-comment': 'off',
 
       // React recommended rules

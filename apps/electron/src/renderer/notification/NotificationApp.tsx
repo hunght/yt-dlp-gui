@@ -1,7 +1,23 @@
-import {
-  NotificationData,
-} from "@/helpers/notification/notification-window-utils";
+import { NotificationData } from "@/helpers/notification/notification-window-utils";
 import React, { useState, useEffect } from "react";
+import { z } from "zod";
+import { logger } from "@/helpers/logger";
+
+// Zod schema for validating notification data from IPC
+const notificationDataSchema = z.object({
+  title: z.string(),
+  body: z.string(),
+  autoDismiss: z.boolean().optional(),
+  sessionEndTime: z.number().optional(),
+  actions: z
+    .array(
+      z.object({
+        label: z.string(),
+        variant: z.enum(["primary", "secondary", "success", "warning"]).optional(),
+      })
+    )
+    .optional(),
+});
 
 const NotificationApp: React.FC = () => {
   const [notificationData, setNotificationData] = useState<NotificationData | null>(null);
@@ -11,15 +27,28 @@ const NotificationApp: React.FC = () => {
   useEffect(() => {
     // Listen for notification data from main process via the preload API
     if (window.electronNotification) {
-      const handleNotification = (data: NotificationData) => {
-        setNotificationData(data);
+      const handleNotification = (data: unknown) => {
+        // Validate incoming data with Zod
+        const parseResult = notificationDataSchema.safeParse(data);
+        if (!parseResult.success) {
+          logger.error("[notification] Invalid notification data", parseResult.error);
+          return;
+        }
+
+        const validatedData = parseResult.data;
+        // Cast is safe because NotificationData has actions with function property that Zod can't validate
+        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+        setNotificationData(validatedData as NotificationData);
         // Reset timer when new notification arrives (only if autoDismiss is enabled)
-        if (data.autoDismiss) {
+        if (validatedData.autoDismiss) {
           setTimeLeft(5);
         }
         // Initialize session countdown if sessionEndTime is provided
-        if (data.sessionEndTime) {
-          const timeUntilEnd = Math.max(0, Math.floor((data.sessionEndTime - Date.now()) / 1000));
+        if (validatedData.sessionEndTime) {
+          const timeUntilEnd = Math.max(
+            0,
+            Math.floor((validatedData.sessionEndTime - Date.now()) / 1000)
+          );
           setSessionTimeLeft(timeUntilEnd);
         } else {
           setSessionTimeLeft(null);

@@ -44,6 +44,30 @@ type VideoUpdateFields = {
   raw: string;
 };
 
+// Return types for fetchVideoInfo mutation (discriminated union for type safety)
+type VideoInfoData = VideoUpdateFields & {
+  videoId: string;
+};
+
+type FetchVideoInfoSuccess = {
+  success: true;
+  info: VideoInfoData;
+  availableLanguages: Array<{
+    lang: string;
+    hasManual: boolean;
+    hasAuto: boolean;
+    manualFormats: string[];
+    autoFormats: string[];
+  }>;
+};
+
+type FetchVideoInfoFailure = {
+  success: false;
+  message: string;
+};
+
+type FetchVideoInfoResult = FetchVideoInfoSuccess | FetchVideoInfoFailure;
+
 // Helper to transform DB video record to API response format
 function toVideoResponse(v: YoutubeVideo) {
   return {
@@ -146,14 +170,14 @@ export const ytdlpRouter = t.router({
   // Fetch video metadata from URL (always stores in DB for caching)
   fetchVideoInfo: publicProcedure
     .input(z.object({ url: z.string().url() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<FetchVideoInfoResult> => {
       const db = ctx.db ?? defaultDb;
       const binPath = getBinaryFilePath();
       if (!fs.existsSync(binPath)) {
         return {
-          success: false as const,
+          success: false,
           message: "yt-dlp binary not installed",
-        } as const;
+        };
       }
 
       // Extract video ID from URL to check cache
@@ -212,10 +236,10 @@ export const ytdlpRouter = t.router({
           }
 
           return {
-            success: true as const,
+            success: true,
             info: mapped,
             availableLanguages,
-          } as const;
+          };
         }
       }
 
@@ -247,7 +271,7 @@ export const ytdlpRouter = t.router({
         meta = JSON.parse(metaJson);
       } catch (e) {
         logger.error("[ytdlp] fetchVideoInfo failed", e);
-        return { success: false as const, message: String(e) } as const;
+        return { success: false, message: String(e) };
       }
 
       const mapped = mapYtDlpMetadata(meta);
@@ -328,10 +352,10 @@ export const ytdlpRouter = t.router({
       }
 
       return {
-        success: true as const,
+        success: true,
         info: mapped,
         availableLanguages,
-      } as const;
+      };
     }),
   // List completed downloads with basic video info
   listCompletedDownloads: publicProcedure

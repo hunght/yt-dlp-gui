@@ -39,7 +39,7 @@ const formatDuration = (seconds: number | null): string => {
 export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
-  // Type matches tRPC ytdlp.fetchVideoInfo response (from database schema)
+  // Type inferred from tRPC ytdlp.fetchVideoInfo mutation (VideoInfoData from backend)
   const [previewInfo, setPreviewInfo] = useState<{
     videoId: string;
     title: string;

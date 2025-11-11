@@ -1,4 +1,5 @@
 import * as path from "path";
+import * as fs from "fs";
 
 import {
   app,
@@ -105,7 +106,6 @@ async function createTray() {
   logger.debug("Main: Icon path", iconPath);
 
   // Check if file exists
-  const fs = require("fs");
   if (fs.existsSync(iconPath)) {
     logger.debug("Main: Icon file exists at path", iconPath);
   } else {
@@ -326,7 +326,7 @@ app.whenReady().then(async () => {
       const url = decodeURIComponent(request.url.replace("local-file://", ""));
       callback({ path: url });
     } catch (e) {
-      logger.error("[protocol] Failed to resolve local-file URL", e as Error);
+      logger.error("[protocol] Failed to resolve local-file URL", e);
       callback({ error: -2 }); // FILE_NOT_FOUND
     }
   });
@@ -377,10 +377,10 @@ declare global {
   interface Window {
     themeMode: ThemeModeContext;
     electronNotification?: {
-      send: (data: any) => Promise<void>;
+      send: (data: unknown) => Promise<void>;
       close: () => Promise<void>;
       action: () => Promise<void>;
-      onNotification: (callback: (data: any) => void) => void;
+      onNotification: (callback: (data: unknown) => void) => void;
     };
     ytdlp?: {
       isInstalled: () => Promise<boolean>;

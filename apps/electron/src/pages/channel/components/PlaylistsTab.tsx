@@ -66,42 +66,35 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive:
       {query.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading playlists…</p>
       ) : query.data && query.data.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {query.data.map((playlist: any) => {
-            const playlistUrl = playlist.url ?? `https://www.youtube.com/playlist?list=${playlist.playlistId || playlist.id}`;
-            const hideNoThumb = typeof playlist.thumbnailUrl === "string" && playlist.thumbnailUrl.includes("no_thumbnail");
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {query.data.map((playlist) => {
+            const playlistUrl =
+              playlist.url ??
+              `https://www.youtube.com/playlist?list=${playlist.playlistId || playlist.id}`;
+            const hideNoThumb =
+              typeof playlist.thumbnailUrl === "string" &&
+              playlist.thumbnailUrl.includes("no_thumbnail");
 
             return (
-              <div key={playlist.id} className="rounded-lg border p-4 space-y-3">
+              <div key={playlist.id} className="space-y-3 rounded-lg border p-4">
                 {/* Playlist Thumbnail */}
                 {hideNoThumb ? (
-                  <div className="w-full aspect-video rounded bg-muted" />
+                  <div className="aspect-video w-full rounded bg-muted" />
                 ) : (
                   <Thumbnail
                     thumbnailPath={playlist.thumbnailPath}
                     thumbnailUrl={playlist.thumbnailUrl}
                     alt={playlist.title}
-                    className="w-full aspect-video rounded object-cover"
+                    className="aspect-video w-full rounded object-cover"
                   />
                 )}
 
                 {/* Playlist Info */}
                 <div className="space-y-2">
-                  <h3 className="font-medium line-clamp-2">{playlist.title}</h3>
-
-                  {playlist.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {playlist.description}
-                    </p>
-                  )}
+                  <h3 className="line-clamp-2 font-medium">{playlist.title}</h3>
 
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    {playlist.videoCount && (
-                      <span>{playlist.videoCount} videos</span>
-                    )}
-                    {playlist.viewCount && (
-                      <span>{playlist.viewCount.toLocaleString()} views</span>
-                    )}
+                    {playlist.itemCount && <span>{playlist.itemCount} videos</span>}
                   </div>
                 </div>
 

@@ -89,10 +89,18 @@ async function closeConnection(): Promise<void> {
 }
 
 // Main database export - gets connection lazily
-const db = new Proxy({} as ReturnType<typeof drizzle>, {
-  get(target, prop) {
+// Using Proxy to defer connection until first use
+type DrizzleDb = ReturnType<typeof drizzle>;
+
+// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+const db = new Proxy<DrizzleDb>({} as DrizzleDb, {
+  get(_target, prop: string | symbol) {
     const connection = getConnection();
-    return connection.db[prop as keyof typeof connection.db];
+    if (typeof prop === "string" && prop in connection.db) {
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      return connection.db[prop as keyof DrizzleDb];
+    }
+    return undefined;
   },
 });
 

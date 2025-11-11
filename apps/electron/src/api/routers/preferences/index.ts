@@ -4,7 +4,10 @@ import { logger } from "@/helpers/logger";
 import { app } from "electron";
 import { eq } from "drizzle-orm";
 import { userPreferences } from "@/api/db/schema";
-import defaultDb from "@/api/db";
+import defaultDb, { type Database } from "@/api/db";
+
+// Zod schema for preferred languages JSON
+const languagesArraySchema = z.array(z.string());
 
 // Get system language from Electron
 const getSystemLanguage = (): string => {
@@ -20,7 +23,7 @@ const getSystemLanguage = (): string => {
 };
 
 // Initialize user preferences with system language if not exists
-const ensurePreferencesExist = async (db: any): Promise<void> => {
+const ensurePreferencesExist = async (db: Database): Promise<void> => {
   try {
     const existing = await db
       .select()
@@ -49,7 +52,7 @@ const ensurePreferencesExist = async (db: any): Promise<void> => {
       logger.info("[preferences] Backfilled system language", { systemLang });
     }
   } catch (e) {
-    logger.error("[preferences] Failed to ensure preferences exist", e as Error);
+    logger.error("[preferences] Failed to ensure preferences exist", e);
   }
 };
 
@@ -79,16 +82,18 @@ export const preferencesRouter = t.router({
       }
 
       const row = rows[0];
-      const langs = JSON.parse(row.preferredLanguages || "[]");
+      const langsResult = languagesArraySchema.safeParse(
+        JSON.parse(row.preferredLanguages || "[]")
+      );
       return {
         id: row.id,
-        preferredLanguages: Array.isArray(langs) ? langs : [],
+        preferredLanguages: langsResult.success ? langsResult.data : [],
         systemLanguage: row.systemLanguage ?? getSystemLanguage(),
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       } as const;
     } catch (e) {
-      logger.error("[preferences] getUserPreferences failed", e as Error);
+      logger.error("[preferences] getUserPreferences failed", e);
       const systemLang = getSystemLanguage();
       return {
         id: "default",
@@ -118,8 +123,8 @@ export const preferencesRouter = t.router({
         logger.info("[preferences] Updated preferred languages", { languages: input.languages });
         return { success: true as const, languages: input.languages };
       } catch (e) {
-        logger.error("[preferences] updatePreferredLanguages failed", e as Error);
-        return { success: false as const, message: String(e) } as const;
+        logger.error("[preferences] updatePreferredLanguages failed", e);
+        return { success: false as const, message: String(e) };
       }
     }),
 

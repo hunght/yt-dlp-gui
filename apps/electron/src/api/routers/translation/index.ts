@@ -2,7 +2,12 @@ import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { logger } from "@/helpers/logger";
 import defaultDb from "@/api/db";
-import { translationCache, translationContexts, youtubeVideos, savedWords } from "@yt-dlp-gui/database/schema";
+import {
+  translationCache,
+  translationContexts,
+  youtubeVideos,
+  savedWords,
+} from "@yt-dlp-gui/database/schema";
 import { desc, sql, eq } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -25,9 +30,10 @@ export const translationRouter = t.router({
       const db = ctx.db ?? defaultDb;
 
       try {
-        const orderColumn = input.sortBy === "frequent"
-          ? desc(translationCache.queryCount)
-          : desc(translationCache.lastQueriedAt);
+        const orderColumn =
+          input.sortBy === "frequent"
+            ? desc(translationCache.queryCount)
+            : desc(translationCache.lastQueriedAt);
 
         const translations = await db
           .select()
@@ -55,7 +61,7 @@ export const translationRouter = t.router({
           hasMore: input.offset + translations.length < total,
         };
       } catch (error) {
-        logger.error("[translation] getTranslations failed", error as Error);
+        logger.error("[translation] getTranslations failed", error);
         throw error;
       }
     }),
@@ -91,7 +97,7 @@ export const translationRouter = t.router({
       // Count unique language pairs
       const [languagePairsResult] = await db
         .select({
-          count: sql<number>`count(distinct source_lang || '->' || target_lang)`
+          count: sql<number>`count(distinct source_lang || '->' || target_lang)`,
         })
         .from(translationCache);
 
@@ -110,7 +116,7 @@ export const translationRouter = t.router({
         mostFrequent: mostFrequent[0] || null,
       };
     } catch (error) {
-      logger.error("[translation] getStatistics failed", error as Error);
+      logger.error("[translation] getStatistics failed", error);
       throw error;
     }
   }),
@@ -148,7 +154,7 @@ export const translationRouter = t.router({
 
         return results;
       } catch (error) {
-        logger.error("[translation] searchTranslations failed", error as Error);
+        logger.error("[translation] searchTranslations failed", error);
         throw error;
       }
     }),
@@ -166,15 +172,13 @@ export const translationRouter = t.router({
       const db = ctx.db ?? defaultDb;
 
       try {
-        await db
-          .delete(translationCache)
-          .where(sql`${translationCache.id} = ${input.id}`);
+        await db.delete(translationCache).where(sql`${translationCache.id} = ${input.id}`);
 
         logger.info("[translation] Deleted translation", { id: input.id });
 
         return { success: true };
       } catch (error) {
-        logger.error("[translation] deleteTranslation failed", error as Error);
+        logger.error("[translation] deleteTranslation failed", error);
         throw error;
       }
     }),
@@ -220,7 +224,7 @@ export const translationRouter = t.router({
 
         return contexts;
       } catch (error) {
-        logger.error("[translation] getTranslationContexts failed", error as Error);
+        logger.error("[translation] getTranslationContexts failed", error);
         throw error;
       }
     }),
@@ -263,7 +267,7 @@ export const translationRouter = t.router({
 
         return videoTranslations;
       } catch (error) {
-        logger.error("[translation] getByVideoId failed", error as Error);
+        logger.error("[translation] getByVideoId failed", error);
         throw error;
       }
     }),
@@ -319,7 +323,7 @@ export const translationRouter = t.router({
         logger.info("[translation] Word saved", { translationId: input.translationId });
         return { success: true, alreadySaved: false, id };
       } catch (error) {
-        logger.error("[translation] saveWord failed", error as Error);
+        logger.error("[translation] saveWord failed", error);
         throw error;
       }
     }),
@@ -337,14 +341,12 @@ export const translationRouter = t.router({
       const db = ctx.db ?? defaultDb;
 
       try {
-        await db
-          .delete(savedWords)
-          .where(eq(savedWords.translationId, input.translationId));
+        await db.delete(savedWords).where(eq(savedWords.translationId, input.translationId));
 
         logger.info("[translation] Word unsaved", { translationId: input.translationId });
         return { success: true };
       } catch (error) {
-        logger.error("[translation] unsaveWord failed", error as Error);
+        logger.error("[translation] unsaveWord failed", error);
         throw error;
       }
     }),
@@ -378,9 +380,7 @@ export const translationRouter = t.router({
           .limit(input.limit)
           .offset(input.offset);
 
-        const [countResult] = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(savedWords);
+        const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(savedWords);
 
         const total = countResult?.count ?? 0;
 
@@ -392,7 +392,7 @@ export const translationRouter = t.router({
           hasMore: input.offset + words.length < total,
         };
       } catch (error) {
-        logger.error("[translation] getSavedWords failed", error as Error);
+        logger.error("[translation] getSavedWords failed", error);
         throw error;
       }
     }),
@@ -418,7 +418,7 @@ export const translationRouter = t.router({
 
         return { isSaved: saved.length > 0 };
       } catch (error) {
-        logger.error("[translation] isWordSaved failed", error as Error);
+        logger.error("[translation] isWordSaved failed", error);
         throw error;
       }
     }),
@@ -428,32 +428,30 @@ export const translationRouter = t.router({
    * Returns all saved words with their translations (no pagination)
    * Used to build lookup map for highlighting in transcripts
    */
-  getAllSavedWords: publicProcedure
-    .query(async ({ ctx }) => {
-      const db = ctx.db ?? defaultDb;
+  getAllSavedWords: publicProcedure.query(async ({ ctx }) => {
+    const db = ctx.db ?? defaultDb;
 
-      try {
-        const words = await db
-          .select({
-            sourceText: translationCache.sourceText,
-            translatedText: translationCache.translatedText,
-            sourceLang: translationCache.sourceLang,
-            targetLang: translationCache.targetLang,
-            queryCount: translationCache.queryCount,
-          })
-          .from(savedWords)
-          .innerJoin(translationCache, eq(savedWords.translationId, translationCache.id))
-          .orderBy(desc(translationCache.queryCount)); // Most frequently used first
+    try {
+      const words = await db
+        .select({
+          sourceText: translationCache.sourceText,
+          translatedText: translationCache.translatedText,
+          sourceLang: translationCache.sourceLang,
+          targetLang: translationCache.targetLang,
+          queryCount: translationCache.queryCount,
+        })
+        .from(savedWords)
+        .innerJoin(translationCache, eq(savedWords.translationId, translationCache.id))
+        .orderBy(desc(translationCache.queryCount)); // Most frequently used first
 
-        logger.debug("[translation] getAllSavedWords", { count: words.length });
+      logger.debug("[translation] getAllSavedWords", { count: words.length });
 
-        return words;
-      } catch (error) {
-        logger.error("[translation] getAllSavedWords failed", error as Error);
-        throw error;
-      }
-    }),
+      return words;
+    } catch (error) {
+      logger.error("[translation] getAllSavedWords failed", error);
+      throw error;
+    }
+  }),
 });
 
 // Router type not exported (unused)
-

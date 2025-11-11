@@ -27,12 +27,12 @@ export const RootRoute = createRootRoute({
       });
     } catch (e) {
       // Ensure logging never breaks navigation
-      logger.error("Failed to log beforeLoad navigation params", e as Error);
+      logger.error("Failed to log beforeLoad navigation params", e);
     }
   },
   errorComponent: function ErrorComponent({ error }) {
     const { toast } = useToast();
-    const err = error as Error;
+    const err = error instanceof Error ? error : new Error(String(error));
     logger.error("[ErrorComponent] Navigation error", err);
 
     // Track error events using the safer analytics helper
@@ -61,7 +61,16 @@ function Root() {
     const search = Object.fromEntries(new URLSearchParams(window.location.search));
 
     // Attempt to read params from the leaf match if present
-    const params: Record<string, unknown> = (leaf && (leaf as unknown as { params?: Record<string, unknown> }).params) ?? {};
+    // TanStack Router match objects have params, but type isn't exposed at this level
+    const params: Record<string, unknown> =
+      leaf &&
+      typeof leaf === "object" &&
+      "params" in leaf &&
+      typeof leaf.params === "object" &&
+      leaf.params !== null
+        ? // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+          (leaf.params as Record<string, unknown>)
+        : {};
 
     logger.debug("Route navigated", {
       path: pathname,
@@ -70,7 +79,6 @@ function Root() {
       source: "Root",
     });
   }, [matches]);
-
 
   return (
     <ConfirmationDialogProvider>

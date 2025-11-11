@@ -323,7 +323,7 @@ export const transcriptsRouter = t.router({
       if (!binPath) {
         return { success: false, message: "yt-dlp binary not installed" };
       }
-      
+
       if (rateLimited) {
         return {
           success: false,
@@ -332,7 +332,7 @@ export const transcriptsRouter = t.router({
           message: "Too many requests",
         };
       }
-      
+
       return {
         success: true,
         videoId: input.videoId,

@@ -40,8 +40,13 @@ export const watchStatsRouter = t.router({
           await db
             .update(videoWatchStats)
             .set({
-              totalWatchSeconds: Math.max(0, (prev.totalWatchSeconds ?? 0) + Math.floor(input.deltaSeconds)),
-              lastPositionSeconds: Math.floor(input.positionSeconds ?? prev.lastPositionSeconds ?? 0),
+              totalWatchSeconds: Math.max(
+                0,
+                (prev.totalWatchSeconds ?? 0) + Math.floor(input.deltaSeconds)
+              ),
+              lastPositionSeconds: Math.floor(
+                input.positionSeconds ?? prev.lastPositionSeconds ?? 0
+              ),
               lastWatchedAt: now,
               updatedAt: now,
             })
@@ -49,7 +54,7 @@ export const watchStatsRouter = t.router({
         }
         return { success: true };
       } catch (e) {
-        logger.error("[watch-stats] recordProgress failed", e as Error);
+        logger.error("[watch-stats] recordProgress failed", e);
         return { success: false };
       }
     }),
@@ -75,7 +80,7 @@ export const watchStatsRouter = t.router({
         .from(youtubeVideos)
         .where(inArray(youtubeVideos.videoId, videoIds));
 
-      const map = new Map<string, typeof vids[0]>();
+      const map = new Map<string, (typeof vids)[0]>();
       vids.forEach((v) => map.set(v.videoId, v));
       return stats
         .map((s) => {
@@ -132,5 +137,3 @@ export const watchStatsRouter = t.router({
 });
 
 // Router type not exported (unused)
-
-

@@ -3,7 +3,7 @@ import { logger } from "../logger";
 
 const registeredListeners = new Set<string>();
 
-export function safelyRegisterListener(channel: string, handler: (...args: any[]) => any) {
+export function safelyRegisterListener(channel: string, handler: (...args: unknown[]) => unknown) {
   if (registeredListeners.has(channel)) {
     ipcMain.removeHandler(channel);
   }

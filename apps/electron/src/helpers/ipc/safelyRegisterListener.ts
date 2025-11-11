@@ -3,7 +3,8 @@ import { logger } from "../logger";
 
 const registeredListeners = new Set<string>();
 
-export function safelyRegisterListener(channel: string, handler: (...args: unknown[]) => unknown) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function safelyRegisterListener(channel: string, handler: (...args: any[]) => any) {
   if (registeredListeners.has(channel)) {
     ipcMain.removeHandler(channel);
   }

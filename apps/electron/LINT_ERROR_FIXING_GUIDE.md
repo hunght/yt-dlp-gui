@@ -156,31 +156,16 @@ const mod = require("some-module");
 const value = mod.something; // Unsafe
 ```
 
-### ✅ Good - Use dynamic import (Node.js/main process)
+### ✅ Good - Use dynamic import
 ```typescript
 const mod = await import("some-module");
 const value = mod.something; // Fully typed!
 ```
 
-### ✅ Good - For Electron modules (main process)
+### ✅ Good - For Electron modules
 ```typescript
 const { app } = await import("electron");
 const userData = app.getPath("userData"); // Type-safe!
-```
-
-### ✅ Good - For Electron preload scripts (async)
-```typescript
-// Make the function async to use dynamic import
-export async function exposeContext() {
-  const { contextBridge, ipcRenderer } = await import("electron");
-  
-  // Now fully typed!
-  contextBridge.exposeInMainWorld("api", {
-    invoke: (channel: string) => ipcRenderer.invoke(channel),
-  });
-}
-
-// Call it: await exposeContext();
 ```
 
 ---

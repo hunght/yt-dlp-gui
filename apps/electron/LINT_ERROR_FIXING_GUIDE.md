@@ -287,6 +287,94 @@ npm run lint
 
 ---
 
+## Incremental Commit Workflow
+
+**⚠️ IMPORTANT**: After refactoring each file or module, commit immediately to ensure changes pass all checks.
+
+### Step-by-Step Process
+
+1. **Fix lint errors in one file/module**
+   ```bash
+   # Focus on one file at a time
+   npm run lint -- src/api/routers/playlists/index.ts
+   ```
+
+2. **Verify the fix**
+   ```bash
+   # Run all checks for the changed file
+   npm run lint -- src/api/routers/playlists/index.ts
+   npm run type-check
+   npm test -- --findRelatedTests src/api/routers/playlists/index.ts
+   ```
+
+3. **Commit immediately**
+   ```bash
+   git add src/api/routers/playlists/index.ts
+   git commit -m "refactor: fix type safety in playlists router"
+   ```
+   
+   This triggers pre-commit hooks which will:
+   - ✅ Auto-format code
+   - ✅ Run linter with auto-fix
+   - ✅ Run tests for changed files
+   - ✅ Run type-check
+   
+   If hooks fail, fix issues and amend the commit:
+   ```bash
+   # Fix issues
+   git add .
+   git commit --amend --no-edit
+   ```
+
+4. **Repeat for next file**
+   - Don't try to fix the entire codebase at once
+   - One file/module per commit ensures easier debugging
+   - Each commit is a verified, working state
+
+### Recommended Order
+
+1. **Infrastructure first**: logger, utils, helpers
+2. **Database layer**: schema, migrations, queries
+3. **API routers**: one router at a time
+4. **UI components**: pages, components
+
+### Benefits of Incremental Commits
+
+- ✅ **Easy rollback** - if something breaks, revert one commit
+- ✅ **Clear history** - see exactly what changed per file
+- ✅ **Faster debugging** - narrow down issues to specific commits
+- ✅ **Verified progress** - pre-commit hooks validate each step
+- ✅ **Reviewable** - smaller diffs are easier to review
+
+### Example Workflow
+
+```bash
+# Day 1: Fix logger
+npm run lint -- src/helpers/logger.ts
+# ... fix errors ...
+git add src/helpers/logger.ts
+git commit -m "refactor: make logger fully type-safe with dynamic imports"
+# ✅ Hooks pass
+
+# Day 1: Fix database utils
+npm run lint -- src/api/db/init.ts src/api/db/migrate.ts
+# ... fix errors ...
+git add src/api/db/
+git commit -m "refactor: add Zod validation to database init/migrate"
+# ✅ Hooks pass
+
+# Day 2: Fix playlists router
+npm run lint -- src/api/routers/playlists/index.ts
+# ... fix errors (168 errors → 0) ...
+git add src/api/routers/playlists/index.ts
+git commit -m "refactor: add type safety to playlists router (168 fixes)"
+# ✅ Hooks pass
+
+# Continue...
+```
+
+---
+
 ## Key Takeaways
 
 1. **Use Zod for ALL external data** (JSON.parse, API responses, yt-dlp output)

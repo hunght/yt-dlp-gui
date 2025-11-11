@@ -476,7 +476,77 @@ navigate({
 
 ---
 
-## 12. When ESLint Exceptions Are Acceptable
+## 12. tRPC Endpoint Return Types (REQUIRED)
+
+### ❌ Bad - No explicit return type
+```typescript
+export const myRouter = t.router({
+  getData: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input, ctx }) => {  // ⚠️ ERROR: Missing return type
+      const data = await ctx.db.select()...;
+      return { data };
+    }),
+});
+```
+
+### ✅ Good - Explicit return type with discriminated union
+```typescript
+// Define return types FIRST
+type GetDataSuccess = {
+  data: MyDataType[];
+};
+
+type GetDataResult = GetDataSuccess;
+
+export const myRouter = t.router({
+  getData: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input, ctx }): Promise<GetDataResult> => {
+      const data = await ctx.db.select()...;
+      return { data };
+    }),
+});
+```
+
+### ✅ Better - With error handling
+```typescript
+type GetDataSuccess = {
+  success: true;
+  data: MyDataType[];
+};
+
+type GetDataFailure = {
+  success: false;
+  message: string;
+};
+
+type GetDataResult = GetDataSuccess | GetDataFailure;
+
+export const myRouter = t.router({
+  getData: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input, ctx }): Promise<GetDataResult> => {
+      try {
+        const data = await ctx.db.select()...;
+        return { success: true, data };
+      } catch (error) {
+        return { success: false, message: "Failed to fetch data" };
+      }
+    }),
+});
+```
+
+**Benefits:**
+- ✅ Compile-time validation of all return paths
+- ✅ Frontend gets exact types via tRPC inference
+- ✅ Refactoring safety (changes break immediately)
+- ✅ Self-documenting API contracts
+- ✅ IDE autocomplete for response shape
+
+---
+
+## 13. When ESLint Exceptions Are Acceptable
 
 ### ✅ Rare cases only
 ```typescript

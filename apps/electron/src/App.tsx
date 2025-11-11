@@ -33,7 +33,7 @@ posthog.init(getConfig("posthogKey"), {
   capture_pageleave: false,
   // Force debug off to prevent noisy console logs like "[PostHog.js] send \"$$heatmap\" ..."
   debug: false,
-  loaded: (ph) => {
+  loaded: (ph): void => {
     // Disable additional features that might attempt to inject scripts
     if (ph.config) {
       ph.config.disable_session_recording = true;
@@ -62,7 +62,7 @@ posthog.register({
 });
 
 // Fetch the app version asynchronously and update PostHog
-(async () => {
+(async (): Promise<void> => {
   try {
     const appVersion = await getAppVersion();
 

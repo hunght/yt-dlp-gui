@@ -62,7 +62,7 @@ function renderDescriptionWithTimestamps(
     parts.push(
       <button
         key={`timestamp-${matchIndex}`}
-        onClick={(e) => {
+        onClick={(e): void => {
           e.preventDefault();
           onSeek(seconds);
         }}
@@ -106,10 +106,10 @@ export function AnnotationsSidebar({
 
   // Own delete mutation
   const deleteAnnotationMutation = useMutation({
-    mutationFn: async (annotationId: string) => {
+    mutationFn: async (annotationId: string): Promise<void> => {
       return await trpcClient.annotations.delete.mutate({ id: annotationId });
     },
-    onSuccess: () => {
+    onSuccess: (): void => {
       queryClient.invalidateQueries({ queryKey: ["annotations", videoId] });
     },
   });

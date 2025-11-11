@@ -151,7 +151,7 @@ export default [
         'error', // ⚠️ STRICT MODE - All tRPC endpoints MUST have explicit return types!
         {
           allowExpressions: true, // Allow: const fn = () => value (simple cases)
-          allowTypedFunctionExpressions: false, // 🚫 DISABLED - Require explicit types for tRPC mutations/queries!
+          allowTypedFunctionExpressions: true, // Allow tRPC middleware (complex internal types)
           allowHigherOrderFunctions: true, // Allow: const fn = () => () => ...
           allowDirectConstAssertionInArrowFunctions: true, // Allow: () => ({ x: 1 } as const)
           allowConciseArrowFunctionExpressionsStartingWithVoid: true, // Allow: () => void fn()

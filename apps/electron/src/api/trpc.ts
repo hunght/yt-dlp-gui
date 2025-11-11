@@ -12,7 +12,7 @@ export const createContext = async (): Promise<{ db: typeof db }> => {
 const t = initTRPC.context<Awaited<ReturnType<typeof createContext>>>().create();
 
 // Create middleware
-// Note: Middleware return type is complex tRPC internal type, allow inference
+// Note: Middleware callback has complex tRPC internal types, inference is appropriate here
 const loggerMiddleware = t.middleware(async ({ path, type, next }) => {
   const start = Date.now();
 

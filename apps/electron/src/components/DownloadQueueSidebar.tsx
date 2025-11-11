@@ -40,7 +40,7 @@ export const DownloadQueueSidebar: React.FC = () => {
       return result.success ? result.data : null;
     },
     // Adaptive polling: Fast for active downloads, slower for completed/failed, stop when idle
-    refetchInterval: (query) => {
+    refetchInterval: (query): number | false => {
       const data = query.state.data;
       if (!data) return 1500; // Poll initially until we get data
 

@@ -4,6 +4,14 @@ import { logger } from "@/helpers/logger";
 import defaultDb from "@/api/db";
 import { getQueueManager } from "@/services/download-queue/queue-manager";
 
+// Zod schema for duplicate detection error
+const duplicateErrorSchema = z.object({
+  skippedUrls: z.array(z.object({ reason: z.string() })),
+  addedIds: z.array(z.string()).optional(),
+  isPartialDuplicate: z.boolean().optional(),
+  message: z.string(),
+});
+
 // Initialize queue manager singleton
 const queueManager = getQueueManager(defaultDb);
 
@@ -44,27 +52,26 @@ export const queueRouter = t.router({
         };
       } catch (error) {
         // Handle duplicate detection errors
-        const err = error as any;
-        if (err.skippedUrls && Array.isArray(err.skippedUrls)) {
-          const skippedDetails = err.skippedUrls
-            .map((item: any) => item.reason)
-            .join(", ");
+        const parseResult = duplicateErrorSchema.safeParse(error);
+        if (parseResult.success) {
+          const err = parseResult.data;
+          const skippedDetails = err.skippedUrls.map((item) => item.reason).join(", ");
 
           logger.warn("[queue] Some URLs skipped due to duplicates", {
             skipped: err.skippedUrls.length,
-            added: err.addedIds?.length || 0,
+            added: err.addedIds?.length ?? 0,
           });
 
           return {
             success: err.isPartialDuplicate ? true : false,
-            downloadIds: err.addedIds || [],
+            downloadIds: err.addedIds ?? [],
             message: err.message,
             skippedUrls: err.skippedUrls,
             details: skippedDetails,
           };
         }
 
-        logger.error("[queue] Failed to add to queue", error as Error);
+        logger.error("[queue] Failed to add to queue", error);
         return {
           success: false,
           downloadIds: [],
@@ -84,7 +91,7 @@ export const queueRouter = t.router({
         data: status,
       };
     } catch (error) {
-      logger.error("[queue] Failed to get queue status", error as Error);
+      logger.error("[queue] Failed to get queue status", error);
       return {
         success: false,
         data: null,
@@ -111,7 +118,7 @@ export const queueRouter = t.router({
           message: "Download paused",
         };
       } catch (error) {
-        logger.error("[queue] Failed to pause download", error as Error);
+        logger.error("[queue] Failed to pause download", error);
         return {
           success: false,
           message: error instanceof Error ? error.message : "Failed to pause download",
@@ -137,7 +144,7 @@ export const queueRouter = t.router({
           message: "Download resumed",
         };
       } catch (error) {
-        logger.error("[queue] Failed to resume download", error as Error);
+        logger.error("[queue] Failed to resume download", error);
         return {
           success: false,
           message: error instanceof Error ? error.message : "Failed to resume download",
@@ -163,7 +170,7 @@ export const queueRouter = t.router({
           message: "Download cancelled",
         };
       } catch (error) {
-        logger.error("[queue] Failed to cancel download", error as Error);
+        logger.error("[queue] Failed to cancel download", error);
         return {
           success: false,
           message: error instanceof Error ? error.message : "Failed to cancel download",
@@ -189,7 +196,7 @@ export const queueRouter = t.router({
           message: "Download queued for retry",
         };
       } catch (error) {
-        logger.error("[queue] Failed to retry download", error as Error);
+        logger.error("[queue] Failed to retry download", error);
         return {
           success: false,
           message: error instanceof Error ? error.message : "Failed to retry download",
@@ -209,7 +216,7 @@ export const queueRouter = t.router({
         message: "Completed downloads cleared",
       };
     } catch (error) {
-      logger.error("[queue] Failed to clear completed", error as Error);
+      logger.error("[queue] Failed to clear completed", error);
       return {
         success: false,
         message: error instanceof Error ? error.message : "Failed to clear completed downloads",
@@ -229,7 +236,7 @@ export const queueRouter = t.router({
         message: "Queue processor started",
       };
     } catch (error) {
-      logger.error("[queue] Failed to start queue", error as Error);
+      logger.error("[queue] Failed to start queue", error);
       return {
         success: false,
         message: error instanceof Error ? error.message : "Failed to start queue",
@@ -249,7 +256,7 @@ export const queueRouter = t.router({
         message: "Queue processor stopped",
       };
     } catch (error) {
-      logger.error("[queue] Failed to stop queue", error as Error);
+      logger.error("[queue] Failed to stop queue", error);
       return {
         success: false,
         message: error instanceof Error ? error.message : "Failed to stop queue",

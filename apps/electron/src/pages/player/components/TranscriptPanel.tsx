@@ -43,22 +43,6 @@ const _playbackDataSchema = z
   })
   .passthrough(); // Allow additional fields
 
-// Zod schema for download transcript response
-const downloadTranscriptResponseSchema = z.union([
-  z.object({
-    success: z.literal(true),
-    videoId: z.string().optional(),
-    language: z.string().optional(),
-    length: z.number().optional(),
-  }),
-  z.object({
-    success: z.literal(false),
-    code: z.string().optional(),
-    retryAfterMs: z.number().optional(),
-    message: z.string().optional(),
-  }),
-]);
-
 type AvailableLanguage = z.infer<typeof availableLanguageSchema>;
 type PlaybackData = z.infer<typeof _playbackDataSchema>;
 
@@ -243,21 +227,10 @@ export function TranscriptPanel({
         lang: selectedLang ?? undefined,
       });
     },
-    onSuccess: (res: unknown) => {
+    onSuccess: (response) => {
+      // tRPC provides full type safety - no Zod validation needed!
+      // TypeScript knows the exact shape from backend's DownloadTranscriptResult type
       if (!videoId) return;
-
-      // Validate response with Zod
-      const parseResult = downloadTranscriptResponseSchema.safeParse(res);
-      if (!parseResult.success) {
-        toastHook({
-          title: "Transcript download failed",
-          description: "Invalid response from server",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const response = parseResult.data;
 
       if (response.success) {
         queryClient.invalidateQueries({
@@ -268,13 +241,12 @@ export function TranscriptPanel({
         return;
       }
 
-      // Handle rate limit
-      if (response.code === "RATE_LIMITED") {
-        const retryAfterMs = response.retryAfterMs ?? 15 * 60 * 1000;
-        setCooldown(videoId, selectedLang, retryAfterMs);
+      // Handle rate limit (TypeScript knows this field exists when success is false)
+      if ("code" in response && response.code === "RATE_LIMITED") {
+        setCooldown(videoId, selectedLang, response.retryAfterMs);
         toastHook({
           title: "Rate limited by YouTube",
-          description: `Too many requests. Try again in about ${Math.ceil(retryAfterMs / 60000)} min`,
+          description: `Too many requests. Try again in about ${Math.ceil(response.retryAfterMs / 60000)} min`,
           variant: "destructive",
         });
         return;
@@ -282,7 +254,7 @@ export function TranscriptPanel({
 
       toastHook({
         title: "Transcript download failed",
-        description: response.message ?? "Unknown error",
+        description: response.message,
         variant: "destructive",
       });
     },

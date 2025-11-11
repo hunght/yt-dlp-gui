@@ -20,6 +20,29 @@ const transcriptSegmentSchema = z.array(
   })
 );
 
+// Return types for transcript download mutation (discriminated union for type safety)
+type DownloadTranscriptSuccess = {
+  success: true;
+  videoId: string;
+  language: string;
+  length: number;
+  fromCache?: boolean;
+};
+
+type DownloadTranscriptFailure =
+  | {
+      success: false;
+      code: "RATE_LIMITED";
+      retryAfterMs: number;
+      message: string;
+    }
+  | {
+      success: false;
+      message: string;
+    };
+
+type DownloadTranscriptResult = DownloadTranscriptSuccess | DownloadTranscriptFailure;
+
 function ensureDirSync(p: string) {
   try {
     fs.mkdirSync(p, { recursive: true });
@@ -286,7 +309,7 @@ export const transcriptsRouter = t.router({
   // Download transcript via yt-dlp and store it (for specific language)
   download: publicProcedure
     .input(z.object({ videoId: z.string(), lang: z.string().optional() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<DownloadTranscriptResult> => {
       const db = ctx.db ?? defaultDb;
 
       logger.info("[transcript] download called", {
@@ -322,12 +345,12 @@ export const transcriptsRouter = t.router({
           ) {
             logger.info("[transcript] found existing in DB", { videoId: input.videoId });
             return {
-              success: true as const,
+              success: true,
               videoId: input.videoId,
               language: row.language ?? input.lang ?? "en",
               length: row.text.length,
-              fromCache: true as const,
-            } as const;
+              fromCache: true,
+            };
           }
           // Has rawVtt but missing text - derive it
           if (row.rawVtt && row.rawVtt.trim().length > 0) {
@@ -357,12 +380,12 @@ export const transcriptsRouter = t.router({
               }
 
               return {
-                success: true as const,
+                success: true,
                 videoId: input.videoId,
                 language: row.language ?? input.lang ?? "en",
                 length: derived.length,
-                fromCache: true as const,
-              } as const;
+                fromCache: true,
+              };
             } catch {
               // Ignore - VTT parsing may fail
               logger.warn("[transcript] derive from rawVtt failed", { videoId: input.videoId });
@@ -380,7 +403,7 @@ export const transcriptsRouter = t.router({
       const binPath = getBinaryFilePath();
 
       if (!fs.existsSync(binPath)) {
-        return { success: false as const, message: "yt-dlp binary not installed" } as const;
+        return { success: false, message: "yt-dlp binary not installed" };
       }
 
       const transcriptsDir = getTranscriptsDir();
@@ -431,13 +454,13 @@ export const transcriptsRouter = t.router({
         const rateLimited = /429|Too Many Requests/i.test(msg);
         if (rateLimited) {
           return {
-            success: false as const,
-            code: "RATE_LIMITED" as const,
+            success: false,
+            code: "RATE_LIMITED",
             retryAfterMs: 15 * 60 * 1000,
             message: msg,
-          } as const;
+          };
         }
-        return { success: false as const, message: msg } as const;
+        return { success: false, message: msg };
       }
 
       // Find resulting VTT file
@@ -457,9 +480,9 @@ export const transcriptsRouter = t.router({
 
       if (!vttPath || !fs.existsSync(vttPath)) {
         return {
-          success: false as const,
+          success: false,
           message: "Transcript file not found after yt-dlp",
-        } as const;
+        };
       }
 
       // Parse VTT
@@ -514,7 +537,7 @@ export const transcriptsRouter = t.router({
         }
       } catch (e) {
         logger.error("[transcript] upsert failed", e);
-        return { success: false as const, message: "Failed to store transcript" } as const;
+        return { success: false, message: "Failed to store transcript" };
       }
 
       // Update FTS index
@@ -532,11 +555,11 @@ export const transcriptsRouter = t.router({
       }
 
       return {
-        success: true as const,
+        success: true,
         videoId: input.videoId,
         language: detectedLang,
         length: text.length,
-      } as const;
+      };
     }),
 
   // Get transcript segments with timestamps for highlighting

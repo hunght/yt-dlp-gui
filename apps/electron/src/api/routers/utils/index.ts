@@ -286,16 +286,18 @@ export const utilsRouter = t.router({
         }
 
         const data = parseResult.data;
-        const translations = data[0];
 
-        // Safely extract translated text from nested arrays
-        if (!Array.isArray(translations)) {
+        // Safely extract translations from nested structure
+        const firstElement = data[0];
+        if (!Array.isArray(firstElement)) {
           throw new Error("Translation data format unexpected");
         }
 
-        const translatedText = translations
-          .filter((item): item is unknown[] => Array.isArray(item) && typeof item[0] === "string")
-          .map((item) => String(item[0]))
+        const translatedText = firstElement
+          .filter(
+            (item: unknown): item is unknown[] => Array.isArray(item) && typeof item[0] === "string"
+          )
+          .map((item: unknown[]) => String(item[0]))
           .join("");
 
         // Detect source language (data[2] contains detected language)

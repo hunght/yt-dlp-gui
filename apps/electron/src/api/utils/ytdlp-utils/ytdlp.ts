@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type StdioOptions } from "node:child_process";
 import { logger } from "@/helpers/logger";
 
 /**
@@ -16,14 +16,14 @@ export function extractVideoId(url: string): string | undefined {
 export function spawnYtDlpWithLogging(
   binPath: string,
   args: string[],
-  options: { stdio?: any[] },
+  options: { stdio?: StdioOptions },
   context: {
     operation: string;
     url?: string;
     videoId?: string;
     channelId?: string;
     playlistId?: string;
-    other?: Record<string, any>;
+    other?: Record<string, unknown>;
   }
 ): ReturnType<typeof spawn> {
   const startTime = Date.now();
@@ -55,13 +55,13 @@ export function spawnYtDlpWithLogging(
   let stderrData = "";
 
   if (proc.stdout) {
-    proc.stdout.on("data", (d) => {
+    proc.stdout.on("data", (d: Buffer | string) => {
       stdoutData += d.toString();
     });
   }
 
   if (proc.stderr) {
-    proc.stderr.on("data", (d) => {
+    proc.stderr.on("data", (d: Buffer | string) => {
       stderrData += d.toString();
     });
   }
@@ -116,7 +116,7 @@ export function spawnYtDlpWithLogging(
   return proc;
 }
 
-export const runYtDlpJson = async (binPath: string, url: string): Promise<any> => {
+export const runYtDlpJson = async (binPath: string, url: string): Promise<unknown> => {
   const metaJson = await new Promise<string>((resolve, reject) => {
     const proc = spawnYtDlpWithLogging(
       binPath,
@@ -130,8 +130,12 @@ export const runYtDlpJson = async (binPath: string, url: string): Promise<any> =
     );
     let out = "";
     let err = "";
-    proc.stdout?.on("data", (d) => (out += d.toString()));
-    proc.stderr?.on("data", (d) => (err += d.toString()));
+    proc.stdout?.on("data", (d: Buffer | string) => {
+      out += d.toString();
+    });
+    proc.stderr?.on("data", (d: Buffer | string) => {
+      err += d.toString();
+    });
     proc.on("error", reject);
     proc.on("close", (code) => {
       if (code === 0) resolve(out);

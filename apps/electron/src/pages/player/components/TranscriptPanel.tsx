@@ -60,7 +60,7 @@ export function TranscriptPanel({
   videoRef,
   playbackData,
   onSeek,
-}: TranscriptPanelProps) {
+}: TranscriptPanelProps): React.JSX.Element {
   const queryClient = useQueryClient();
   const { toast: toastHook } = useToast();
 
@@ -154,7 +154,7 @@ export function TranscriptPanel({
     () =>
       filterLanguagesByPreference(
         availableSubsQuery.data?.languages || [],
-        userPrefsQuery.data?.preferredLanguages || []
+     const handleEnterKey = (): void => {
       ),
     [availableSubsQuery.data, userPrefsQuery.data]
   );
@@ -163,7 +163,7 @@ export function TranscriptPanel({
   useEffect(() => {
     const available = (availableSubsQuery.data?.languages ?? []).map((l) => l.lang);
     if (selectedLang && !available.includes(selectedLang)) {
-      toastHook({
+     const handleWordMouseEnter = async (word: string): Promise<void> => {
         title: "Subtitle not available",
         description: `No transcript available in ${selectedLang.toUpperCase()} for this video. Showing default transcript instead.`,
         variant: "destructive",
@@ -310,7 +310,7 @@ export function TranscriptPanel({
   const isSeekingRef = useRef<boolean>(false);
 
   // Handle text selection - trigger annotation form via atom
-  const handleTranscriptSelect = () => {
+  const handleTranscriptSelect = (): void => {
     const selection = window.getSelection()?.toString() || "";
     if (selection.length > 0) {
       const cleaned = selection.trim();

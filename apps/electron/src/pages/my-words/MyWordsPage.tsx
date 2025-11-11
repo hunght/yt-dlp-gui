@@ -89,7 +89,7 @@ export default function MyWordsPage(): React.JSX.Element {
     });
   };
 
-  const handlePlayFromContext = (videoId: string, _timestampSeconds: number) => {
+  const handlePlayFromContext = (videoId: string, _timestampSeconds: number): void => {
     navigate({
       to: "/player",
       search: {
@@ -116,7 +116,7 @@ export default function MyWordsPage(): React.JSX.Element {
   const isLoading = debouncedSearch ? searchLoading : savedWordsLoading;
 
   // Helper component to show video contexts for a translation
-  const VideoContexts = ({ translationId }: { translationId: string }) => {
+  const VideoContexts = ({ translationId }: { translationId: string }): React.JSX.Element | null => {
     const { data: contexts, isLoading: contextsLoading } = useQuery({
       queryKey: ["translation-contexts", translationId],
       queryFn: async () => trpcClient.translation.getTranslationContexts.query({ translationId }),

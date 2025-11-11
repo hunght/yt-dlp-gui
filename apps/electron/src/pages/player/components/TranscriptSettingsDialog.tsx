@@ -37,7 +37,7 @@ export function TranscriptSettingsDialog({
   selectedLang,
   effectiveLang,
   onLanguageChange,
-}: TranscriptSettingsDialogProps) {
+}: TranscriptSettingsDialogProps): React.JSX.Element {
   // Use atoms directly for settings
   const [fontFamily, setFontFamily] = useAtom(fontFamilyAtom);
   const [fontSize, setFontSize] = useAtom(fontSizeAtom);
@@ -51,7 +51,7 @@ export function TranscriptSettingsDialog({
   const fontFamilySchema = z.enum(["system", "serif", "mono"]);
 
   // Type-safe handler for font family changes
-  const handleFontFamilyChange = (value: string) => {
+  const handleFontFamilyChange = (value: string): void => {
     const result = fontFamilySchema.safeParse(value);
     if (!result.success) {
       logger.error("[transcript-settings] Invalid font family value", {

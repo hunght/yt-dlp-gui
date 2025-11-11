@@ -71,7 +71,7 @@ export default function ChannelPage(): React.JSX.Element {
     },
   });
 
-  const handleDownloadVideo = async (videoUrl: string, videoTitle: string) => {
+  const handleDownloadVideo = async (videoUrl: string, videoTitle: string): Promise<void> => {
     try {
       const result = await addToQueueMutation.mutateAsync(videoUrl);
 
@@ -119,7 +119,7 @@ export default function ChannelPage(): React.JSX.Element {
   }
 
   const { channel } = data;
-  const isAllowedImageSrc = (src?: string | null) => {
+  const isAllowedImageSrc = (src?: string | null): boolean => {
     if (!src) return false;
     if (src.startsWith("local-file://")) return true;
     try {

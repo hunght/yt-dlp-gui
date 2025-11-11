@@ -120,10 +120,10 @@ const createQueueItemFromVideo = (
 };
 
 /**
- * Queue manager interface - defines public API
+ * Queue manager type (inferred from factory return)
  */
-export interface QueueManager {
-  updateProgress(
+type QueueManagerInstance = {
+  updateProgress: (
     downloadId: string,
     progress: number,
     metadata?: {
@@ -134,34 +134,34 @@ export interface QueueManager {
       totalSize?: string | null;
       eta?: string | null;
     }
-  ): Promise<void>;
-  markCompleted(downloadId: string, filePath: string, fileSize?: number): Promise<void>;
-  markFailed(downloadId: string, errorMessage: string, errorType?: string): Promise<void>;
-  restoreInterruptedDownloads(): Promise<void>;
-  start(): Promise<void>;
-  stop(): void;
-  addToQueue(
+  ) => Promise<void>;
+  markCompleted: (downloadId: string, filePath: string, fileSize?: number) => Promise<void>;
+  markFailed: (downloadId: string, errorMessage: string, errorType?: string) => Promise<void>;
+  restoreInterruptedDownloads: () => Promise<void>;
+  start: () => Promise<void>;
+  stop: () => void;
+  addToQueue: (
     urls: string[],
     options?: {
       priority?: number;
       format?: string;
       quality?: string;
     }
-  ): Promise<string[]>;
-  pauseDownload(downloadId: string): Promise<void>;
-  resumeDownload(downloadId: string): Promise<void>;
-  cancelDownload(downloadId: string): Promise<void>;
-  retryDownload(downloadId: string): Promise<void>;
-  getQueueStatus(): Promise<QueueStatus>;
-  clearCompleted(): Promise<void>;
-}
+  ) => Promise<string[]>;
+  pauseDownload: (downloadId: string) => Promise<void>;
+  resumeDownload: (downloadId: string) => Promise<void>;
+  cancelDownload: (downloadId: string) => Promise<void>;
+  retryDownload: (downloadId: string) => Promise<void>;
+  getQueueStatus: () => Promise<QueueStatus>;
+  clearCompleted: () => Promise<void>;
+};
 
 /**
  * Simple in-memory queue manager that processes downloads with max concurrent limit
  * Download state is synced to youtube_videos table for persistence
  * Implemented as a factory function returning an object (functional pattern)
  */
-const createQueueManager = (db: Database, config: Partial<QueueConfig> = {}): QueueManager => {
+const createQueueManager = (db: Database, config: Partial<QueueConfig> = {}): QueueManagerInstance => {
   // Private state (closure variables)
   const finalConfig: QueueConfig = { ...DEFAULT_QUEUE_CONFIG, ...config };
   let isProcessing = false;
@@ -1024,12 +1024,12 @@ const createQueueManager = (db: Database, config: Partial<QueueConfig> = {}): Qu
 };
 
 // Singleton instance
-let queueManagerInstance: QueueManager | null = null;
+let queueManagerInstance: QueueManagerInstance | null = null;
 
 /**
  * Get or create queue manager instance (functional factory pattern)
  */
-export const getQueueManager = (db: Database, config?: Partial<QueueConfig>): QueueManager => {
+export const getQueueManager = (db: Database, config?: Partial<QueueConfig>): QueueManagerInstance => {
   if (!queueManagerInstance) {
     queueManagerInstance = createQueueManager(db, config);
   }
@@ -1042,7 +1042,7 @@ export const getQueueManager = (db: Database, config?: Partial<QueueConfig>): Qu
 export const initializeQueueManager = async (
   db: Database,
   config?: Partial<QueueConfig>
-): Promise<QueueManager> => {
+): Promise<QueueManagerInstance> => {
   const manager = getQueueManager(db, config);
   if (config?.autoStart !== false) {
     await manager.start();
@@ -1053,7 +1053,7 @@ export const initializeQueueManager = async (
 /**
  * Get existing queue manager instance (throws if not initialized)
  */
-export const requireQueueManager = (): QueueManager => {
+export const requireQueueManager = (): QueueManagerInstance => {
   if (!queueManagerInstance) {
     throw new Error("QueueManager not initialized. Call initializeQueueManager first.");
   }

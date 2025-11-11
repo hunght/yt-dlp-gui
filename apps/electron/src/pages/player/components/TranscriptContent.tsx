@@ -41,7 +41,7 @@ export function TranscriptContent({
   isSelecting,
   containerRef,
   segRefs,
-}: TranscriptContentProps) {
+}: TranscriptContentProps): React.JSX.Element {
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const internalSegRefs = useRef<Array<HTMLParagraphElement | null>>([]);
 
@@ -49,7 +49,7 @@ export function TranscriptContent({
   const finalSegRefs = segRefs || internalSegRefs;
 
   // Get font family CSS string
-  const getFontFamily = () => {
+  const getFontFamily = (): string => {
     if (fontFamily === "serif") {
       return "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif";
     } else if (fontFamily === "mono") {
@@ -81,7 +81,7 @@ export function TranscriptContent({
   );
 
   // Render text with individual word highlighting and inline translations
-  const renderTextWithWords = (text: string) => {
+  const renderTextWithWords = (text: string): React.JSX.Element => {
     // Split text into words while preserving punctuation
     const words = text.split(/(\s+)/); // Preserve spaces
 

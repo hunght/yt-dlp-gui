@@ -9,7 +9,7 @@ let mainWindowRef: BrowserWindow | null = null;
 let trayRef: Tray | null = null;
 
 // Function to set references (called from main process)
-export const setWindowReferences = (mainWindow: BrowserWindow, tray: Tray | null) => {
+export const setWindowReferences = (mainWindow: BrowserWindow, tray: Tray | null): void => {
   mainWindowRef = mainWindow;
   trayRef = tray;
 };

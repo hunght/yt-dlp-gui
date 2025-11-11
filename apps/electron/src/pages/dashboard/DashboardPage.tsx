@@ -18,7 +18,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-const isValidUrl = (value: string) => {
+const isValidUrl = (value: string): boolean => {
   try {
     const u = new URL(value);
     return ["http:", "https:"].includes(u.protocol);
@@ -61,7 +61,7 @@ export default function DashboardPage(): React.JSX.Element {
   // Fetch preview mutation (debounced via effect)
   const previewMutation = useMutation({
     mutationFn: (u: string) => trpcClient.ytdlp.fetchVideoInfo.mutate({ url: u }),
-    onSuccess: (res) => {
+    onSuccess: (res): void => {
       setIsLoadingPreview(false);
       if (res.success) {
         logger.debug("Dashboard preview loaded", { info: res.info });

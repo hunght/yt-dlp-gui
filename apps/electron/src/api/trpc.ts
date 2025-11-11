@@ -3,7 +3,7 @@ import { logger } from "../helpers/logger";
 import db from "./db";
 
 // Create context for each request
-export const createContext = async () => {
+export const createContext = async (): Promise<{ db: typeof db }> => {
   return {
     db,
   };

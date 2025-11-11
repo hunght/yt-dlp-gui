@@ -24,7 +24,23 @@ const ytDlpMetadataSchema = z
   })
   .passthrough(); // Allow other properties
 
-export const mapYtDlpMetadata = (meta: unknown) => {
+// Define the return type using a type alias
+type MappedMetadata = {
+  readonly videoId: string;
+  readonly title: string;
+  readonly description: string | null;
+  readonly channelId: string | null;
+  readonly channelTitle: string | null;
+  readonly durationSeconds: number | null;
+  readonly viewCount: number | null;
+  readonly likeCount: number | null;
+  readonly thumbnailUrl: string | null;
+  readonly publishedAt: number | null;
+  readonly tags: string | null;
+  readonly raw: string;
+};
+
+export const mapYtDlpMetadata = (meta: unknown): MappedMetadata => {
   const validated = ytDlpMetadataSchema.parse(meta);
 
   return {
@@ -137,18 +153,18 @@ const channelMetadataSchema = z
   })
   .passthrough();
 
-interface ExtractedChannelData {
-  channelId: string;
-  channelTitle: string;
-  channelDescription: string | null;
-  channelUrl: string | null;
-  thumbnailUrl: string | null;
-  subscriberCount: number | null;
-  videoCount: null;
-  viewCount: null;
-  customUrl: string | null;
-  raw: string;
-}
+type ExtractedChannelData = {
+  readonly channelId: string;
+  readonly channelTitle: string;
+  readonly channelDescription: string | null;
+  readonly channelUrl: string | null;
+  readonly thumbnailUrl: string | null;
+  readonly subscriberCount: number | null;
+  readonly videoCount: null;
+  readonly viewCount: null;
+  readonly customUrl: string | null;
+  readonly raw: string;
+};
 
 export const extractChannelData = (meta: unknown): ExtractedChannelData | null => {
   const validated = channelMetadataSchema.parse(meta);

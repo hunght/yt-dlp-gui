@@ -26,8 +26,8 @@ import defaultDb, { type Database } from "@/api/db";
 import { getYtDlpAssetName } from "@/api/utils/ytdlp-utils/ytdlp-utils";
 import crypto from "crypto";
 
-const getBinDir = () => path.join(app.getPath("userData"), "bin");
-const getBinaryFilePath = () => path.join(getBinDir(), getYtDlpAssetName(process.platform));
+const getBinDir = (): string => path.join(app.getPath("userData"), "bin");
+const getBinaryFilePath = (): string => path.join(getBinDir(), getYtDlpAssetName(process.platform));
 
 // Helper type for video update fields to avoid repetition
 type VideoUpdateFields = {
@@ -69,7 +69,36 @@ type FetchVideoInfoFailure = {
 type FetchVideoInfoResult = FetchVideoInfoSuccess | FetchVideoInfoFailure;
 
 // Helper to transform DB video record to API response format
-function toVideoResponse(v: YoutubeVideo) {
+// Define response types using Drizzle's inferred types
+type VideoResponse = {
+  id: string;
+  videoId: string;
+  title: string;
+  description: string | null;
+  thumbnailUrl: string | null;
+  thumbnailPath: string | null;
+  durationSeconds: number | null;
+  viewCount: number | null;
+  publishedAt: number | null;
+  url: string;
+  downloadStatus: string | null;
+  downloadProgress: number | null;
+  downloadFilePath: string | null;
+};
+
+type VideoResponseExtended = VideoResponse & {
+  channelId: string | null;
+  channelTitle: string | null;
+  likeCount: number | null;
+  tags: string | null;
+  raw: string | null; // raw metadata can be null
+  createdAt: number;
+  updatedAt: number | null;
+  downloadId: null;
+  downloadCompletedAt: number | null;
+};
+
+function toVideoResponse(v: YoutubeVideo): VideoResponse {
   return {
     id: v.id,
     videoId: v.videoId,
@@ -87,16 +116,52 @@ function toVideoResponse(v: YoutubeVideo) {
   };
 }
 
+// Extended mapper with all fields for channel details
+function toVideoResponseExtended(v: YoutubeVideo): VideoResponseExtended {
+  return {
+    ...toVideoResponse(v), // Reuse base mapper
+    channelId: v.channelId,
+    channelTitle: v.channelTitle,
+    likeCount: v.likeCount,
+    tags: v.tags,
+    raw: v.raw,
+    createdAt: v.createdAt,
+    updatedAt: v.updatedAt,
+    downloadId: null,
+    downloadCompletedAt: v.lastDownloadedAt ?? null,
+  };
+}
+
+// Define playlist response type
+type PlaylistResponse = {
+  id: string;
+  playlistId: string;
+  title: string;
+  description: string | null;
+  thumbnailUrl: string | null;
+  thumbnailPath: string | null; // Added missing field
+  videoCount: number | null;
+  itemCount: number | null; // Added missing field
+  channelId: string | null;
+  createdAt: number;
+  lastFetchedAt: number | null; // Added missing field
+  url: string;
+};
+
 // Helper to transform DB playlist record to API response format
-function toPlaylistResponse(p: ChannelPlaylist) {
+function toPlaylistResponse(p: ChannelPlaylist): PlaylistResponse {
   return {
     id: p.id,
     playlistId: p.playlistId,
     title: p.title,
+    description: p.description,
     url: p.url ?? `https://www.youtube.com/playlist?list=${p.playlistId}`,
     thumbnailUrl: p.thumbnailUrl,
     thumbnailPath: p.thumbnailPath,
+    videoCount: p.itemCount, // itemCount from DB maps to videoCount in API
     itemCount: p.itemCount,
+    channelId: p.channelId,
+    createdAt: p.createdAt,
     lastFetchedAt: p.lastFetchedAt,
   };
 }
@@ -578,31 +643,7 @@ export const ytdlpRouter = t.router({
       }
 
       // Compose response with unified download summary from youtube_videos
-      const videos = videoRows.map((v) => {
-        return {
-          id: v.id,
-          videoId: v.videoId,
-          title: v.title,
-          description: v.description,
-          channelId: v.channelId,
-          channelTitle: v.channelTitle,
-          durationSeconds: v.durationSeconds,
-          viewCount: v.viewCount,
-          likeCount: v.likeCount,
-          thumbnailUrl: v.thumbnailUrl,
-          thumbnailPath: v.thumbnailPath,
-          publishedAt: v.publishedAt,
-          tags: v.tags,
-          raw: v.raw,
-          createdAt: v.createdAt,
-          updatedAt: v.updatedAt,
-          downloadId: null,
-          downloadStatus: v.downloadStatus ?? null,
-          downloadProgress: v.downloadProgress ?? null,
-          downloadFilePath: v.downloadFilePath ?? null,
-          downloadCompletedAt: v.lastDownloadedAt ?? null,
-        };
-      });
+      const videos = videoRows.map(toVideoResponseExtended);
 
       const durationMs = Date.now() - t0;
       logger.info("[getChannelDetails] done", {

@@ -1,15 +1,11 @@
-import {
-  CLOCK_SHOW_CHANNEL,
-  CLOCK_HIDE_CHANNEL,
-  CLOCK_SHOW_MAIN_CHANNEL,
-} from "./clock-channels";
+import { CLOCK_SHOW_CHANNEL, CLOCK_HIDE_CHANNEL, CLOCK_SHOW_MAIN_CHANNEL } from "./clock-channels";
 
 import { safelyRegisterListener } from "../safelyRegisterListener";
 import { showClockWindow, hideClockWindow } from "../../../main/windows/clock";
 import { showMainWindow } from "../../../main";
 import { logger } from "../../logger";
 
-export const addClockEventListeners = () => {
+export const addClockEventListeners = (): void => {
   // Show clock handler
   safelyRegisterListener(CLOCK_SHOW_CHANNEL, async (_event) => {
     try {

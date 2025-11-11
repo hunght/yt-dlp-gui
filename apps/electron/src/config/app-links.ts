@@ -2,7 +2,20 @@
 
 // Function to build download URLs based on a version
 // eslint-disable-next-line import/no-unused-modules -- Used dynamically in update checker
-export const buildAppLinks = (version: string) => ({
+export const buildAppLinks = (
+  version: string
+): {
+  windows: string;
+  macos: string;
+  linux: string;
+  windowsZip: string;
+  macosZip: string;
+  macosIntelZip: string;
+  linuxZip: string;
+  releases: string;
+  macosIntel: string;
+  linuxRpm: string;
+} => ({
   // Main platform download links (for manual downloads)
   windows: `https://github.com/yt-dlp-gui/yt-dlp-gui/releases/download/v${version}/yt-dlp-gui-${version}.Setup.exe`,
   macos: `https://github.com/yt-dlp-gui/yt-dlp-gui/releases/download/v${version}/yt-dlp-gui-${version}-arm64.dmg`,

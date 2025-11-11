@@ -12,7 +12,7 @@ import { logger } from "../../logger";
 // Store the response resolver for the current blocking notification
 let currentResponseResolver: ((value: number) => void) | null = null;
 
-export const addBlockingNotificationEventListeners = () => {
+export const addBlockingNotificationEventListeners = (): void => {
   logger.debug("BlockingNotificationListeners: Adding blocking notification listeners");
 
   // Show blocking notification handler
@@ -72,6 +72,6 @@ export const addBlockingNotificationEventListeners = () => {
   });
 };
 
-export const setCurrentResponseResolver = (resolver: (value: number) => void) => {
+export const setCurrentResponseResolver = (resolver: (value: number) => void): void => {
   currentResponseResolver = resolver;
 };

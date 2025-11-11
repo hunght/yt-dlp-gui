@@ -9,7 +9,7 @@ import { videoTranscripts, youtubeVideos } from "@/api/db/schema";
 import defaultDb, { type Database } from "@/api/db";
 import { spawnYtDlpWithLogging } from "@/api/utils/ytdlp-utils/ytdlp";
 
-const getTranscriptsDir = () => path.join(app.getPath("userData"), "cache", "transcripts");
+const getTranscriptsDir = (): string => path.join(app.getPath("userData"), "cache", "transcripts");
 
 // Zod schema for validating transcript segments from JSON
 const transcriptSegmentSchema = z.array(
@@ -43,7 +43,7 @@ type DownloadTranscriptFailure =
 
 type DownloadTranscriptResult = DownloadTranscriptSuccess | DownloadTranscriptFailure;
 
-function ensureDirSync(p: string) {
+function ensureDirSync(p: string): void {
   try {
     fs.mkdirSync(p, { recursive: true });
   } catch {
@@ -212,7 +212,7 @@ async function upsertVideoSearchFts(
   videoId: string,
   title: string | null | undefined,
   transcript: string | null | undefined
-) {
+): Promise<void> {
   try {
     await db.run(
       sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`
@@ -629,7 +629,7 @@ export const transcriptsRouter = t.router({
             language: input.lang,
           } as const;
 
-        const pickByLang = (lang: string, arr: string[]) => {
+        const pickByLang = (lang: string, arr: string[]): string[] => {
           const re = new RegExp(`\\.${lang}(?:[.-]|\\.vtt$)`, "i");
           const candidates = arr.filter((f) => re.test(f));
           if (candidates.length > 0) return candidates;

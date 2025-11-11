@@ -9,7 +9,7 @@ import type { Database } from "../../db";
 export const upsertChannelData = async (
   db: Database,
   channelData: ReturnType<typeof extractChannelData>
-) => {
+): Promise<void> => {
   if (!channelData || !channelData.channelId) return;
 
   const now = Date.now();

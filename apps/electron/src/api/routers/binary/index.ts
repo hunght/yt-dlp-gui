@@ -24,18 +24,18 @@ const githubReleaseSchema = z.object({
     .optional(),
 });
 
-const getBinDir = () => path.join(app.getPath("userData"), "bin");
-const getVersionFilePath = () => path.join(getBinDir(), "yt-dlp-version.txt");
-const getBinaryFilePath = () => path.join(getBinDir(), getYtDlpAssetName(process.platform));
+const getBinDir = (): string => path.join(app.getPath("userData"), "bin");
+const getVersionFilePath = (): string => path.join(getBinDir(), "yt-dlp-version.txt");
+const getBinaryFilePath = (): string => path.join(getBinDir(), getYtDlpAssetName(process.platform));
 
-const ensureBinDir = () => {
+const ensureBinDir = (): void => {
   const dir = getBinDir();
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 };
 
-const setExecutableIfNeeded = (filePath: string) => {
+const setExecutableIfNeeded = (filePath: string): void => {
   if (process.platform === "win32") return; // not needed
   try {
     fs.chmodSync(filePath, 0o755);
@@ -57,7 +57,7 @@ const readInstalledVersion = (): string | null => {
   }
 };
 
-const writeInstalledVersion = (version: string) => {
+const writeInstalledVersion = (version: string): void => {
   try {
     fs.writeFileSync(getVersionFilePath(), version, "utf8");
   } catch (e) {

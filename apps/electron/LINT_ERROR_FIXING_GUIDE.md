@@ -168,21 +168,19 @@ const { app } = await import("electron");
 const userData = app.getPath("userData"); // Type-safe!
 ```
 
-### ✅ Good - For Electron preload scripts (synchronous)
+### ✅ Good - For Electron preload scripts (async)
 ```typescript
-import type { ContextBridge, IpcRenderer } from "electron";
+// Make the function async to use dynamic import
+export async function exposeContext() {
+  const { contextBridge, ipcRenderer } = await import("electron");
+  
+  // Now fully typed!
+  contextBridge.exposeInMainWorld("api", {
+    invoke: (channel: string) => ipcRenderer.invoke(channel),
+  });
+}
 
-// Preload scripts require synchronous access
-// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-const { contextBridge, ipcRenderer } = require("electron") as {
-  contextBridge: ContextBridge;
-  ipcRenderer: IpcRenderer;
-};
-
-// Now fully typed!
-contextBridge.exposeInMainWorld("api", {
-  invoke: (channel: string) => ipcRenderer.invoke(channel),
-});
+// Call it: await exposeContext();
 ```
 
 ---

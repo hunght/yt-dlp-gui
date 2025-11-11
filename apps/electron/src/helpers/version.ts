@@ -9,7 +9,7 @@ export async function getAppVersion(): Promise<string> {
   try {
     return await trpcClient.utils.getAppVersion.query();
   } catch (error) {
-    logger.error("Failed to get app version via tRPC", error as Error);
+    logger.error("Failed to get app version via tRPC", error);
   }
 
   // Fallbacks if tRPC fails or isn't available

@@ -4,6 +4,8 @@
 pre-commit:
   parallel: true
   commands:
+    type-check:
+      run: npm run type-check
     # Lint TypeScript files in electron app
     lint:
       root: "apps/electron"

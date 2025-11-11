@@ -148,7 +148,7 @@ export default [
 
       /* 🎯 Require explicit return types for async functions (prevents implicit any returns) */
       '@typescript-eslint/explicit-function-return-type': [
-        'warn', // Use warn for now, can escalate to error once codebase is clean
+        'error', // ⚠️ STRICT MODE - All tRPC endpoints MUST have explicit return types!
         {
           allowExpressions: true, // Allow: const fn = () => value (simple cases)
           allowTypedFunctionExpressions: false, // 🚫 DISABLED - Require explicit types for tRPC mutations/queries!

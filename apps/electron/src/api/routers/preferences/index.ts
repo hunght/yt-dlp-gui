@@ -9,6 +9,31 @@ import defaultDb, { type Database } from "@/api/db";
 // Zod schema for preferred languages JSON
 const languagesArraySchema = z.array(z.string());
 
+// Return types for preferences router
+type UserPreferencesResult = {
+  id: string;
+  preferredLanguages: string[];
+  systemLanguage: string;
+  createdAt: number;
+  updatedAt: number | null;
+};
+
+type UpdatePreferredLanguagesSuccess = {
+  success: true;
+  languages: string[];
+};
+
+type UpdatePreferredLanguagesFailure = {
+  success: false;
+  message: string;
+};
+
+type UpdatePreferredLanguagesResult = UpdatePreferredLanguagesSuccess | UpdatePreferredLanguagesFailure;
+
+type GetSystemLanguageResult = {
+  language: string;
+};
+
 // Get system language from Electron
 const getSystemLanguage = (): string => {
   try {
@@ -58,7 +83,7 @@ const ensurePreferencesExist = async (db: Database): Promise<void> => {
 
 export const preferencesRouter = t.router({
   // Get user preferences (auto-initialize if missing)
-  getUserPreferences: publicProcedure.query(async ({ ctx }) => {
+  getUserPreferences: publicProcedure.query(async ({ ctx }): Promise<UserPreferencesResult> => {
     const db = ctx.db ?? defaultDb;
     await ensurePreferencesExist(db);
 
@@ -108,7 +133,7 @@ export const preferencesRouter = t.router({
   // Update preferred languages list
   updatePreferredLanguages: publicProcedure
     .input(z.object({ languages: z.array(z.string()).min(1) }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<UpdatePreferredLanguagesResult> => {
       const db = ctx.db ?? defaultDb;
       await ensurePreferencesExist(db);
 
@@ -129,8 +154,8 @@ export const preferencesRouter = t.router({
     }),
 
   // Get system language (utility)
-  getSystemLanguage: publicProcedure.query(() => {
-    return { language: getSystemLanguage() } as const;
+  getSystemLanguage: publicProcedure.query((): GetSystemLanguageResult => {
+    return { language: getSystemLanguage() };
   }),
 });
 

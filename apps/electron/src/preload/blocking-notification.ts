@@ -1,3 +1,4 @@
+import { BlockingNotificationData } from "@/helpers/blocking-notification/blocking-notification-utils";
 import { contextBridge, ipcRenderer } from "electron";
 
 // Blocking notification specific channels
@@ -18,7 +19,7 @@ contextBridge.exposeInMainWorld("electronBlockingNotification", {
   },
 
   // Function to listen for show-blocking-notification events
-  onNotification: (callback: (data: any) => void) => {
+  onNotification: (callback: (data: BlockingNotificationData) => void) => {
     ipcRenderer.on(BLOCKING_NOTIFICATION_SHOW_CHANNEL, (_event, data) => {
       callback(data);
     });

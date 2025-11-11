@@ -15,6 +15,56 @@ const duplicateErrorSchema = z.object({
 // Initialize queue manager singleton
 const queueManager = getQueueManager(defaultDb);
 
+// Return types for queue router
+type AddToQueueSuccess = {
+  success: true;
+  downloadIds: string[];
+  message: string;
+};
+
+type AddToQueuePartialSuccess = {
+  success: true;
+  downloadIds: string[];
+  message: string;
+  skippedUrls: Array<{ reason: string }>;
+  details: string;
+};
+
+type AddToQueueFailure = {
+  success: false;
+  downloadIds: string[];
+  message: string;
+  skippedUrls?: Array<{ reason: string }>;
+  details?: string;
+};
+
+type AddToQueueResult = AddToQueueSuccess | AddToQueuePartialSuccess | AddToQueueFailure;
+
+type GetQueueStatusSuccess = {
+  success: true;
+  data: Awaited<ReturnType<typeof queueManager.getQueueStatus>>;
+};
+
+type GetQueueStatusFailure = {
+  success: false;
+  data: null;
+  message: string;
+};
+
+type GetQueueStatusResult = GetQueueStatusSuccess | GetQueueStatusFailure;
+
+type QueueActionSuccess = {
+  success: true;
+  message: string;
+};
+
+type QueueActionFailure = {
+  success: false;
+  message: string;
+};
+
+type QueueActionResult = QueueActionSuccess | QueueActionFailure;
+
 /**
  * Queue router - handles download queue operations
  * UI polls these endpoints with React Query
@@ -32,7 +82,7 @@ export const queueRouter = t.router({
         quality: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<AddToQueueResult> => {
       try {
         logger.info("[queue] Adding to queue", {
           count: input.urls.length,
@@ -83,7 +133,7 @@ export const queueRouter = t.router({
   /**
    * Get queue status - UI polls this endpoint
    */
-  getQueueStatus: publicProcedure.query(async () => {
+  getQueueStatus: publicProcedure.query(async (): Promise<GetQueueStatusResult> => {
     try {
       const status = await queueManager.getQueueStatus();
       return {
@@ -109,7 +159,7 @@ export const queueRouter = t.router({
         downloadId: z.string(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<QueueActionResult> => {
       try {
         logger.info("[queue] Pausing download", { downloadId: input.downloadId });
         await queueManager.pauseDownload(input.downloadId);
@@ -135,7 +185,7 @@ export const queueRouter = t.router({
         downloadId: z.string(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<QueueActionResult> => {
       try {
         logger.info("[queue] Resuming download", { downloadId: input.downloadId });
         await queueManager.resumeDownload(input.downloadId);
@@ -161,7 +211,7 @@ export const queueRouter = t.router({
         downloadId: z.string(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<QueueActionResult> => {
       try {
         logger.info("[queue] Cancelling download", { downloadId: input.downloadId });
         await queueManager.cancelDownload(input.downloadId);
@@ -187,7 +237,7 @@ export const queueRouter = t.router({
         downloadId: z.string(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<QueueActionResult> => {
       try {
         logger.info("[queue] Retrying download", { downloadId: input.downloadId });
         await queueManager.retryDownload(input.downloadId);
@@ -207,7 +257,7 @@ export const queueRouter = t.router({
   /**
    * Clear completed downloads
    */
-  clearCompleted: publicProcedure.mutation(async () => {
+  clearCompleted: publicProcedure.mutation(async (): Promise<QueueActionResult> => {
     try {
       logger.info("[queue] Clearing completed downloads");
       await queueManager.clearCompleted();
@@ -227,7 +277,7 @@ export const queueRouter = t.router({
   /**
    * Start the queue processor
    */
-  startQueue: publicProcedure.mutation(async () => {
+  startQueue: publicProcedure.mutation(async (): Promise<QueueActionResult> => {
     try {
       logger.info("[queue] Starting queue processor");
       queueManager.start();
@@ -247,7 +297,7 @@ export const queueRouter = t.router({
   /**
    * Stop the queue processor
    */
-  stopQueue: publicProcedure.mutation(async () => {
+  stopQueue: publicProcedure.mutation(async (): Promise<QueueActionResult> => {
     try {
       logger.info("[queue] Stopping queue processor");
       queueManager.stop();

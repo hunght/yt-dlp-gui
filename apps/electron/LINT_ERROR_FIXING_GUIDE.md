@@ -234,7 +234,78 @@ await db.insert(youtubeVideos).values({
 
 ---
 
-## 10. When ESLint Exceptions Are Acceptable
+## 10. tRPC Type Safety (Backend as Source of Truth)
+
+### ❌ Bad - Frontend Zod validation for tRPC responses
+```typescript
+// Frontend
+const responseSchema = z.union([
+  z.object({ success: z.literal(true), data: z.string() }),
+  z.object({ success: z.literal(false), message: z.string() }),
+]);
+
+onSuccess: (res: unknown) => {
+  const parsed = responseSchema.safeParse(res);
+  if (!parsed.success) return;
+  // ... handle parsed.data
+}
+```
+
+### ✅ Good - Define types on backend, let tRPC infer
+```typescript
+// Backend (routers/example/index.ts)
+type ExampleSuccess = {
+  success: true;
+  data: string;
+  timestamp: number;
+};
+
+type ExampleFailure = {
+  success: false;
+  message: string;
+};
+
+type ExampleResult = ExampleSuccess | ExampleFailure;
+
+export const exampleRouter = t.router({
+  doSomething: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }): Promise<ExampleResult> => {
+      // TypeScript enforces return type matches ExampleResult
+      if (somethingFailed) {
+        return { success: false, message: "Error" };
+      }
+      return { success: true, data: "result", timestamp: Date.now() };
+    }),
+});
+
+// Frontend (automatically typed via tRPC!)
+onSuccess: (response) => {
+  // TypeScript knows response is ExampleResult
+  if (response.success) {
+    console.log(response.data); // Type-safe access
+  } else {
+    console.log(response.message); // Type-safe access
+  }
+}
+```
+
+**Benefits:**
+- No duplicate validation logic
+- Backend is the single source of truth
+- Compile-time type checking (not just runtime)
+- Refactoring is safer (change backend type → frontend shows errors immediately)
+- Cleaner, more maintainable code
+
+**When to use Zod on frontend:**
+- External APIs (not tRPC)
+- Browser APIs (localStorage, etc.)
+- User file uploads
+- Third-party libraries
+
+---
+
+## 11. When ESLint Exceptions Are Acceptable
 
 ### ✅ Rare cases only
 ```typescript

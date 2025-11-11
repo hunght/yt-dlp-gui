@@ -40,12 +40,9 @@ const dictionaryEntrySchema = z.object({
 const dictionaryResponseSchema = z.union([z.array(dictionaryEntrySchema), dictionaryEntrySchema]);
 
 // Zod schema for Google Translate API response
-// Format: [[[translatedText, originalText, null, null, translatedWordCount]], null, detectedLang]
-const googleTranslateResponseSchema = z.tuple([
-  z.array(z.array(z.union([z.string(), z.null(), z.number()]))),
-  z.unknown().optional(),
-  z.string().optional(),
-]);
+// Format: [[[translatedText, originalText, null, null, translatedWordCount]], ...otherData, detectedLang]
+// Note: Response structure varies, so we use a flexible schema
+const googleTranslateResponseSchema = z.array(z.unknown());
 
 export const utilsRouter = t.router({
   openExternalUrl: publicProcedure
@@ -279,22 +276,30 @@ export const utilsRouter = t.router({
         const rawData: unknown = await response.json();
         const parseResult = googleTranslateResponseSchema.safeParse(rawData);
 
-        if (!parseResult.success) {
+        if (
+          !parseResult.success ||
+          !Array.isArray(parseResult.data) ||
+          !Array.isArray(parseResult.data[0])
+        ) {
+          logger.error("[translation] Invalid API response structure", { rawData });
           throw new Error("Invalid translation API response structure");
         }
 
         const data = parseResult.data;
         const translations = data[0];
+
+        // Safely extract translated text from nested arrays
+        if (!Array.isArray(translations)) {
+          throw new Error("Translation data format unexpected");
+        }
+
         const translatedText = translations
-          .filter(
-            (item): item is [string, ...(string | number | null)[]] =>
-              Array.isArray(item) && typeof item[0] === "string"
-          )
-          .map((item) => item[0])
+          .filter((item): item is unknown[] => Array.isArray(item) && typeof item[0] === "string")
+          .map((item) => String(item[0]))
           .join("");
 
         // Detect source language (data[2] contains detected language)
-        const detectedLang = data[2] ?? sl;
+        const detectedLang = typeof data[2] === "string" ? data[2] : sl;
 
         // Store in cache for future use
         if (db) {

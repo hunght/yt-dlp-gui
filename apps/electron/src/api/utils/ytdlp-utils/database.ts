@@ -5,7 +5,6 @@ import { logger } from "@/helpers/logger";
 import { extractChannelData } from "./metadata";
 import { downloadImageToCache } from "./thumbnail";
 
-
 export const upsertChannelData = async (
   db: any,
   channelData: ReturnType<typeof extractChannelData>
@@ -52,22 +51,26 @@ export const upsertChannelData = async (
         channelTitle: channelData.channelTitle,
       });
     } else {
-      // Update existing channel data
+      // Update existing channel data - preserve existing values if new data is null/undefined
+      const existingChannel = existing[0];
       await db
         .update(channels)
         .set({
           channelTitle: channelData.channelTitle,
-          channelDescription: channelData.channelDescription,
+          channelDescription: channelData.channelDescription ?? existingChannel.channelDescription,
           channelUrl: channelData.channelUrl,
-          thumbnailUrl: channelData.thumbnailUrl,
-          thumbnailPath: channelThumbPath ?? existing[0]?.thumbnailPath ?? null,
-          subscriberCount: channelData.subscriberCount,
-          customUrl: channelData.customUrl,
+          thumbnailUrl: channelData.thumbnailUrl ?? existingChannel.thumbnailUrl,
+          thumbnailPath: channelThumbPath ?? existingChannel.thumbnailPath ?? null,
+          subscriberCount: channelData.subscriberCount ?? existingChannel.subscriberCount,
+          customUrl: channelData.customUrl ?? existingChannel.customUrl,
           raw: channelData.raw,
           updatedAt: now,
         })
         .where(eq(channels.channelId, channelData.channelId));
-      logger.debug("[database] Updated channel", { channelId: channelData.channelId });
+      logger.debug("[database] Updated channel", {
+        channelId: channelData.channelId,
+        preservedThumbnail: !channelData.thumbnailUrl && !!existingChannel.thumbnailUrl,
+      });
     }
   } catch (e) {
     logger.error("[database] Failed to upsert channel", e as Error);

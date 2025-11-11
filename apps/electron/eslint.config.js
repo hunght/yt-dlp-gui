@@ -145,7 +145,18 @@ export default [
       '@typescript-eslint/no-unsafe-call': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
 
-
+      /* 🎯 Require explicit return types for async functions only (prevents implicit any returns) */
+      '@typescript-eslint/explicit-function-return-type': [
+        'warn', // Use warn first, can escalate to error once codebase is clean
+        {
+          allowExpressions: true, // Allow: const fn = () => value
+          allowTypedFunctionExpressions: true, // Allow: const fn: SomeType = () => ...
+          allowHigherOrderFunctions: true, // Allow: const fn = () => () => ...
+          allowDirectConstAssertionInArrowFunctions: true, // Allow: () => ({ x: 1 } as const)
+          allowConciseArrowFunctionExpressionsStartingWithVoid: true, // Allow: () => void fn()
+          allowedNames: [], // Could whitelist specific function names if needed
+        },
+      ],
 
       // Unused imports and exports detection
       'unused-imports/no-unused-imports': 'error', // Detect unused imports

@@ -19,6 +19,7 @@ import {
   includeTranslationInNoteAtom,
   showInlineTranslationsAtom,
 } from "@/context/transcriptSettings";
+import { logger } from "@/helpers/logger";
 
 interface TranscriptSettingsDialogProps {
   open: boolean;
@@ -52,9 +53,14 @@ export function TranscriptSettingsDialog({
   // Type-safe handler for font family changes
   const handleFontFamilyChange = (value: string) => {
     const result = fontFamilySchema.safeParse(value);
-    if (result.success) {
-      setFontFamily(result.data);
+    if (!result.success) {
+      logger.error("[transcript-settings] Invalid font family value", {
+        value,
+        error: result.error,
+      });
+      return;
     }
+    setFontFamily(result.data);
   };
 
   // Common translation target languages

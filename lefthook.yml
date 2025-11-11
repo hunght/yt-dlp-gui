@@ -1,10 +1,12 @@
 # Root Lefthook Configuration
+
 # Extends workspace-specific configurations
 extends:
   - apps/electron/lefthook.yml
 
 # Global hooks that run for all commits
 pre-commit:
+  parallel: true
   commands:
     # Type check all workspaces
     type-check:

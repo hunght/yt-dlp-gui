@@ -5,7 +5,24 @@ import { app, net } from "electron";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { getDirectLatestDownloadUrl, getLatestReleaseApiUrl, getYtDlpAssetName } from "@/api/utils/ytdlp-utils/ytdlp-utils";
+import {
+  getDirectLatestDownloadUrl,
+  getLatestReleaseApiUrl,
+  getYtDlpAssetName,
+} from "@/api/utils/ytdlp-utils/ytdlp-utils";
+
+// Zod schema for GitHub release API response
+const githubReleaseSchema = z.object({
+  tag_name: z.string().optional(),
+  assets: z
+    .array(
+      z.object({
+        name: z.string(),
+        browser_download_url: z.string(),
+      })
+    )
+    .optional(),
+});
 
 const getBinDir = () => path.join(app.getPath("userData"), "bin");
 const getVersionFilePath = () => path.join(getBinDir(), "yt-dlp-version.txt");
@@ -35,7 +52,7 @@ const readInstalledVersion = (): string | null => {
     }
     return null;
   } catch (e) {
-    logger.error("[ytdlp] Failed to read version file", e as Error);
+    logger.error("[ytdlp] Failed to read version file", e);
     return null;
   }
 };
@@ -44,7 +61,7 @@ const writeInstalledVersion = (version: string) => {
   try {
     fs.writeFileSync(getVersionFilePath(), version, "utf8");
   } catch (e) {
-    logger.error("[ytdlp] Failed to write version file", e as Error);
+    logger.error("[ytdlp] Failed to write version file", e);
   }
 };
 
@@ -56,17 +73,14 @@ async function fetchLatestRelease(): Promise<{ version: string; assetUrl: string
       // Fallback to direct latest download URL without version
       return { version: "unknown", assetUrl: getDirectLatestDownloadUrl(process.platform) };
     }
-    const json = (await releaseRes.json()) as {
-      tag_name?: string;
-      assets?: Array<{ name: string; browser_download_url: string }>;
-    };
+    const json = githubReleaseSchema.parse(await releaseRes.json());
     const tag = (json.tag_name ?? "").replace(/^v/, "");
     const desiredAsset = getYtDlpAssetName(process.platform);
     const asset = json.assets?.find((a) => a.name === desiredAsset);
     const assetUrl = asset?.browser_download_url ?? getDirectLatestDownloadUrl(process.platform);
     return { version: tag || "unknown", assetUrl };
   } catch (e) {
-    logger.error("[ytdlp] Exception fetching latest release", e as Error);
+    logger.error("[ytdlp] Exception fetching latest release", e);
     return { version: "unknown", assetUrl: getDirectLatestDownloadUrl(process.platform) };
   }
 }
@@ -77,10 +91,10 @@ export const binaryRouter = t.router({
       const binPath = getBinaryFilePath();
       const installed = fs.existsSync(binPath);
       const version = readInstalledVersion();
-      return { installed, version, path: installed ? binPath : null } as const;
+      return { installed, version, path: installed ? binPath : null };
     } catch (e) {
-      logger.error("[ytdlp] getInstallInfo failed", e as Error);
-      return { installed: false, version: null, path: null } as const;
+      logger.error("[ytdlp] getInstallInfo failed", e);
+      return { installed: false, version: null, path: null };
     }
   }),
 
@@ -90,23 +104,24 @@ export const binaryRouter = t.router({
   }),
 
   downloadLatest: publicProcedure
-    .input(
-      z
-        .object({ force: z.boolean().optional() })
-        .optional()
-    )
+    .input(z.object({ force: z.boolean().optional() }).optional())
     .mutation(async ({ input }) => {
       ensureBinDir();
       const binPath = getBinaryFilePath();
       if (fs.existsSync(binPath) && !input?.force) {
         const version = readInstalledVersion();
         logger.info("[ytdlp] Binary already installed", { binPath, version });
-        return { success: true as const, path: binPath, version: version ?? "unknown", alreadyInstalled: true as const };
+        return {
+          success: true as const,
+          path: binPath,
+          version: version ?? "unknown",
+          alreadyInstalled: true as const,
+        };
       }
 
       const latest = await fetchLatestRelease();
       if (!latest) {
-        return { success: false as const, message: "Failed to resolve latest yt-dlp" } as const;
+        return { success: false as const, message: "Failed to resolve latest yt-dlp" };
       }
 
       const tmpPath = path.join(os.tmpdir(), `yt-dlp-${Date.now()}`);
@@ -138,7 +153,9 @@ export const binaryRouter = t.router({
                 const follow = net.request({ method: "GET", url: location });
                 follow.on("response", (res2) => {
                   if ((res2.statusCode ?? 0) >= 400) {
-                    logger.error("[ytdlp] Download failed after redirect", { status: res2.statusCode });
+                    logger.error("[ytdlp] Download failed after redirect", {
+                      status: res2.statusCode,
+                    });
                     res2.on("data", () => {});
                     res2.on("end", () => resolve({ ok: false, error: `HTTP ${res2.statusCode}` }));
                     return;
@@ -184,13 +201,9 @@ export const binaryRouter = t.router({
         request.end();
       });
 
-
-
-
-
       if (!result.ok) {
         logger.error("[ytdlp] Download failed", { error: result.error });
-        return { success: false as const, message: result.error ?? "Download failed" } as const;
+        return { success: false as const, message: result.error ?? "Download failed" };
       }
 
       try {
@@ -200,10 +213,15 @@ export const binaryRouter = t.router({
         setExecutableIfNeeded(binPath);
         writeInstalledVersion(latest.version);
         logger.info("[ytdlp] Installed", { binPath, version: latest.version });
-        return { success: true as const, path: binPath, version: latest.version, alreadyInstalled: false as const };
+        return {
+          success: true as const,
+          path: binPath,
+          version: latest.version,
+          alreadyInstalled: false as const,
+        };
       } catch (e) {
-        logger.error("[ytdlp] Failed to finalize installation", e as Error);
-        return { success: false as const, message: `Install error: ${String(e)}` } as const;
+        logger.error("[ytdlp] Failed to finalize installation", e);
+        return { success: false as const, message: `Install error: ${String(e)}` };
       }
     }),
 });
@@ -212,5 +230,3 @@ export type BinaryRouter = typeof binaryRouter;
 
 // Export utilities for use by other routers
 export { getBinaryFilePath };
-
-

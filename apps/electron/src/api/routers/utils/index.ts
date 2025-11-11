@@ -274,6 +274,12 @@ export const utilsRouter = t.router({
         }
 
         const rawData: unknown = await response.json();
+
+        // Log actual response for debugging
+        logger.info("[translation] Google Translate API response received", {
+          structure: JSON.stringify(rawData).substring(0, 200),
+        });
+
         const parseResult = googleTranslateResponseSchema.safeParse(rawData);
 
         if (
@@ -281,7 +287,10 @@ export const utilsRouter = t.router({
           !Array.isArray(parseResult.data) ||
           !Array.isArray(parseResult.data[0])
         ) {
-          logger.error("[translation] Invalid API response structure", { rawData });
+          logger.error("[translation] Invalid API response structure", {
+            zodError: parseResult.success ? null : parseResult.error,
+            rawData,
+          });
           throw new Error("Invalid translation API response structure");
         }
 

@@ -85,8 +85,34 @@ async function fetchLatestRelease(): Promise<{ version: string; assetUrl: string
   }
 }
 
+// Return types for binary router endpoints
+type GetInstallInfoResult = {
+  installed: boolean;
+  version: string | null;
+  path: string | null;
+};
+
+type ResolveLatestResult = {
+  version: string;
+  assetUrl: string;
+} | null;
+
+type DownloadLatestSuccess = {
+  success: true;
+  path: string;
+  version: string;
+  alreadyInstalled: boolean;
+};
+
+type DownloadLatestFailure = {
+  success: false;
+  message: string;
+};
+
+type DownloadLatestResult = DownloadLatestSuccess | DownloadLatestFailure;
+
 export const binaryRouter = t.router({
-  getInstallInfo: publicProcedure.query(async () => {
+  getInstallInfo: publicProcedure.query(async (): Promise<GetInstallInfoResult> => {
     try {
       const binPath = getBinaryFilePath();
       const installed = fs.existsSync(binPath);
@@ -98,14 +124,14 @@ export const binaryRouter = t.router({
     }
   }),
 
-  resolveLatest: publicProcedure.query(async () => {
+  resolveLatest: publicProcedure.query(async (): Promise<ResolveLatestResult> => {
     const info = await fetchLatestRelease();
     return info;
   }),
 
   downloadLatest: publicProcedure
     .input(z.object({ force: z.boolean().optional() }).optional())
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<DownloadLatestResult> => {
       ensureBinDir();
       const binPath = getBinaryFilePath();
       if (fs.existsSync(binPath) && !input?.force) {

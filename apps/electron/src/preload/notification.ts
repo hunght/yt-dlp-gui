@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld("electronNotification", {
   },
 
   // Function to listen for show-notification events
-  onNotification: (callback: (data: any) => void) => {
+  onNotification: (callback: (data: unknown) => void) => {
     ipcRenderer.on(NOTIFICATION_SHOW_CHANNEL, (_event, data) => {
       callback(data);
     });

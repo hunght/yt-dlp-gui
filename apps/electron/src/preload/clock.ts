@@ -10,7 +10,7 @@ import { contextBridge, ipcRenderer } from "electron";
 // Expose protected APIs to the renderer process
 contextBridge.exposeInMainWorld("electronClock", {
   // Function to control timer (start/pause/stop)
-  control: (action: string, data?: any) => {
+  control: (action: string, data?: unknown) => {
     return ipcRenderer.invoke(CLOCK_CONTROL_CHANNEL, { action, data });
   },
 
@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld("electronClock", {
   },
 
   // Function to listen for timer updates
-  onUpdate: (callback: (data: any) => void) => {
+  onUpdate: (callback: (data: unknown) => void) => {
     ipcRenderer.on(CLOCK_UPDATE_CHANNEL, (_event, data) => {
       callback(data);
     });

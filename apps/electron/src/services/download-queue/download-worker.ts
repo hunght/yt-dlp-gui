@@ -140,7 +140,7 @@ export const spawnDownload = async (
       activeWorkers.delete(downloadId);
       const queueManager = requireQueueManager();
       await queueManager.markFailed(downloadId, error.message, "spawn_error");
-      logger.error("[download-worker] Download process error", error as Error, { downloadId });
+      logger.error("[download-worker] Download process error", error, { downloadId });
     });
   } catch (error) {
     activeWorkers.delete(downloadId);
@@ -150,7 +150,7 @@ export const spawnDownload = async (
       error instanceof Error ? error.message : "Unknown error",
       "spawn_error"
     );
-    logger.error("[download-worker] Failed to spawn download", error as Error, { downloadId });
+    logger.error("[download-worker] Failed to spawn download", error, { downloadId });
   }
 };
 
@@ -230,7 +230,7 @@ const parseProgressAndMetadata = (db: Database, downloadId: string, output: stri
     if (worker) {
       // Normalize quotes and whitespace
       const cleaned = foundPath.replace(/^"|"$/g, "").trim();
-      (worker as any).lastKnownFilePath = cleaned;
+      worker.lastKnownFilePath = cleaned;
     }
   }
 };

@@ -5,6 +5,55 @@ import { eq, desc, inArray, sql } from "drizzle-orm";
 import { youtubeVideos, videoWatchStats } from "@/api/db/schema";
 import defaultDb from "@/api/db";
 
+// Return types for watch-stats router
+type RecordProgressSuccess = {
+  success: true;
+};
+
+type RecordProgressFailure = {
+  success: false;
+};
+
+type RecordProgressResult = RecordProgressSuccess | RecordProgressFailure;
+
+type WatchedVideoWithStats = {
+  id: string;
+  videoId: string;
+  title: string;
+  description: string | null;
+  channelId: string | null;
+  channelTitle: string | null;
+  thumbnailUrl: string | null;
+  thumbnailPath: string | null;
+  durationSeconds: number | null;
+  viewCount: number | null;
+  publishedAt: number | null;
+  totalWatchSeconds: number | null;
+  lastPositionSeconds: number | null;
+  lastWatchedAt: number;
+};
+
+type ListRecentWatchedResult = WatchedVideoWithStats[];
+
+type RecentVideoInfo = {
+  id: string;
+  videoId: string;
+  title: string;
+  description: string | null;
+  channelId: string | null;
+  channelTitle: string | null;
+  thumbnailUrl: string | null;
+  thumbnailPath: string | null;
+  durationSeconds: number | null;
+  viewCount: number | null;
+  publishedAt: number | null;
+  downloadStatus: string | null;
+  downloadProgress: number | null;
+  downloadFilePath: string | null;
+};
+
+type ListRecentVideosResult = RecentVideoInfo[];
+
 export const watchStatsRouter = t.router({
   // Record watch progress (accumulated seconds and last position)
   recordProgress: publicProcedure
@@ -15,7 +64,7 @@ export const watchStatsRouter = t.router({
         positionSeconds: z.number().min(0).optional(),
       })
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<RecordProgressResult> => {
       const db = ctx.db ?? defaultDb;
       const now = Date.now();
       try {
@@ -62,7 +111,7 @@ export const watchStatsRouter = t.router({
   // List recently watched videos joined with metadata
   listRecentWatched: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }): Promise<ListRecentWatchedResult> => {
       const db = ctx.db ?? defaultDb;
       const limit = input?.limit ?? 30;
       // Get recent watch stats
@@ -109,7 +158,7 @@ export const watchStatsRouter = t.router({
   // List videos by most recently added (watch history fallback)
   listRecentVideos: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }): Promise<ListRecentVideosResult> => {
       const db = ctx.db ?? defaultDb;
       const limit = input?.limit ?? 30;
       const rows = await db

@@ -290,15 +290,97 @@ onSuccess: (response) => {
 }
 ```
 
+**Real-world example (Transcript Download):**
+```typescript
+// Backend: apps/electron/src/api/routers/transcripts/index.ts
+type DownloadTranscriptSuccess = {
+  success: true;
+  videoId: string;
+  language: string;
+  length: number;
+  fromCache?: boolean;
+};
+
+type DownloadTranscriptFailure =
+  | {
+      success: false;
+      code: "RATE_LIMITED";
+      retryAfterMs: number;
+      message: string;
+    }
+  | {
+      success: false;
+      message: string;
+    };
+
+type DownloadTranscriptResult = DownloadTranscriptSuccess | DownloadTranscriptFailure;
+
+export const transcriptsRouter = t.router({
+  download: publicProcedure
+    .input(z.object({ videoId: z.string(), lang: z.string().optional() }))
+    .mutation(async ({ input }): Promise<DownloadTranscriptResult> => {
+      // TypeScript enforces all return statements match DownloadTranscriptResult
+      if (!binPath) {
+        return { success: false, message: "yt-dlp binary not installed" };
+      }
+      
+      if (rateLimited) {
+        return {
+          success: false,
+          code: "RATE_LIMITED",
+          retryAfterMs: 15 * 60 * 1000,
+          message: "Too many requests",
+        };
+      }
+      
+      return {
+        success: true,
+        videoId: input.videoId,
+        language: detectedLang,
+        length: text.length,
+      };
+    }),
+});
+
+// Frontend: apps/electron/src/pages/player/components/TranscriptPanel.tsx
+const downloadTranscriptMutation = useMutation({
+  mutationFn: async () => {
+    return await trpcClient.transcripts.download.mutate({
+      videoId,
+      lang: selectedLang ?? undefined,
+    });
+  },
+  onSuccess: (response) => {
+    // tRPC automatically infers response type from backend!
+    if (response.success) {
+      // TypeScript knows: response.videoId, response.language, response.length exist
+      queryClient.invalidateQueries({ queryKey: ["transcript", videoId] });
+      return;
+    }
+
+    // Handle discriminated union with type guard
+    if ("code" in response && response.code === "RATE_LIMITED") {
+      // TypeScript knows: response.retryAfterMs exists
+      setCooldown(videoId, selectedLang, response.retryAfterMs);
+      return;
+    }
+
+    // TypeScript knows: response.message exists
+    toastHook({ title: "Failed", description: response.message });
+  },
+});
+```
+
 **Benefits:**
 - No duplicate validation logic
 - Backend is the single source of truth
 - Compile-time type checking (not just runtime)
 - Refactoring is safer (change backend type → frontend shows errors immediately)
 - Cleaner, more maintainable code
+- TypeScript infers all types automatically through tRPC
 
 **When to use Zod on frontend:**
-- External APIs (not tRPC)
+- External APIs (not tRPC) - e.g., Google Translate API, Dictionary API
 - Browser APIs (localStorage, etc.)
 - User file uploads
 - Third-party libraries

@@ -1,5 +1,6 @@
 import React from "react";
 import { useAtom } from "jotai";
+import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,10 +46,14 @@ export function TranscriptSettingsDialog({
   );
   const [showInlineTranslations, setShowInlineTranslations] = useAtom(showInlineTranslationsAtom);
 
+  // Zod schema for font family validation
+  const fontFamilySchema = z.enum(["system", "serif", "mono"]);
+
   // Type-safe handler for font family changes
   const handleFontFamilyChange = (value: string) => {
-    if (value === "system" || value === "serif" || value === "mono") {
-      setFontFamily(value);
+    const result = fontFamilySchema.safeParse(value);
+    if (result.success) {
+      setFontFamily(result.data);
     }
   };
 

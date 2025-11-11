@@ -154,7 +154,7 @@ export function TranscriptPanel({
     () =>
       filterLanguagesByPreference(
         availableSubsQuery.data?.languages || [],
-     const handleEnterKey = (): void => {
+        userPrefsQuery.data?.preferredLanguages || []
       ),
     [availableSubsQuery.data, userPrefsQuery.data]
   );
@@ -163,7 +163,7 @@ export function TranscriptPanel({
   useEffect(() => {
     const available = (availableSubsQuery.data?.languages ?? []).map((l) => l.lang);
     if (selectedLang && !available.includes(selectedLang)) {
-     const handleWordMouseEnter = async (word: string): Promise<void> => {
+      toast({
         title: "Subtitle not available",
         description: `No transcript available in ${selectedLang.toUpperCase()} for this video. Showing default transcript instead.`,
         variant: "destructive",
@@ -325,7 +325,7 @@ export function TranscriptPanel({
   };
 
   // Handle Enter key - trigger annotation form at current time
-  const handleEnterKey = () => {
+  const handleEnterKey = (): void => {
     setOpenAnnotationForm({
       trigger: Date.now(),
       currentTime,
@@ -426,7 +426,7 @@ export function TranscriptPanel({
   );
 
   // Handle word hover with debouncing and automatic translation
-  const handleWordMouseEnter = async (word: string) => {
+  const handleWordMouseEnter = async (word: string): Promise<void> => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
@@ -492,7 +492,7 @@ export function TranscriptPanel({
     }, 800); // 800ms hover delay before translation
   };
 
-  const handleWordMouseLeave = () => {
+  const handleWordMouseLeave = (): void => {
     // Clear translation timer if user stops hovering
     if (translateTimeoutRef.current) {
       clearTimeout(translateTimeoutRef.current);
@@ -510,7 +510,7 @@ export function TranscriptPanel({
   };
 
   // Handle tooltip hover to keep it visible
-  const handleTooltipMouseEnter = () => {
+  const handleTooltipMouseEnter = (): void => {
     setIsHoveringTooltip(true);
     // Clear any pending hide timeout
     if (hoverTimeoutRef.current) {
@@ -518,7 +518,7 @@ export function TranscriptPanel({
     }
   };
 
-  const handleTooltipMouseLeave = () => {
+  const handleTooltipMouseLeave = (): void => {
     setIsHoveringTooltip(false);
     // Hide after leaving tooltip
     hoverTimeoutRef.current = setTimeout(() => {
@@ -553,7 +553,7 @@ export function TranscriptPanel({
     const video = videoRef.current;
     if (!container || !video || segments.length === 0) return;
 
-    const handleWheel = (e: WheelEvent) => {
+    const handleWheel = (e: WheelEvent): void => {
       // Throttle: Ignore wheel events if we're already seeking
       if (isSeekingRef.current) {
         e.preventDefault();
@@ -664,7 +664,7 @@ export function TranscriptPanel({
 
   // Track selection state and snap to word boundaries
   useEffect(() => {
-    const handleSelectionChange = () => {
+    const handleSelectionChange = (): void => {
       if (!transcriptContainerRef.current) return;
 
       const selection = window.getSelection();
@@ -723,19 +723,19 @@ export function TranscriptPanel({
   }, [activeSegIndex, followPlayback, isSelecting, isHovering, isHoveringTooltip]);
 
   // Handle mousedown to detect selection start
-  const handleMouseDown = () => {
+  const handleMouseDown = (): void => {
     // Set a flag that selection might be starting
     // The actual selection state will be updated by selectionchange listener
   };
 
   // Handle mouseup to finalize selection
-  const handleMouseUp = () => {
+  const handleMouseUp = (): void => {
     // Let the selectionchange event handle the state update
     // This is just to ensure we capture the end of selection
   };
 
   // Keyboard navigation within transcript container
-  const handleTranscriptKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleTranscriptKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
     if (!segments.length) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();

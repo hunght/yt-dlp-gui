@@ -2,6 +2,7 @@
 # This config is extended by the root lefthook.yml
 
 pre-commit:
+  parallel: true
   commands:
     # Lint TypeScript files in electron app
     lint:

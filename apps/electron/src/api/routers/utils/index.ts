@@ -16,6 +16,37 @@ import { getDatabasePath } from "@/utils/paths";
 import { translationCache, translationContexts } from "@yt-dlp-gui/database";
 import crypto from "crypto";
 
+// Zod schemas for dictionary API response
+const dictionaryDefinitionSchema = z.object({
+  definition: z.string(),
+  example: z.string().optional(),
+});
+
+const dictionaryMeaningSchema = z.object({
+  partOfSpeech: z.string().optional(),
+  definitions: z.array(dictionaryDefinitionSchema).optional(),
+});
+
+const dictionaryPhoneticSchema = z.object({
+  text: z.string().optional(),
+});
+
+const dictionaryEntrySchema = z.object({
+  meanings: z.array(dictionaryMeaningSchema).optional(),
+  phonetic: z.string().optional(),
+  phonetics: z.array(dictionaryPhoneticSchema).optional(),
+});
+
+const dictionaryResponseSchema = z.union([z.array(dictionaryEntrySchema), dictionaryEntrySchema]);
+
+// Zod schema for Google Translate API response
+// Format: [[[translatedText, originalText, null, null, translatedWordCount]], null, detectedLang]
+const googleTranslateResponseSchema = z.tuple([
+  z.array(z.array(z.union([z.string(), z.null(), z.number()]))),
+  z.unknown().optional(),
+  z.string().optional(),
+]);
+
 export const utilsRouter = t.router({
   openExternalUrl: publicProcedure
     .input(
@@ -52,37 +83,42 @@ export const utilsRouter = t.router({
         try {
           const response = await fetch(dictionaryApiUrl);
           if (response.ok) {
-            const data = await response.json();
-            const firstEntry = Array.isArray(data) ? data[0] : data;
+            const rawData: unknown = await response.json();
+            const parseResult = dictionaryResponseSchema.safeParse(rawData);
 
-            // Extract definition and example
-            const meanings = firstEntry.meanings || [];
-            const firstMeaning = meanings[0];
-            const definition = firstMeaning?.definitions?.[0]?.definition || "";
-            const example = firstMeaning?.definitions?.[0]?.example || "";
-            const partOfSpeech = firstMeaning?.partOfSpeech || "";
+            if (parseResult.success) {
+              const data = parseResult.data;
+              const firstEntry = Array.isArray(data) ? data[0] : data;
 
-            // Create a fun, memorable explanation with engaging formatting
-            let funExplanation = `📚 **${cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1)}**`;
+              // Extract definition and example
+              const meanings = firstEntry.meanings ?? [];
+              const firstMeaning = meanings[0];
+              const definition = firstMeaning?.definitions?.[0]?.definition ?? "";
+              const example = firstMeaning?.definitions?.[0]?.example ?? "";
+              const partOfSpeech = firstMeaning?.partOfSpeech ?? "";
 
-            if (partOfSpeech) {
-              funExplanation += ` (${partOfSpeech})`;
+              // Create a fun, memorable explanation with engaging formatting
+              let funExplanation = `📚 **${cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1)}**`;
+
+              if (partOfSpeech) {
+                funExplanation += ` (${partOfSpeech})`;
+              }
+
+              funExplanation += `\n\n${definition || `A word you're learning in ${langCode.toUpperCase()}!`}`;
+
+              if (example) {
+                funExplanation += `\n\n✨ *Example: "${example}"*`;
+              }
+
+              funExplanation += `\n\n💡 *Memory tip: Try using this word in a sentence right now - practice makes perfect! 💪*`;
+
+              return {
+                success: true as const,
+                word: cleanWord,
+                explanation: funExplanation,
+                pronunciation: firstEntry.phonetic ?? firstEntry.phonetics?.[0]?.text ?? "",
+              };
             }
-
-            funExplanation += `\n\n${definition || `A word you're learning in ${langCode.toUpperCase()}!`}`;
-
-            if (example) {
-              funExplanation += `\n\n✨ *Example: "${example}"*`;
-            }
-
-            funExplanation += `\n\n💡 *Memory tip: Try using this word in a sentence right now - practice makes perfect! 💪*`;
-
-            return {
-              success: true as const,
-              word: cleanWord,
-              explanation: funExplanation,
-              pronunciation: firstEntry.phonetic || firstEntry.phonetics?.[0]?.text || "",
-            };
           }
         } catch (e) {
           logger.debug("[word-explanation] Dictionary API failed, will open ChatGPT", {
@@ -240,121 +276,124 @@ export const utilsRouter = t.router({
           throw new Error(`Translation API returned ${response.status}`);
         }
 
-        const data = await response.json();
+        const rawData: unknown = await response.json();
+        const parseResult = googleTranslateResponseSchema.safeParse(rawData);
 
-        // Parse the response
-        // Google Translate API returns: [[[translatedText, originalText, null, null, translatedWordCount]]]
-        if (Array.isArray(data) && Array.isArray(data[0])) {
-          const translations = data[0];
-          const translatedText = translations
-            .filter((item: any) => Array.isArray(item) && item[0])
-            .map((item: any) => item[0])
-            .join("");
+        if (!parseResult.success) {
+          throw new Error("Invalid translation API response structure");
+        }
 
-          // Detect source language (data[2] contains detected language)
-          const detectedLang = data[2] || sl;
+        const data = parseResult.data;
+        const translations = data[0];
+        const translatedText = translations
+          .filter(
+            (item): item is [string, ...(string | number | null)[]] =>
+              Array.isArray(item) && typeof item[0] === "string"
+          )
+          .map((item) => item[0])
+          .join("");
 
-          // Store in cache for future use
-          if (db) {
-            try {
-              const cacheId = crypto.randomUUID();
-              const now = Date.now();
-              const { sql } = await import("drizzle-orm");
+        // Detect source language (data[2] contains detected language)
+        const detectedLang = data[2] ?? sl;
 
-              // Use upsert: insert or update if already exists, return the record
-              const [upsertedRecord] = await db
-                .insert(translationCache)
-                .values({
-                  id: cacheId,
-                  sourceText: cleanText,
-                  sourceLang: sl,
-                  targetLang: tl,
-                  translatedText,
-                  detectedLang,
-                  queryCount: 1, // First query for this translation
-                  firstQueriedAt: now, // Record when user first encountered this
-                  lastQueriedAt: now, // Same as first for initial entry
-                  createdAt: now,
-                  updatedAt: now,
-                })
-                .onConflictDoUpdate({
-                  target: [
-                    translationCache.sourceText,
-                    translationCache.sourceLang,
-                    translationCache.targetLang,
-                  ],
-                  set: {
-                    queryCount: sql`${translationCache.queryCount} + 1`,
-                    lastQueriedAt: now,
-                    updatedAt: now,
-                  },
-                })
-                .returning();
+        // Store in cache for future use
+        if (db) {
+          try {
+            const cacheId = crypto.randomUUID();
+            const now = Date.now();
+            const { sql } = await import("drizzle-orm");
 
-              const actualCacheId = upsertedRecord.id;
-
-              logger.debug("[translation] Cached translation", {
+            // Use upsert: insert or update if already exists, return the record
+            const [upsertedRecord] = await db
+              .insert(translationCache)
+              .values({
+                id: cacheId,
                 sourceText: cleanText,
                 sourceLang: sl,
                 targetLang: tl,
-                queryCount: upsertedRecord.queryCount,
-              });
+                translatedText,
+                detectedLang,
+                queryCount: 1, // First query for this translation
+                firstQueriedAt: now, // Record when user first encountered this
+                lastQueriedAt: now, // Same as first for initial entry
+                createdAt: now,
+                updatedAt: now,
+              })
+              .onConflictDoUpdate({
+                target: [
+                  translationCache.sourceText,
+                  translationCache.sourceLang,
+                  translationCache.targetLang,
+                ],
+                set: {
+                  queryCount: sql`${translationCache.queryCount} + 1`,
+                  lastQueriedAt: now,
+                  updatedAt: now,
+                },
+              })
+              .returning();
 
-              // Save video context
-              try {
-                await db
-                  .insert(translationContexts)
-                  .values({
-                    id: crypto.randomUUID(),
-                    translationId: actualCacheId,
-                    videoId: input.videoId,
-                    timestampSeconds: Math.floor(input.timestampSeconds),
-                    contextText: input.contextText || null,
-                    createdAt: now,
-                  })
-                  .onConflictDoNothing();
+            const actualCacheId = upsertedRecord.id;
 
-                logger.debug("[translation] Saved video context for new translation", {
+            logger.debug("[translation] Cached translation", {
+              sourceText: cleanText,
+              sourceLang: sl,
+              targetLang: tl,
+              queryCount: upsertedRecord.queryCount,
+            });
+
+            // Save video context
+            try {
+              await db
+                .insert(translationContexts)
+                .values({
+                  id: crypto.randomUUID(),
                   translationId: actualCacheId,
                   videoId: input.videoId,
-                  timestamp: input.timestampSeconds,
-                });
-              } catch (contextError) {
-                logger.warn("[translation] Failed to save video context", {
-                  error: String(contextError),
-                });
-              }
+                  timestampSeconds: Math.floor(input.timestampSeconds),
+                  contextText: input.contextText ?? null,
+                  createdAt: now,
+                })
+                .onConflictDoNothing();
 
-              // Return with translationId for saving to My Words
-              return {
-                success: true as const,
-                translation: translatedText,
+              logger.debug("[translation] Saved video context for new translation", {
                 translationId: actualCacheId,
-                originalText: cleanText,
-                sourceLang: detectedLang,
-                targetLang: tl,
-                fromCache: false,
-              };
-            } catch (cacheError) {
-              logger.warn("[translation] Failed to cache translation", {
-                error: String(cacheError),
+                videoId: input.videoId,
+                timestamp: input.timestampSeconds,
               });
-              // Don't fail the translation if caching fails
+            } catch (contextError) {
+              logger.warn("[translation] Failed to save video context", {
+                error: String(contextError),
+              });
             }
-          }
 
-          return {
-            success: true as const,
-            translation: translatedText,
-            translationId: "", // No ID if caching failed
-            originalText: cleanText,
-            sourceLang: detectedLang,
-            targetLang: tl,
-            fromCache: false,
-          };
+            // Return with translationId for saving to My Words
+            return {
+              success: true as const,
+              translation: translatedText,
+              translationId: actualCacheId,
+              originalText: cleanText,
+              sourceLang: detectedLang,
+              targetLang: tl,
+              fromCache: false,
+            };
+          } catch (cacheError) {
+            logger.warn("[translation] Failed to cache translation", {
+              error: String(cacheError),
+            });
+            // Don't fail the translation if caching fails
+          }
         }
 
-        throw new Error("Unexpected response format from translation API");
+        return {
+          success: true as const,
+          translation: translatedText,
+          translationId: "", // No ID if caching failed
+          originalText: cleanText,
+          sourceLang: detectedLang,
+          targetLang: tl,
+          fromCache: false,
+        };
       } catch (e) {
         logger.error("[translation] Failed to translate text", {
           text: input.text,
@@ -462,7 +501,7 @@ export const utilsRouter = t.router({
 
         return { success: !!window };
       } catch (error) {
-        logger.error("Failed to open notification window", error as Error);
+        logger.error("Failed to open notification window", error);
         return { success: false, error: String(error) };
       }
     }),
@@ -659,7 +698,7 @@ export const utilsRouter = t.router({
       closeWindow();
       return { success: true };
     } catch (error) {
-      logger.error("Failed to close notification window", error as Error);
+      logger.error("Failed to close notification window", error);
       return { success: false, error: String(error) };
     }
   }),
@@ -722,7 +761,7 @@ export const utilsRouter = t.router({
 
         return { success };
       } catch (error) {
-        logger.error("Failed to send notification", error as Error);
+        logger.error("Failed to send notification", error);
         return { success: false, error: String(error) };
       }
     }),
@@ -744,7 +783,7 @@ export const utilsRouter = t.router({
           downloadUrl: null,
         };
       } catch (error) {
-        logger.error("Failed to install update", error as Error);
+        logger.error("Failed to install update", error);
         return { status: "error" as const, message: "Failed to install update" };
       }
     }),

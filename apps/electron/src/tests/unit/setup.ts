@@ -9,8 +9,12 @@ Object.assign(global, {
 
 // Mock fetch if needed for Node.js environment
 if (typeof global.fetch === "undefined") {
-  global.fetch = jest.fn() as any;
-  global.Request = jest.fn() as any;
-  global.Response = jest.fn() as any;
-  global.Headers = jest.fn() as any;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+  global.fetch = jest.fn() as unknown as typeof fetch;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+  global.Request = jest.fn() as unknown as typeof Request;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+  global.Response = jest.fn() as unknown as typeof Response;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+  global.Headers = jest.fn() as unknown as typeof Headers;
 }

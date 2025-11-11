@@ -20,7 +20,7 @@ export const extractZipWithYauzl = (zipPath: string, extractDir: string): Promis
       logger.info(`Opened ZIP file with ${zipfile.entryCount} entries`);
 
       zipfile.readEntry();
-      zipfile.on("entry", (entry) => {
+      zipfile.on("entry", (entry: yauzl.Entry) => {
         logger.info(`Processing entry: ${entry.fileName}`);
 
         if (/\/$/.test(entry.fileName)) {

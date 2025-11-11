@@ -40,8 +40,17 @@ export function TranscriptSettingsDialog({
   const [fontFamily, setFontFamily] = useAtom(fontFamilyAtom);
   const [fontSize, setFontSize] = useAtom(fontSizeAtom);
   const [translationTargetLang, setTranslationTargetLang] = useAtom(translationTargetLangAtom);
-  const [includeTranslationInNote, setIncludeTranslationInNote] = useAtom(includeTranslationInNoteAtom);
+  const [includeTranslationInNote, setIncludeTranslationInNote] = useAtom(
+    includeTranslationInNoteAtom
+  );
   const [showInlineTranslations, setShowInlineTranslations] = useAtom(showInlineTranslationsAtom);
+
+  // Type-safe handler for font family changes
+  const handleFontFamilyChange = (value: string) => {
+    if (value === "system" || value === "serif" || value === "mono") {
+      setFontFamily(value);
+    }
+  };
 
   // Common translation target languages
   const translationLanguages = [
@@ -76,10 +85,7 @@ export function TranscriptSettingsDialog({
           {filteredLanguages.length > 0 && (
             <div className="space-y-2">
               <Label className="text-xs">Language</Label>
-              <Select
-                value={selectedLang ?? effectiveLang ?? ""}
-                onValueChange={onLanguageChange}
-              >
+              <Select value={selectedLang ?? effectiveLang ?? ""} onValueChange={onLanguageChange}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select language" />
                 </SelectTrigger>
@@ -98,7 +104,7 @@ export function TranscriptSettingsDialog({
           {/* Font family */}
           <div className="space-y-2">
             <Label className="text-xs">Font family</Label>
-            <Select value={fontFamily} onValueChange={(v) => setFontFamily(v as any)}>
+            <Select value={fontFamily} onValueChange={handleFontFamilyChange}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -154,7 +160,7 @@ export function TranscriptSettingsDialog({
               checked={includeTranslationInNote}
               onCheckedChange={(checked) => setIncludeTranslationInNote(checked === true)}
             />
-            <Label htmlFor="include-translation-setting" className="text-xs cursor-pointer">
+            <Label htmlFor="include-translation-setting" className="cursor-pointer text-xs">
               Auto-include translation in note (default)
             </Label>
           </div>
@@ -166,7 +172,7 @@ export function TranscriptSettingsDialog({
               checked={showInlineTranslations}
               onCheckedChange={(checked) => setShowInlineTranslations(checked === true)}
             />
-            <Label htmlFor="show-inline-translations" className="text-xs cursor-pointer">
+            <Label htmlFor="show-inline-translations" className="cursor-pointer text-xs">
               Show inline translations in transcript
             </Label>
           </div>

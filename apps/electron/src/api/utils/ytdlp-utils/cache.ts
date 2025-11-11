@@ -8,13 +8,18 @@ const getThumbCacheDir = () => path.join(app.getPath("userData"), "cache", "thum
 async function ensureDir(p: string) {
   try {
     fs.mkdirSync(p, { recursive: true });
-  } catch {}
+  } catch {
+    // Ignore - directory may already exist or parent creation in progress
+  }
 }
 
-export async function downloadImageToCache(url: string, filenameBase: string): Promise<string | null> {
+export async function downloadImageToCache(
+  url: string,
+  filenameBase: string
+): Promise<string | null> {
   try {
     // Skip YouTube's placeholder "no thumbnail" image to avoid unnecessary 404s
-    if (url.includes('no_thumbnail.jpg') || url.includes('no_thumbnail')) {
+    if (url.includes("no_thumbnail.jpg") || url.includes("no_thumbnail")) {
       return null;
     }
 
@@ -35,4 +40,3 @@ export async function downloadImageToCache(url: string, filenameBase: string): P
     return null;
   }
 }
-

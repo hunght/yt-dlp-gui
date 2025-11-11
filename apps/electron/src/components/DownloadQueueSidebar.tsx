@@ -67,8 +67,9 @@ export const DownloadQueueSidebar: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       toast.success("Download paused");
     },
-    onError: (error: any) => {
-      toast.error(error?.message ?? "Failed to pause download");
+    onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : "Failed to pause download";
+      toast.error(errorMessage);
     },
   });
 
@@ -79,8 +80,9 @@ export const DownloadQueueSidebar: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       toast.success("Download resumed");
     },
-    onError: (error: any) => {
-      toast.error(error?.message ?? "Failed to resume download");
+    onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : "Failed to resume download";
+      toast.error(errorMessage);
     },
   });
 
@@ -91,8 +93,9 @@ export const DownloadQueueSidebar: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       toast.success("Download cancelled");
     },
-    onError: (error: any) => {
-      toast.error(error?.message ?? "Failed to cancel download");
+    onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : "Failed to cancel download";
+      toast.error(errorMessage);
     },
   });
 
@@ -103,8 +106,9 @@ export const DownloadQueueSidebar: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
       toast.success("Download queued for retry");
     },
-    onError: (error: any) => {
-      toast.error(error?.message ?? "Failed to retry download");
+    onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : "Failed to retry download";
+      toast.error(errorMessage);
     },
   });
 

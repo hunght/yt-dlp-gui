@@ -39,7 +39,21 @@ const formatDuration = (seconds: number | null): string => {
 export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
-  const [previewInfo, setPreviewInfo] = useState<any>(null);
+  // Type matches tRPC ytdlp.fetchVideoInfo response (from database schema)
+  const [previewInfo, setPreviewInfo] = useState<{
+    videoId: string;
+    title: string;
+    description: string | null;
+    channelId: string | null;
+    channelTitle: string | null;
+    durationSeconds: number | null;
+    viewCount: number | null;
+    likeCount: number | null;
+    thumbnailUrl: string | null;
+    publishedAt: number | null;
+    tags: string | null;
+    raw: string;
+  } | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailError, setThumbnailError] = useState(false);
@@ -61,7 +75,7 @@ export default function DashboardPage() {
         setThumbnailUrl(null);
       }
     },
-    onError: (e: any) => {
+    onError: (e) => {
       setIsLoadingPreview(false);
       toast.error(e?.message ?? "Failed to fetch video info");
       setPreviewInfo(null);
@@ -97,7 +111,7 @@ export default function DashboardPage() {
         toast.error(res.message ?? "Failed to start download");
       }
     },
-    onError: (e: any) => toast.error(e?.message ?? "Failed to add to queue"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add to queue"),
   });
 
   const canStart = useMemo(

@@ -43,33 +43,51 @@ export default function HistoryPage() {
           ) : !playedMeta.data || playedMeta.data.length === 0 ? (
             <p className="text-sm text-muted-foreground">No playback history yet.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {playedMeta.data.map((v: any) => {
-                const hideNoThumb = typeof v?.thumbnailUrl === "string" && v.thumbnailUrl.includes("no_thumbnail");
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {playedMeta.data.map((v) => {
+                const hideNoThumb =
+                  typeof v?.thumbnailUrl === "string" && v.thumbnailUrl.includes("no_thumbnail");
                 return (
-                  <div key={v.videoId} className="rounded-lg border p-3 space-y-2">
+                  <div key={v.videoId} className="space-y-2 rounded-lg border p-3">
                     {hideNoThumb ? (
-                      <div className="w-full aspect-video rounded bg-muted" />
+                      <div className="aspect-video w-full rounded bg-muted" />
                     ) : (
                       <Thumbnail
                         thumbnailPath={v?.thumbnailPath}
                         thumbnailUrl={v?.thumbnailUrl}
                         alt={v.title}
-                        className="w-full aspect-video rounded object-cover"
+                        className="aspect-video w-full rounded object-cover"
                       />
                     )}
                     <div className="space-y-1">
-                      <div className="text-sm font-medium line-clamp-2">{v.title}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-1">{v.channelTitle || v.channelId}</div>
+                      <div className="line-clamp-2 text-sm font-medium">{v.title}</div>
+                      <div className="line-clamp-1 text-xs text-muted-foreground">
+                        {v.channelTitle || v.channelId}
+                      </div>
                       {typeof v.totalWatchSeconds === "number" && (
-                        <div className="text-xs text-muted-foreground">Watched ~{Math.round(v.totalWatchSeconds / 60)} min</div>
+                        <div className="text-xs text-muted-foreground">
+                          Watched ~{Math.round(v.totalWatchSeconds / 60)} min
+                        </div>
                       )}
                     </div>
                     <div className="flex gap-2">
-                    <Button size="sm" className="flex-1" onClick={() => navigate({ to: "/player", search: { videoId: v.videoId, playlistId: undefined, playlistIndex: undefined } })}>
-                          <Play className="mr-1 h-3 w-3" />
-                          Play
-                        </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() =>
+                          navigate({
+                            to: "/player",
+                            search: {
+                              videoId: v.videoId,
+                              playlistId: undefined,
+                              playlistIndex: undefined,
+                            },
+                          })
+                        }
+                      >
+                        <Play className="mr-1 h-3 w-3" />
+                        Play
+                      </Button>
                     </div>
                   </div>
                 );
@@ -90,14 +108,19 @@ export default function HistoryPage() {
             <p className="text-sm text-muted-foreground">No active downloads.</p>
           ) : (
             <div className="space-y-3">
-              {[...inProgress, ...queued, ...paused].map((d: any) => (
-                <div key={d.id} className="flex items-center justify-between rounded border p-3 text-sm">
+              {[...inProgress, ...queued, ...paused].map((d) => (
+                <div
+                  key={d.id}
+                  className="flex items-center justify-between rounded border p-3 text-sm"
+                >
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="truncate">{d.title || d.url}</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {d.status === "downloading" ? (
-                      <span className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> {d.progress || 0}%</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> {d.progress || 0}%
+                      </span>
                     ) : (
                       <span className="capitalize">{d.status}</span>
                     )}
@@ -120,10 +143,22 @@ export default function HistoryPage() {
             <p className="text-sm text-muted-foreground">No recent downloads.</p>
           ) : (
             <div className="space-y-2 text-sm">
-              {completed.map((c: any) => (
+              {completed.map((c) => (
                 <div key={c.id} className="flex items-center justify-between rounded border p-3">
                   <div className="min-w-0 truncate">{c.title}</div>
-                  <Button size="sm" onClick={() => navigate({ to: "/player", search: { videoId: c.videoId, playlistId: undefined, playlistIndex: undefined } })}>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      navigate({
+                        to: "/player",
+                        search: {
+                          videoId: c.videoId ?? undefined,
+                          playlistId: undefined,
+                          playlistIndex: undefined,
+                        },
+                      })
+                    }
+                  >
                     <Play className="mr-1 h-3 w-3" /> Play
                   </Button>
                 </div>
@@ -135,5 +170,3 @@ export default function HistoryPage() {
     </div>
   );
 }
-
-

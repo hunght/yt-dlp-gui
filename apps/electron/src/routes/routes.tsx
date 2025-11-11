@@ -36,9 +36,9 @@ const PlayerRoute = createRoute({
   component: PlayerPage,
   validateSearch: (search: Record<string, unknown>) => {
     return {
-      videoId: (search.videoId as string) || undefined,
-      playlistId: (search.playlistId as string) || undefined,
-      playlistIndex: typeof search.playlistIndex === 'number' ? search.playlistIndex : undefined,
+      videoId: typeof search.videoId === "string" ? search.videoId : undefined,
+      playlistId: typeof search.playlistId === "string" ? search.playlistId : undefined,
+      playlistIndex: typeof search.playlistIndex === "number" ? search.playlistIndex : undefined,
     };
   },
 });
@@ -49,7 +49,7 @@ const ChannelRoute = createRoute({
   component: ChannelPage,
   validateSearch: (search: Record<string, unknown>) => {
     return {
-      channelId: (search.channelId as string) || undefined,
+      channelId: typeof search.channelId === "string" ? search.channelId : undefined,
     };
   },
 });
@@ -66,7 +66,7 @@ const PlaylistRoute = createRoute({
   component: PlaylistPage,
   validateSearch: (search: Record<string, unknown>) => {
     return {
-      playlistId: (search.playlistId as string) || undefined,
+      playlistId: typeof search.playlistId === "string" ? search.playlistId : undefined,
     };
   },
 });

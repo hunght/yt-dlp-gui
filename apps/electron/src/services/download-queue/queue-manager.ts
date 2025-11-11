@@ -40,27 +40,90 @@ interface QueueItem {
 }
 
 /**
- * Simple in-memory queue manager that processes downloads with max concurrent limit
- * Download state is synced to youtube_videos table for persistence
+ * Type-safe helper to convert QueueItem to QueuedDownload
  */
-class QueueManager {
-  private db: Database;
-  private config: QueueConfig;
-  private isProcessing: boolean = false;
-  private processingInterval: NodeJS.Timeout | null = null;
+const queueItemToQueuedDownload = (item: QueueItem): QueuedDownload => ({
+  id: item.id,
+  url: item.url,
+  videoId: item.videoId,
+  title: item.title,
+  channelTitle: item.channelTitle,
+  thumbnailUrl: item.thumbnailUrl,
+  status: item.status,
+  progress: item.progress,
+  priority: item.priority,
+  queuePosition: item.queuePosition,
+  format: item.format,
+  quality: item.quality,
+  filePath: null, // Not available for in-progress items
+  fileSize: null, // Not available for in-progress items
+  errorMessage: item.errorMessage,
+  errorType: item.errorType,
+  isRetryable: item.isRetryable,
+  retryCount: item.retryCount,
+  maxRetries: item.maxRetries,
+  addedAt: item.addedAt,
+  startedAt: item.startedAt,
+  pausedAt: item.pausedAt,
+  completedAt: null, // Not completed yet
+  cancelledAt: null, // Not cancelled
+  updatedAt: null, // Using real-time queue data
+  downloadSpeed: item.downloadSpeed,
+  downloadedSize: item.downloadedSize,
+  totalSize: item.totalSize,
+  eta: item.eta,
+});
 
-  // In-memory queue storage
-  private queue: Map<string, QueueItem> = new Map();
+/**
+ * Type-safe helper to create QueueItem from interrupted download
+ */
+const createQueueItemFromVideo = (
+  video: {
+    videoId: string;
+    title: string;
+    channelTitle: string | null;
+    thumbnailUrl: string | null;
+    downloadProgress: number | null;
+    updatedAt: number | null;
+  },
+  downloadId: string,
+  queuePosition: number,
+  maxRetries: number
+): QueueItem => {
+  const url = `https://www.youtube.com/watch?v=${video.videoId}`;
+  return {
+    id: downloadId,
+    url,
+    videoId: video.videoId,
+    title: video.title || url,
+    channelTitle: video.channelTitle,
+    thumbnailUrl: video.thumbnailUrl,
+    status: "queued",
+    progress: video.downloadProgress || 0,
+    priority: 1, // Higher priority for interrupted downloads
+    queuePosition,
+    format: null,
+    quality: null,
+    errorMessage: null,
+    errorType: null,
+    isRetryable: true,
+    retryCount: 0,
+    maxRetries,
+    addedAt: video.updatedAt || Date.now(),
+    startedAt: null,
+    pausedAt: null,
+    downloadSpeed: null,
+    downloadedSize: null,
+    totalSize: null,
+    eta: null,
+  };
+};
 
-  constructor(db: Database, config: Partial<QueueConfig> = {}) {
-    this.db = db;
-    this.config = { ...DEFAULT_QUEUE_CONFIG, ...config };
-  }
-
-  /**
-   * Update download progress (called by download-worker)
-   */
-  async updateProgress(
+/**
+ * Queue manager interface - defines public API
+ */
+export interface QueueManager {
+  updateProgress(
     downloadId: string,
     progress: number,
     metadata?: {
@@ -71,8 +134,56 @@ class QueueManager {
       totalSize?: string | null;
       eta?: string | null;
     }
-  ): Promise<void> {
-    const item = this.queue.get(downloadId);
+  ): Promise<void>;
+  markCompleted(downloadId: string, filePath: string, fileSize?: number): Promise<void>;
+  markFailed(downloadId: string, errorMessage: string, errorType?: string): Promise<void>;
+  restoreInterruptedDownloads(): Promise<void>;
+  start(): Promise<void>;
+  stop(): void;
+  addToQueue(
+    urls: string[],
+    options?: {
+      priority?: number;
+      format?: string;
+      quality?: string;
+    }
+  ): Promise<string[]>;
+  pauseDownload(downloadId: string): Promise<void>;
+  resumeDownload(downloadId: string): Promise<void>;
+  cancelDownload(downloadId: string): Promise<void>;
+  retryDownload(downloadId: string): Promise<void>;
+  getQueueStatus(): Promise<QueueStatus>;
+  clearCompleted(): Promise<void>;
+}
+
+/**
+ * Simple in-memory queue manager that processes downloads with max concurrent limit
+ * Download state is synced to youtube_videos table for persistence
+ * Implemented as a factory function returning an object (functional pattern)
+ */
+const createQueueManager = (db: Database, config: Partial<QueueConfig> = {}): QueueManager => {
+  // Private state (closure variables)
+  const finalConfig: QueueConfig = { ...DEFAULT_QUEUE_CONFIG, ...config };
+  let isProcessing = false;
+  let processingInterval: NodeJS.Timeout | null = null;
+  const queue: Map<string, QueueItem> = new Map();
+
+  /**
+   * Update download progress (called by download-worker)
+   */
+  const updateProgress = async (
+    downloadId: string,
+    progress: number,
+    metadata?: {
+      title?: string;
+      videoId?: string;
+      downloadSpeed?: string | null;
+      downloadedSize?: string | null;
+      totalSize?: string | null;
+      eta?: string | null;
+    }
+  ): Promise<void> => {
+    const item = queue.get(downloadId);
     if (!item) return;
 
     item.progress = progress;
@@ -103,7 +214,7 @@ class QueueManager {
     // Sync progress to youtube_videos using known videoId (from metadata or existing item)
     const vid = metadata?.videoId ?? item.videoId;
     if (vid) {
-      await this.db
+      await db
         .update(youtubeVideos)
         .set({
           downloadStatus: "downloading",
@@ -113,21 +224,21 @@ class QueueManager {
         .where(eq(youtubeVideos.videoId, vid))
         .execute();
     }
-  }
+  };
 
   /**
    * Mark download as completed (called by download-worker)
    */
-  async markCompleted(downloadId: string, filePath: string, fileSize?: number): Promise<void> {
-    const item = this.queue.get(downloadId);
+  const markCompleted = async (downloadId: string, filePath: string, fileSize?: number): Promise<void> => {
+    const item = queue.get(downloadId);
     if (!item) return;
 
     // Remove from queue
-    this.queue.delete(downloadId);
+    queue.delete(downloadId);
 
     // Sync to youtube_videos
     if (item.videoId) {
-      await this.db
+      await db
         .update(youtubeVideos)
         .set({
           downloadStatus: "completed",
@@ -142,13 +253,13 @@ class QueueManager {
     }
 
     logger.info("[queue-manager] Download completed", { downloadId, filePath });
-  }
+  };
 
   /**
    * Mark download as failed (called by download-worker)
    */
-  async markFailed(downloadId: string, errorMessage: string, errorType?: string): Promise<void> {
-    const item = this.queue.get(downloadId);
+  const markFailed = async (downloadId: string, errorMessage: string, errorType?: string): Promise<void> => {
+    const item = queue.get(downloadId);
     if (!item) return;
 
     // Update error info
@@ -158,7 +269,7 @@ class QueueManager {
 
     // Sync to youtube_videos
     if (item.videoId) {
-      await this.db
+      await db
         .update(youtubeVideos)
         .set({
           downloadStatus: "failed",
@@ -175,17 +286,17 @@ class QueueManager {
       downloadId,
       error: errorMessage,
     });
-  }
+  };
 
   /**
    * Restore interrupted downloads from database
    */
-  async restoreInterruptedDownloads(): Promise<void> {
+  const restoreInterruptedDownloads = async (): Promise<void> => {
     try {
       logger.info("[queue-manager] Restoring interrupted downloads from database");
 
       // Find all videos that were downloading or queued
-      const interruptedDownloads = await this.db
+      const interruptedDownloads = await db
         .select({
           videoId: youtubeVideos.videoId,
           title: youtubeVideos.title,
@@ -204,45 +315,25 @@ class QueueManager {
       });
 
       // Get current max queue position
-      const positions = Array.from(this.queue.values()).map((item) => item.queuePosition);
+      const positions = Array.from(queue.values()).map((item) => item.queuePosition);
       let position = positions.length > 0 ? Math.max(...positions) + 1 : 1;
 
       // Add each interrupted download back to the queue
       for (const video of interruptedDownloads) {
         const downloadId = `download-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        const url = `https://www.youtube.com/watch?v=${video.videoId}`;
 
-        const queueItem: QueueItem = {
-          id: downloadId,
-          url,
-          videoId: video.videoId,
-          title: video.title || url,
-          channelTitle: video.channelTitle,
-          thumbnailUrl: video.thumbnailUrl,
-          status: "queued",
-          progress: video.downloadProgress || 0,
-          priority: 1, // Higher priority for interrupted downloads
-          queuePosition: position++,
-          format: null,
-          quality: null,
-          errorMessage: null,
-          errorType: null,
-          isRetryable: true,
-          retryCount: 0,
-          maxRetries: this.config.maxRetries,
-          addedAt: video.updatedAt || Date.now(),
-          startedAt: null,
-          pausedAt: null,
-          downloadSpeed: null,
-          downloadedSize: null,
-          totalSize: null,
-          eta: null,
-        };
+        // Use type-safe helper
+        const queueItem = createQueueItemFromVideo(
+          video,
+          downloadId,
+          position++,
+          finalConfig.maxRetries
+        );
 
-        this.queue.set(downloadId, queueItem);
+        queue.set(downloadId, queueItem);
 
         // Reset status to queued in database
-        await this.db
+        await db
           .update(youtubeVideos)
           .set({
             downloadStatus: "queued",
@@ -265,74 +356,74 @@ class QueueManager {
     } catch (error) {
       logger.error("[queue-manager] Failed to restore interrupted downloads", error);
     }
-  }
+  };
 
   /**
    * Start the queue processor
    */
-  async start(): Promise<void> {
-    if (this.isProcessing) {
+  const start = async (): Promise<void> => {
+    if (isProcessing) {
       logger.warn("[queue-manager] Queue already running");
       return;
     }
 
-    this.isProcessing = true;
+    isProcessing = true;
     logger.info("[queue-manager] Starting queue processor", {
-      maxConcurrent: this.config.maxConcurrent,
+      maxConcurrent: finalConfig.maxConcurrent,
     });
 
     // Restore interrupted downloads first
-    await this.restoreInterruptedDownloads();
+    await restoreInterruptedDownloads();
 
     // Process queue every 2 seconds
-    this.processingInterval = setInterval(() => {
-      this.processQueue().catch((error) => {
+    processingInterval = setInterval(() => {
+      processQueue().catch((error) => {
         logger.error("[queue-manager] Error processing queue", error);
       });
     }, 2000);
 
     // Process immediately
-    this.processQueue().catch((error) => {
+    processQueue().catch((error) => {
       logger.error("[queue-manager] Error processing queue", error);
     });
-  }
+  };
 
   /**
    * Stop the queue processor
    */
-  stop(): void {
-    if (!this.isProcessing) {
+  const stop = (): void => {
+    if (!isProcessing) {
       return;
     }
 
-    this.isProcessing = false;
-    if (this.processingInterval) {
-      clearInterval(this.processingInterval);
-      this.processingInterval = null;
+    isProcessing = false;
+    if (processingInterval) {
+      clearInterval(processingInterval);
+      processingInterval = null;
     }
 
     logger.info("[queue-manager] Stopped queue processor");
-  }
+  };
 
   /**
    * Process the queue - start downloads if under max concurrent limit
    */
-  private async processQueue(): Promise<void> {
+  const processQueue = async (): Promise<void> => {
     try {
       // Count active downloads in memory
-      const activeDownloads = Array.from(this.queue.values()).filter(
+      const activeDownloads = Array.from(queue.values()).filter(
         (item) => item.status === "downloading"
       );
       const activeCount = activeDownloads.length;
 
       // Check if we can start more downloads
-      const availableSlots = this.config.maxConcurrent - activeCount;
+      const availableSlots = finalConfig.maxConcurrent - activeCount;
       if (availableSlots <= 0) {
         return; // All slots filled
       }
 
       // Get next queued downloads (sorted by priority desc, then queuePosition asc)
-      const queuedDownloads = Array.from(this.queue.values())
+      const queuedDownloads = Array.from(queue.values())
         .filter((item) => item.status === "queued")
         .sort((a, b) => {
           if (a.priority !== b.priority) {
@@ -347,7 +438,7 @@ class QueueManager {
         try {
           // Fetch video metadata from database if we have videoId
           if (item.videoId) {
-            const videoData = await this.db
+            const videoData = await db
               .select({
                 title: youtubeVideos.title,
                 channelTitle: youtubeVideos.channelTitle,
@@ -381,7 +472,7 @@ class QueueManager {
 
           // Sync DB early to reflect downloading state
           if (item.videoId) {
-            await this.db
+            await db
               .update(youtubeVideos)
               .set({
                 downloadStatus: "downloading",
@@ -393,7 +484,7 @@ class QueueManager {
           }
 
           // Spawn download
-          await spawnDownload(this.db, item.id, item.videoId, item.url, item.format, outputPath);
+          await spawnDownload(db, item.id, item.videoId, item.url, item.format, outputPath);
 
           logger.info("[queue-manager] Started download", {
             id: item.id,
@@ -411,25 +502,25 @@ class QueueManager {
     } catch (error) {
       logger.error("[queue-manager] Error in processQueue", error);
     }
-  }
+  };
 
   /**
    * Add downloads to queue
    */
-  async addToQueue(
+  const addToQueue = async (
     urls: string[],
     options: {
       priority?: number;
       format?: string;
       quality?: string;
     } = {}
-  ): Promise<string[]> {
+  ): Promise<string[]> => {
     const downloadIds: string[] = [];
     const skippedUrls: Array<{ url: string; reason: string; videoId: string | null }> = [];
 
     try {
       // Get current max queue position
-      const positions = Array.from(this.queue.values()).map((item) => item.queuePosition);
+      const positions = Array.from(queue.values()).map((item) => item.queuePosition);
       const maxPosition = positions.length > 0 ? Math.max(...positions) : 0;
       let position = maxPosition + 1;
 
@@ -463,7 +554,7 @@ class QueueManager {
         // Check for duplicates in database if we have a videoId
         if (videoId) {
           try {
-            const existing = await this.db
+            const existing = await db
               .select({
                 id: youtubeVideos.id,
                 videoId: youtubeVideos.videoId,
@@ -519,7 +610,7 @@ class QueueManager {
         }
 
         // Check for duplicates in current in-memory queue
-        const inQueue = Array.from(this.queue.values()).find(
+        const inQueue = Array.from(queue.values()).find(
           (item) => item.videoId === videoId && videoId !== null
         );
         if (inQueue) {
@@ -556,7 +647,7 @@ class QueueManager {
           errorType: null,
           isRetryable: true,
           retryCount: 0,
-          maxRetries: this.config.maxRetries,
+          maxRetries: finalConfig.maxRetries,
           addedAt: now,
           startedAt: null,
           pausedAt: null,
@@ -567,7 +658,7 @@ class QueueManager {
           eta: null,
         };
 
-        this.queue.set(id, queueItem);
+        queue.set(id, queueItem);
         downloadIds.push(id);
       }
 
@@ -586,8 +677,8 @@ class QueueManager {
       }
 
       // Auto-start if configured
-      if (this.config.autoStart && !this.isProcessing) {
-        this.start();
+      if (finalConfig.autoStart && !isProcessing) {
+        await start();
       }
 
       // Return both added and skipped info
@@ -616,14 +707,14 @@ class QueueManager {
       logger.error("[queue-manager] Failed to add to queue", error);
       throw error;
     }
-  }
+  };
 
   /**
    * Pause a download
    */
-  async pauseDownload(downloadId: string): Promise<void> {
+  const pauseDownload = async (downloadId: string): Promise<void> => {
     try {
-      const item = this.queue.get(downloadId);
+      const item = queue.get(downloadId);
       if (!item) {
         throw new Error(`Download ${downloadId} not found in queue`);
       }
@@ -637,7 +728,7 @@ class QueueManager {
 
       // Sync to database if video exists
       if (item.videoId) {
-        await this.db
+        await db
           .update(youtubeVideos)
           .set({
             downloadStatus: "paused",
@@ -654,14 +745,14 @@ class QueueManager {
       logger.error("[queue-manager] Failed to pause download", error);
       throw error;
     }
-  }
+  };
 
   /**
    * Resume a paused download
    */
-  async resumeDownload(downloadId: string): Promise<void> {
+  const resumeDownload = async (downloadId: string): Promise<void> => {
     try {
-      const item = this.queue.get(downloadId);
+      const item = queue.get(downloadId);
       if (!item) {
         throw new Error(`Download ${downloadId} not found in queue`);
       }
@@ -672,7 +763,7 @@ class QueueManager {
 
       // Sync to database if video exists
       if (item.videoId) {
-        await this.db
+        await db
           .update(youtubeVideos)
           .set({
             downloadStatus: "queued",
@@ -686,14 +777,14 @@ class QueueManager {
       logger.error("[queue-manager] Failed to resume download", error);
       throw error;
     }
-  }
+  };
 
   /**
    * Cancel a download
    */
-  async cancelDownload(downloadId: string): Promise<void> {
+  const cancelDownload = async (downloadId: string): Promise<void> => {
     try {
-      const item = this.queue.get(downloadId);
+      const item = queue.get(downloadId);
       if (!item) {
         throw new Error(`Download ${downloadId} not found in queue`);
       }
@@ -702,11 +793,11 @@ class QueueManager {
       const wasActive = killDownload(downloadId);
 
       // Remove from queue
-      this.queue.delete(downloadId);
+      queue.delete(downloadId);
 
       // Sync to database if video exists
       if (item.videoId) {
-        await this.db
+        await db
           .update(youtubeVideos)
           .set({
             downloadStatus: "cancelled",
@@ -723,14 +814,14 @@ class QueueManager {
       logger.error("[queue-manager] Failed to cancel download", error);
       throw error;
     }
-  }
+  };
 
   /**
    * Retry a failed download
    */
-  async retryDownload(downloadId: string): Promise<void> {
+  const retryDownload = async (downloadId: string): Promise<void> => {
     try {
-      const item = this.queue.get(downloadId);
+      const item = queue.get(downloadId);
       if (!item) {
         throw new Error(`Download ${downloadId} not found in queue`);
       }
@@ -754,15 +845,15 @@ class QueueManager {
       logger.error("[queue-manager] Failed to retry download", error);
       throw error;
     }
-  }
+  };
 
   /**
    * Get queue status
    */
-  async getQueueStatus(): Promise<QueueStatus> {
+  const getQueueStatus = async (): Promise<QueueStatus> => {
     try {
       // Get all items from in-memory queue
-      const allItems = Array.from(this.queue.values());
+      const allItems = Array.from(queue.values());
 
       // Categorize downloads
       const queued = allItems.filter((item) => item.status === "queued");
@@ -770,7 +861,7 @@ class QueueManager {
       const paused = allItems.filter((item) => item.status === "paused");
 
       // Get recent completed/failed from youtube_videos
-      const completed = await this.db
+      const completed = await db
         .select({
           videoId: youtubeVideos.videoId,
           title: youtubeVideos.title,
@@ -785,7 +876,7 @@ class QueueManager {
         .limit(10)
         .execute();
 
-      const failed = await this.db
+      const failed = await db
         .select({
           videoId: youtubeVideos.videoId,
           title: youtubeVideos.title,
@@ -814,43 +905,11 @@ class QueueManager {
             : 0,
       };
 
-      // Convert QueueItem to QueuedDownload for response
-      const mapToQueuedDownload = (item: QueueItem): QueuedDownload => ({
-        id: item.id,
-        url: item.url,
-        videoId: item.videoId,
-        title: item.title,
-        channelTitle: item.channelTitle,
-        thumbnailUrl: item.thumbnailUrl,
-        status: item.status,
-        progress: item.progress,
-        priority: item.priority,
-        queuePosition: item.queuePosition,
-        format: item.format,
-        quality: item.quality,
-        filePath: null,
-        fileSize: null,
-        errorMessage: item.errorMessage,
-        errorType: item.errorType,
-        isRetryable: item.isRetryable,
-        retryCount: item.retryCount,
-        maxRetries: item.maxRetries,
-        addedAt: item.addedAt,
-        startedAt: item.startedAt,
-        pausedAt: item.pausedAt,
-        completedAt: null,
-        cancelledAt: null,
-        updatedAt: null,
-        downloadSpeed: item.downloadSpeed,
-        downloadedSize: item.downloadedSize,
-        totalSize: item.totalSize,
-        eta: item.eta,
-      });
-
+      // Use type-safe helper for mapping
       return {
-        queued: queued.map(mapToQueuedDownload),
-        downloading: downloading.map(mapToQueuedDownload),
-        paused: paused.map(mapToQueuedDownload),
+        queued: queued.map(queueItemToQueuedDownload),
+        downloading: downloading.map(queueItemToQueuedDownload),
+        paused: paused.map(queueItemToQueuedDownload),
         completed: completed.map((v) => ({
           id: `completed-${v.videoId}`,
           url: "",
@@ -919,14 +978,14 @@ class QueueManager {
       logger.error("[queue-manager] Failed to get queue status", error);
       throw error;
     }
-  }
+  };
 
   /**
    * Clear completed downloads from youtube_videos
    */
-  async clearCompleted(): Promise<void> {
+  const clearCompleted = async (): Promise<void> => {
     try {
-      await this.db
+      await db
         .update(youtubeVideos)
         .set({
           downloadStatus: null,
@@ -944,18 +1003,35 @@ class QueueManager {
       logger.error("[queue-manager] Failed to clear completed", error);
       throw error;
     }
-  }
-}
+  };
+
+  // Return public API (functional factory pattern)
+  return {
+    updateProgress,
+    markCompleted,
+    markFailed,
+    restoreInterruptedDownloads,
+    start,
+    stop,
+    addToQueue,
+    pauseDownload,
+    resumeDownload,
+    cancelDownload,
+    retryDownload,
+    getQueueStatus,
+    clearCompleted,
+  };
+};
 
 // Singleton instance
 let queueManagerInstance: QueueManager | null = null;
 
 /**
- * Get or create queue manager instance
+ * Get or create queue manager instance (functional factory pattern)
  */
 export const getQueueManager = (db: Database, config?: Partial<QueueConfig>): QueueManager => {
   if (!queueManagerInstance) {
-    queueManagerInstance = new QueueManager(db, config);
+    queueManagerInstance = createQueueManager(db, config);
   }
   return queueManagerInstance;
 };

@@ -269,7 +269,7 @@ async function runMigrations(options: MigrationOptions = {}): Promise<void> {
 /**
  * CLI entry point
  */
-async function main() {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const options: MigrationOptions = {
     verifyOnly: args.includes("--verify-only"),

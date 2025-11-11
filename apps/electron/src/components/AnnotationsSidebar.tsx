@@ -97,16 +97,27 @@ export function AnnotationsSidebar({
   // Own annotations query
   const annotationsQuery = useQuery({
     queryKey: ["annotations", videoId],
-    queryFn: async () => {
-      if (!videoId) return [];
-      return await trpcClient.annotations.list.query({ videoId });
+    queryFn: async (): Promise<
+      Array<{
+        id: string;
+        videoId: string;
+        timestampSeconds: number;
+        note: string | null;
+        emoji: string | null;
+        selectedText: string | null;
+        createdAt: number;
+        updatedAt: number;
+      }>
+    > => {
+      if (!videoId) return [] as const;
+      return trpcClient.annotations.list.query({ videoId });
     },
     enabled: !!videoId,
   });
 
   // Own delete mutation
   const deleteAnnotationMutation = useMutation({
-    mutationFn: async (annotationId: string): Promise<void> => {
+    mutationFn: async (annotationId: string) => {
       return await trpcClient.annotations.delete.mutate({ id: annotationId });
     },
     onSuccess: (): void => {
@@ -116,7 +127,7 @@ export function AnnotationsSidebar({
 
   // Own seek handler
   const handleSeek = useCallback(
-    (timestampSeconds: number) => {
+    (timestampSeconds: number): void => {
       if (videoRef.current) {
         videoRef.current.currentTime = timestampSeconds;
         videoRef.current.play();
@@ -128,11 +139,13 @@ export function AnnotationsSidebar({
   const annotations = annotationsQuery.data || [];
 
   // Find the currently active annotation (closest one before or at current time)
-  const activeAnnotationId = useMemo(() => {
+  const activeAnnotationId = useMemo((): string | null => {
     if (!currentTime || annotations.length === 0) return null;
 
     // Find all annotations at or before current time
-    const passedAnnotations = annotations.filter((a) => a.timestampSeconds <= currentTime);
+    const passedAnnotations = annotations.filter(
+      (a): boolean => a.timestampSeconds <= currentTime
+    );
 
     if (passedAnnotations.length === 0) return null;
 
@@ -145,7 +158,7 @@ export function AnnotationsSidebar({
   }, [annotations, currentTime]);
 
   // Auto-scroll to active annotation
-  useEffect(() => {
+  useEffect((): void | (() => void) => {
     if (!activeAnnotationId) return;
 
     const element = annotationRefs.current.get(activeAnnotationId);

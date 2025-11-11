@@ -5,7 +5,10 @@ export function useWatchProgress(
   videoId: string | undefined,
   videoRef: React.RefObject<HTMLVideoElement>,
   lastPositionSeconds?: number | undefined
-) {
+): {
+  currentTime: number;
+  handleTimeUpdate: (e: React.SyntheticEvent<HTMLVideoElement, Event>) => void;
+} {
   const [currentTime, setCurrentTime] = useState(0);
   const positionRestoredRef = useRef<boolean>(false);
 
@@ -47,7 +50,7 @@ export function useWatchProgress(
 
     const video = videoRef.current;
 
-    const restorePosition = () => {
+    const restorePosition = (): void => {
       if (positionRestoredRef.current) return;
       try {
         video.currentTime = lastPositionSeconds;

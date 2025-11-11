@@ -151,7 +151,7 @@ export default [
         'error', // ⚠️ STRICT MODE - All tRPC endpoints MUST have explicit return types!
         {
           allowExpressions: true, // Allow: const fn = () => value (simple cases)
-          allowTypedFunctionExpressions: false, // 🚫 REQUIRE explicit types for tRPC endpoints!
+          allowTypedFunctionExpressions: true, // Allow typed React Query callbacks like useMutation<Type>
           allowHigherOrderFunctions: true, // Allow: const fn = () => () => ...
           allowDirectConstAssertionInArrowFunctions: true, // Allow: () => ({ x: 1 } as const)
           allowConciseArrowFunctionExpressionsStartingWithVoid: true, // Allow: () => void fn()
@@ -235,6 +235,19 @@ export default [
       'no-debugger': 'error',
       '@typescript-eslint/triple-slash-reference': 'off', // Allow triple-slash for Electron Forge types
 
+      // 🚫 Enforce Functional Programming - Ban Classes
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ClassDeclaration',
+          message: 'Do not use classes — prefer functions or factory patterns instead.',
+        },
+        {
+          selector: 'ClassExpression',
+          message: 'Avoid class expressions — use closures or composition instead.',
+        },
+      ],
+
       // SonarJS - Cognitive Complexity (better than cyclomatic complexity)
       // Measures how difficult code is to understand (not just # of branches)
       'sonarjs/cognitive-complexity': ['error', 50], // Warn if cognitive complexity > 15
@@ -264,7 +277,6 @@ export default [
 
   // Test files configuration
   testConfig,
-
   // Preload scripts - bridge between main and renderer
   {
     files: ['**/preload/**/*.ts', '**/preload.ts'],

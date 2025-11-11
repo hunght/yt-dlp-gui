@@ -35,7 +35,11 @@ const EMOJI_REACTIONS = [
   { emoji: "🔖", label: "Bookmark", description: "Save for later review" },
 ] as const;
 
-export function AnnotationForm({ videoId, currentTime, videoRef }: AnnotationFormProps) {
+export function AnnotationForm({
+  videoId,
+  currentTime,
+  videoRef,
+}: AnnotationFormProps): React.JSX.Element {
   const queryClient = useQueryClient();
 
   // Atoms for settings and shared state
@@ -117,7 +121,7 @@ export function AnnotationForm({ videoId, currentTime, videoRef }: AnnotationFor
   }, [open, videoRef]);
 
   // Handle cancel
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     setOpen(false);
     setNote("");
     setSelectedText("");
@@ -126,7 +130,7 @@ export function AnnotationForm({ videoId, currentTime, videoRef }: AnnotationFor
   };
 
   // Handle save with translation auto-append
-  const handleSave = () => {
+  const handleSave = (): void => {
     // If setting is enabled and translation is available, append it to the note
     if (includeTranslationInNote && translationQuery.data?.success) {
       const translation = translationQuery.data.translation;
@@ -147,7 +151,7 @@ export function AnnotationForm({ videoId, currentTime, videoRef }: AnnotationFor
   };
 
   // Handle emoji selection
-  const handleEmojiClick = (newEmoji: string) => {
+  const handleEmojiClick = (newEmoji: string): void => {
     setEmoji(emoji === newEmoji ? null : newEmoji);
   };
 

@@ -50,7 +50,7 @@ const getLanguageName = (code: string): string => {
   return found ? found.name : code.toUpperCase();
 };
 
-export const LanguagePreferencesSection = () => {
+export const LanguagePreferencesSection = (): React.JSX.Element => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [newLanguage, setNewLanguage] = useState("");
@@ -87,7 +87,7 @@ export const LanguagePreferencesSection = () => {
   const preferredLanguages = prefsQuery.data?.preferredLanguages || [];
   const systemLanguage = prefsQuery.data?.systemLanguage || "en";
 
-  const handleAddLanguage = () => {
+  const handleAddLanguage = (): void => {
     const lang = newLanguage.trim().toLowerCase();
     if (!lang) return;
     if (preferredLanguages.includes(lang)) {
@@ -102,7 +102,7 @@ export const LanguagePreferencesSection = () => {
     setNewLanguage("");
   };
 
-  const handleRemoveLanguage = (lang: string) => {
+  const handleRemoveLanguage = (lang: string): void => {
     const updated = preferredLanguages.filter((l: string) => l !== lang);
     if (updated.length === 0) {
       toast({
@@ -115,7 +115,7 @@ export const LanguagePreferencesSection = () => {
     updateMutation.mutate(updated);
   };
 
-  const handleAddFromList = (code: string) => {
+  const handleAddFromList = (code: string): void => {
     if (preferredLanguages.includes(code)) return;
     updateMutation.mutate([...preferredLanguages, code]);
   };

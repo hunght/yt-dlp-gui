@@ -61,6 +61,127 @@ const googleTranslateResponseSchema = z.tuple([
   z.array(z.unknown()).optional(), // language metadata
 ]);
 
+// Return types for utils router endpoints
+type OpenExternalUrlResult = {
+  success: boolean;
+};
+
+type ExplainWordSuccess = {
+  success: true;
+  word: string;
+  explanation: string;
+  pronunciation: string;
+};
+
+type ExplainWordFallback = {
+  success: false;
+  shouldOpenChatGPT: true;
+  word: string;
+  language: string;
+};
+
+type ExplainWordFailure = {
+  success: false;
+  message: string;
+};
+
+type ExplainWordResult = ExplainWordSuccess | ExplainWordFallback | ExplainWordFailure;
+
+type TranslateTextSuccess = {
+  success: true;
+  translation: string; // The translated text
+  translationId: string; // ID for saving to My Words
+  originalText: string;
+  sourceLang: string;
+  targetLang: string;
+  fromCache: boolean;
+  queryCount?: number;
+};
+
+type TranslateTextFailure = {
+  success: false;
+  message: string;
+};
+
+type TranslateTextResult = TranslateTextSuccess | TranslateTextFailure;
+
+type OpenLocalFileSuccess = { success: true };
+type OpenLocalFileFailure = { success: false; error: string };
+type OpenLocalFileResult = OpenLocalFileSuccess | OpenLocalFileFailure;
+
+type OpenFolderSuccess = { success: true };
+type OpenFolderFailure = { success: false; error: string };
+type OpenFolderResult = OpenFolderSuccess | OpenFolderFailure;
+
+type QuitAppSuccess = { success: true };
+type QuitAppFailure = { success: false; error: string };
+type QuitAppResult = QuitAppSuccess | QuitAppFailure;
+
+type GetAppVersionResult = { version: string };
+type GetLogFileContentResult = string;
+type ClearLogFileSuccess = { success: true };
+type ClearLogFileFailure = { success: false; error: string };
+type ClearLogFileResult = ClearLogFileSuccess | ClearLogFileFailure;
+
+type DownloadUpdateSuccess = {
+  status: "success";
+  message: string;
+  filePath: string;
+  filename: string;
+};
+
+type DownloadUpdateFailure = {
+  status: "error";
+  message: string;
+};
+
+type DownloadUpdateResult = DownloadUpdateSuccess | DownloadUpdateFailure;
+
+type CheckForUpdatesSuccess = {
+  updateAvailable: true;
+  latestVersion: string;
+  currentVersion: string;
+  downloadUrl: string;
+  releaseNotes: string;
+};
+
+type CheckForUpdatesNoUpdate = {
+  updateAvailable: false;
+  latestVersion: string;
+  currentVersion: string;
+};
+
+type CheckForUpdatesResult = CheckForUpdatesSuccess | CheckForUpdatesNoUpdate;
+
+type SendNotificationSuccess = { success: true } | { success: boolean };
+type SendNotificationFailure = { success: false; error: string };
+type SendNotificationResult = SendNotificationSuccess | SendNotificationFailure;
+
+type CloseNotificationWindowSuccess = { success: true };
+type CloseNotificationWindowFailure = { success: false; error: string };
+type CloseNotificationWindowResult = CloseNotificationWindowSuccess | CloseNotificationWindowFailure;
+
+type InstallUpdateSuccess = {
+  status: "success";
+  message: string;
+  fallbackUrl: null;
+  downloadUrl: null;
+};
+
+type InstallUpdateFailure = {
+  status: "error";
+  message: string;
+};
+
+type InstallUpdateResult = InstallUpdateSuccess | InstallUpdateFailure;
+
+type GetDatabasePathResult = {
+  path: string;
+  directory: string;
+  exists: boolean;
+  size: number;
+};
+
 export const utilsRouter = t.router({
   openExternalUrl: publicProcedure
     .input(
@@ -68,9 +189,9 @@ export const utilsRouter = t.router({
         url: z.string().url(),
       })
     )
-    .mutation(async ({ input }) => {
-      const success = await shell.openExternal(input.url);
-      return { success };
+    .mutation(async ({ input }): Promise<OpenExternalUrlResult> => {
+      await shell.openExternal(input.url);
+      return { success: true };
     }),
 
   // Get AI explanation for a word (fun and easy to remember)
@@ -81,7 +202,7 @@ export const utilsRouter = t.router({
         language: z.string().optional(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input }): Promise<ExplainWordResult> => {
       try {
         // Extract the first word and clean it
         const cleanWord = input.word
@@ -173,7 +294,7 @@ export const utilsRouter = t.router({
         contextText: z.string().optional(), // Context text can be optional
       })
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }): Promise<TranslateTextResult> => {
       try {
         const { text, targetLang, sourceLang } = input;
         const db = ctx.db;
@@ -445,7 +566,7 @@ export const utilsRouter = t.router({
         filePath: z.string(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<OpenLocalFileResult> => {
       try {
         await shell.openPath(input.filePath);
         return { success: true };
@@ -461,7 +582,7 @@ export const utilsRouter = t.router({
         folderPath: z.string(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<OpenFolderResult> => {
       try {
         await shell.openPath(input.folderPath);
         return { success: true };
@@ -471,7 +592,7 @@ export const utilsRouter = t.router({
       }
     }),
 
-  quitApp: publicProcedure.mutation(async () => {
+  quitApp: publicProcedure.mutation(async (): Promise<QuitAppResult> => {
     try {
       logger.info("Quitting application...");
       app.quit();
@@ -483,12 +604,12 @@ export const utilsRouter = t.router({
   }),
 
   // Get current app version
-  getAppVersion: publicProcedure.query(() => {
-    return app.getVersion();
+  getAppVersion: publicProcedure.query((): GetAppVersionResult => {
+    return { version: app.getVersion() };
   }),
 
   // Get log file content
-  getLogFileContent: publicProcedure.query(async () => {
+  getLogFileContent: publicProcedure.query(async (): Promise<GetLogFileContentResult> => {
     try {
       return await logger.getFileContent();
     } catch (error) {
@@ -498,7 +619,7 @@ export const utilsRouter = t.router({
   }),
 
   // Clear log file content
-  clearLogFile: publicProcedure.mutation(async () => {
+  clearLogFile: publicProcedure.mutation(async (): Promise<ClearLogFileResult> => {
     try {
       await logger.clearLogFile();
       return { success: true } as const;
@@ -540,8 +661,8 @@ export const utilsRouter = t.router({
     }),
 
   // Version checking procedure
-  checkForUpdates: publicProcedure.query(async () => {
-    return { status: "success", currentVersion: "1.0.001" };
+  checkForUpdates: publicProcedure.query(async (): Promise<CheckForUpdatesResult> => {
+    return { updateAvailable: false, latestVersion: "1.0.001", currentVersion: "1.0.001" };
     // try {
     //   logger.info("Checking for updates...");
     //   const currentVersion = app.getVersion();
@@ -597,7 +718,7 @@ export const utilsRouter = t.router({
         downloadUrl: z.string().url(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<DownloadUpdateResult> => {
       const { downloadUrl } = input;
 
       try {
@@ -616,16 +737,11 @@ export const utilsRouter = t.router({
           fs.mkdirSync(downloadsDir, { recursive: true });
         }
 
-        return new Promise<{
-          status: "success" | "error";
-          message: string;
-          filePath?: string;
-          filename?: string;
-        }>((resolve, reject) => {
+        return new Promise<DownloadUpdateResult>((resolve, reject) => {
           // Helper to perform download and follow redirects up to maxRedirects
           const maxRedirects = 5;
 
-          const doRequest = (urlToFetch: string, redirectsLeft: number) => {
+          const doRequest = (urlToFetch: string, redirectsLeft: number): void => {
             let request;
             try {
               request = net.request({ method: "GET", url: urlToFetch });
@@ -726,7 +842,7 @@ export const utilsRouter = t.router({
       }
     }),
 
-  closeNotificationWindow: publicProcedure.mutation(() => {
+  closeNotificationWindow: publicProcedure.mutation((): CloseNotificationWindowResult => {
     try {
       closeWindow();
       return { success: true };
@@ -784,7 +900,7 @@ export const utilsRouter = t.router({
         autoDismiss: z.boolean().optional(), // Optional auto-dismiss setting
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<SendNotificationResult> => {
       try {
         const success = await sendNotificationToWindow({
           title: input.title,
@@ -805,7 +921,7 @@ export const utilsRouter = t.router({
         version: z.string(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<InstallUpdateResult> => {
       try {
         const { zipFilePath, version } = input;
         await extractZipWithYauzl(zipFilePath, version);
@@ -822,7 +938,7 @@ export const utilsRouter = t.router({
     }),
 
   // Get database path
-  getDatabasePath: publicProcedure.query(() => {
+  getDatabasePath: publicProcedure.query((): GetDatabasePathResult => {
     const dbPath = getDatabasePath();
     // Remove 'file:' prefix to get actual file system path
     const actualPath = dbPath.replace(/^file:/, "");

@@ -119,7 +119,7 @@ export default function DashboardPage(): React.JSX.Element {
     [url, startMutation.isPending]
   );
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!isValidUrl(url)) {
       toast.error("Please enter a valid URL");

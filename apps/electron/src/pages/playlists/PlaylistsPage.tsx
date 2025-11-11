@@ -35,11 +35,11 @@ export default function PlaylistsPage(): React.JSX.Element {
     );
   }, [playlistsQuery.data, searchQuery]);
 
-  const handleRefresh = () => {
+  const handleRefresh = (): void => {
     playlistsQuery.refetch();
   };
 
-  const handlePlaylistClick = (playlistId: string) => {
+  const handlePlaylistClick = (playlistId: string): void => {
     updatePlaylistViewMutation.mutate(playlistId);
   };
 

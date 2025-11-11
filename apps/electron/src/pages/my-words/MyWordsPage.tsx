@@ -67,7 +67,7 @@ export default function MyWordsPage(): React.JSX.Element {
     enabled: debouncedSearch.length > 0,
   });
 
-  const handleDelete = async (translationId: string) => {
+  const handleDelete = async (translationId: string): Promise<void> => {
     try {
       // Only remove from saved_words, keep in translation_cache for future use
       await trpcClient.translation.unsaveWord.mutate({ translationId });
@@ -77,7 +77,7 @@ export default function MyWordsPage(): React.JSX.Element {
     }
   };
 
-  const toggleExpanded = (translationId: string) => {
+  const toggleExpanded = (translationId: string): void => {
     setExpandedTranslations((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(translationId)) {

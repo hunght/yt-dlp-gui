@@ -26,7 +26,7 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive:
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleRefresh = async () => {
+  const handleRefresh = async (): Promise<void> => {
     if (isRefreshing) return;
     try {
       setIsRefreshing(true);

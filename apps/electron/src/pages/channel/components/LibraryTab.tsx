@@ -9,9 +9,10 @@ import Thumbnail from "@/components/Thumbnail";
 interface LibraryTabProps {
   channelId: string;
   isActive: boolean;
+  onDownload: (url: string, title: string) => Promise<void>;
 }
 
-const getDownloadStatusIcon = (status: string | null) => {
+const getDownloadStatusIcon = (status: string | null): React.JSX.Element | null => {
   if (!status) return null;
 
   switch (status) {
@@ -29,7 +30,7 @@ const getDownloadStatusIcon = (status: string | null) => {
   }
 };
 
-const getDownloadStatusText = (status: string | null, progress: number | null) => {
+const getDownloadStatusText = (status: string | null, progress: number | null): string | null => {
   if (!status) return null;
 
   switch (status) {

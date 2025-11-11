@@ -7,9 +7,97 @@ import {
   translationContexts,
   youtubeVideos,
   savedWords,
+  type TranslationCache,
 } from "@yt-dlp-gui/database/schema";
 import { desc, sql, eq } from "drizzle-orm";
 import crypto from "crypto";
+
+// Return types for translation router
+type GetTranslationsResult = {
+  translations: TranslationCache[];
+  total: number;
+  hasMore: boolean;
+};
+
+type GetStatisticsResult = {
+  totalTranslations: number;
+  totalQueries: number;
+  uniqueLanguagePairs: number;
+  mostFrequent: TranslationCache | null;
+};
+
+type SearchTranslationsResult = TranslationCache[];
+
+type DeleteTranslationResult = {
+  success: true;
+};
+
+type SaveWordSuccess = {
+  success: true;
+  alreadySaved: boolean;
+  id: string;
+};
+
+type UnsaveWordResult = {
+  success: true;
+};
+
+type TranslationContextItem = {
+  id: string;
+  translationId: string;
+  videoId: string;
+  timestampSeconds: number;
+  contextText: string | null;
+  createdAt: number;
+  videoTitle: string | null;
+  videoThumbnailUrl: string | null;
+  videoThumbnailPath: string | null;
+  videoDuration: number | null;
+};
+
+type GetTranslationContextsResult = TranslationContextItem[];
+
+type VideoTranslationItem = {
+  id: string;
+  sourceText: string;
+  translatedText: string;
+  sourceLang: string;
+  targetLang: string;
+  detectedLang: string | null;
+  queryCount: number;
+  timestampSeconds: number;
+};
+
+type GetByVideoIdResult = VideoTranslationItem[];
+
+type SavedWordItem = {
+  id: string;
+  notes: string | null;
+  reviewCount: number;
+  lastReviewedAt: number | null;
+  createdAt: number;
+  translation: TranslationCache;
+};
+
+type GetSavedWordsResult = {
+  words: SavedWordItem[];
+  total: number;
+  hasMore: boolean;
+};
+
+type IsWordSavedResult = {
+  isSaved: boolean;
+};
+
+type SavedWordForHighlight = {
+  sourceText: string;
+  translatedText: string;
+  sourceLang: string;
+  targetLang: string;
+  queryCount: number;
+};
+
+type GetAllSavedWordsResult = SavedWordForHighlight[];
 
 /**
  * Translation router - handles translation cache and learning features
@@ -26,7 +114,7 @@ export const translationRouter = t.router({
         sortBy: z.enum(["recent", "frequent"]).optional().default("recent"),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }): Promise<GetTranslationsResult> => {
       const db = ctx.db ?? defaultDb;
 
       try {
@@ -69,7 +157,7 @@ export const translationRouter = t.router({
   /**
    * Get translation statistics
    */
-  getStatistics: publicProcedure.query(async ({ ctx }) => {
+  getStatistics: publicProcedure.query(async ({ ctx }): Promise<GetStatisticsResult> => {
     const db = ctx.db ?? defaultDb;
 
     try {
@@ -131,7 +219,7 @@ export const translationRouter = t.router({
         limit: z.number().optional().default(50),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }): Promise<SearchTranslationsResult> => {
       const db = ctx.db ?? defaultDb;
 
       try {
@@ -168,7 +256,7 @@ export const translationRouter = t.router({
         id: z.string(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx, input }): Promise<DeleteTranslationResult> => {
       const db = ctx.db ?? defaultDb;
 
       try {
@@ -193,7 +281,7 @@ export const translationRouter = t.router({
         translationId: z.string(),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }): Promise<GetTranslationContextsResult> => {
       const db = ctx.db ?? defaultDb;
 
       try {
@@ -239,7 +327,7 @@ export const translationRouter = t.router({
         videoId: z.string(),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }): Promise<GetByVideoIdResult> => {
       const db = ctx.db ?? defaultDb;
 
       try {
@@ -283,7 +371,7 @@ export const translationRouter = t.router({
         notes: z.string().optional(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx, input }): Promise<SaveWordSuccess> => {
       const db = ctx.db ?? defaultDb;
 
       try {
@@ -337,7 +425,7 @@ export const translationRouter = t.router({
         translationId: z.string(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ ctx, input }): Promise<UnsaveWordResult> => {
       const db = ctx.db ?? defaultDb;
 
       try {
@@ -361,7 +449,7 @@ export const translationRouter = t.router({
         offset: z.number().optional().default(0),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }): Promise<GetSavedWordsResult> => {
       const db = ctx.db ?? defaultDb;
 
       try {
@@ -406,7 +494,7 @@ export const translationRouter = t.router({
         translationId: z.string(),
       })
     )
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }): Promise<IsWordSavedResult> => {
       const db = ctx.db ?? defaultDb;
 
       try {
@@ -428,7 +516,7 @@ export const translationRouter = t.router({
    * Returns all saved words with their translations (no pagination)
    * Used to build lookup map for highlighting in transcripts
    */
-  getAllSavedWords: publicProcedure.query(async ({ ctx }) => {
+  getAllSavedWords: publicProcedure.query(async ({ ctx }): Promise<GetAllSavedWordsResult> => {
     const db = ctx.db ?? defaultDb;
 
     try {

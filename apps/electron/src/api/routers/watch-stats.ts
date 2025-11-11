@@ -152,7 +152,7 @@ export const watchStatsRouter = t.router({
             lastWatchedAt: s.lastWatchedAt,
           };
         })
-        .filter((v) => v !== null);
+        .filter((v): v is WatchedVideoWithStats => v !== null);
     }),
 
   // List videos by most recently added (watch history fallback)

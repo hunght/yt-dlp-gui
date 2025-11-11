@@ -2,8 +2,11 @@ import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { logger } from "@/helpers/logger";
 import { eq } from "drizzle-orm";
-import { videoAnnotations, type VideoAnnotation } from "@/api/db/schema";
+import { videoAnnotations } from "@/api/db/schema";
 import defaultDb from "@/api/db";
+
+// Infer VideoAnnotation type from Drizzle schema
+type VideoAnnotation = typeof videoAnnotations.$inferSelect;
 
 // Return types for annotations router
 type CreateAnnotationSuccess = {

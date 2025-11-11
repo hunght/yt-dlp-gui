@@ -28,14 +28,14 @@ const BlockingNotificationApp: React.FC = () => {
   useEffect(() => {
     // Listen for blocking notification data from main process
     if (window.electronBlockingNotification) {
-      const handleNotification = (data: BlockingNotificationData) => {
+      const handleNotification = (data: BlockingNotificationData): void => {
         setNotificationData(data);
       };
 
       window.electronBlockingNotification.onNotification(handleNotification);
 
       // Add keyboard event listener for Escape key
-      const handleKeyDown = (event: KeyboardEvent) => {
+      const handleKeyDown = (event: KeyboardEvent): void => {
         if (event.key === "Escape") {
           handleClose();
         }
@@ -58,7 +58,7 @@ const BlockingNotificationApp: React.FC = () => {
     }
   }, []);
 
-  const handleResponse = async (response: number) => {
+  const handleResponse = async (response: number): Promise<void> => {
     if (window.electronBlockingNotification) {
       try {
         await window.electronBlockingNotification.respond(response);
@@ -68,11 +68,17 @@ const BlockingNotificationApp: React.FC = () => {
     }
   };
 
-  const handleContinueWorking = () => handleResponse(0);
-  const handleReturnToFocus = () => handleResponse(1);
-  const handleTakeBreak = () => handleResponse(2);
+  const handleContinueWorking = (): void => {
+    void handleResponse(0);
+  };
+  const handleReturnToFocus = (): void => {
+    void handleResponse(1);
+  };
+  const handleTakeBreak = (): void => {
+    void handleResponse(2);
+  };
 
-  const handleClose = async () => {
+  const handleClose = async (): Promise<void> => {
     if (window.electronBlockingNotification) {
       try {
         await window.electronBlockingNotification.close();

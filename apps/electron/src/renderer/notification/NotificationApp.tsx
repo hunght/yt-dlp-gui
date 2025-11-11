@@ -27,7 +27,7 @@ const NotificationApp: React.FC = () => {
   useEffect(() => {
     // Listen for notification data from main process via the preload API
     if (window.electronNotification) {
-      const handleNotification = (data: unknown) => {
+      const handleNotification = (data: unknown): void => {
         // Validate incoming data with Zod
         const parseResult = notificationDataSchema.safeParse(data);
         if (!parseResult.success) {
@@ -86,9 +86,9 @@ const NotificationApp: React.FC = () => {
 
   // Add keyboard support for closing notification
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
-        closeNotification();
+        void closeNotification();
       }
     };
 
@@ -98,7 +98,7 @@ const NotificationApp: React.FC = () => {
     };
   }, []);
 
-  const closeNotification = async () => {
+  const closeNotification = async (): Promise<void> => {
     if (window.electronNotification) {
       try {
         await window.electronNotification.close();

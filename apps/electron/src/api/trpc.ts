@@ -12,8 +12,7 @@ export const createContext = async (): Promise<{ db: typeof db }> => {
 const t = initTRPC.context<Awaited<ReturnType<typeof createContext>>>().create();
 
 // Create middleware
-// Note: Middleware callback has complex tRPC internal types, inference is appropriate here
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+// Note: Middleware callback has complex tRPC internal types, allowTypedFunctionExpressions handles this
 const loggerMiddleware = t.middleware(async ({ path, type, next }) => {
   const start = Date.now();
 

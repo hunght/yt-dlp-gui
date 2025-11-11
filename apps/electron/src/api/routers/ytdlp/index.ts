@@ -215,7 +215,7 @@ async function upsertVideoSearchFts(
   videoId: string,
   title: string | null | undefined,
   transcript: string | null | undefined
-) {
+): Promise<void> {
   try {
     // FTS5 virtual tables with UNINDEXED columns don't support WHERE clauses on those columns
     // Since video_id is UNINDEXED (to save index space), we use INSERT OR REPLACE with rowid

@@ -83,7 +83,7 @@ const ClockApp: React.FC = () => {
     const electronClock = window.electronClock;
 
     if (electronClock) {
-      const handleUpdate = (data: ClockUpdateData) => {
+      const handleUpdate = (data: ClockUpdateData): void => {
         setClockState((prev) => ({
           ...prev,
           activeEntry: data.activeEntry ?? prev.activeEntry,

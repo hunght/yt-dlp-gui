@@ -13,11 +13,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ScrollTextIcon } from "lucide-react";
 import { trpcClient } from "@/utils/trpc";
 
-export function AboutSection() {
+export function AboutSection(): React.JSX.Element {
   const [logContent, setLogContent] = useState<string>("");
   const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
 
-  const handleOpenLogFile = async () => {
+  const handleOpenLogFile = async (): Promise<void> => {
     try {
       const content = await trpcClient.utils.getLogFileContent.query();
       setLogContent(content);

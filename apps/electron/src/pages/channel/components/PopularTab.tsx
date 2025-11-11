@@ -12,7 +12,7 @@ interface PopularTabProps {
   onDownload: (url: string, title: string) => Promise<void>;
 }
 
-const getDownloadStatusIcon = (status: string | null) => {
+const getDownloadStatusIcon = (status: string | null): React.JSX.Element | null => {
   if (!status) return null;
 
   switch (status) {
@@ -30,7 +30,7 @@ const getDownloadStatusIcon = (status: string | null) => {
   }
 };
 
-const getDownloadStatusText = (status: string | null, progress: number | null) => {
+const getDownloadStatusText = (status: string | null, progress: number | null): string | null => {
   if (!status) return null;
 
   switch (status) {
@@ -63,7 +63,7 @@ export const PopularTab: React.FC<PopularTabProps> = ({ channelId, onDownload })
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleRefresh = async () => {
+  const handleRefresh = async (): Promise<void> => {
     if (isRefreshing) return;
     try {
       setIsRefreshing(true);

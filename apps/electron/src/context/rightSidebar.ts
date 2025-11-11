@@ -23,7 +23,7 @@ export const annotationsSidebarDataAtom = atom<{
 // Derived atom for toggling sidebar
 export const toggleRightSidebarAtom = atom(
   null,
-  (get, set) => {
+  (get, set): void => {
     const current = get(rightSidebarOpenAtom);
     set(rightSidebarOpenAtom, !current);
   }

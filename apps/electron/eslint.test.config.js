@@ -23,6 +23,7 @@ export default {
     '@typescript-eslint/no-unused-vars': 'off',
     'no-console': 'off',
     'no-undef': 'off',
+       '@typescript-eslint/explicit-function-return-type': 'off',
   },
 };
 

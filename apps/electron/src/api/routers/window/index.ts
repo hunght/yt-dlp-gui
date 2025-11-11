@@ -14,9 +14,14 @@ export const setWindowReferences = (mainWindow: BrowserWindow, tray: Tray | null
   trayRef = tray;
 };
 
+// Return types for window router endpoints
+type WindowActionResult = {
+  success: true;
+};
+
 export const windowRouter = t.router({
   // WIN_MINIMIZE_CHANNEL
-  minimize: publicProcedure.mutation(async () => {
+  minimize: publicProcedure.mutation(async (): Promise<WindowActionResult> => {
     try {
       if (!mainWindowRef) {
         throw new Error("Main window not available");
@@ -30,7 +35,7 @@ export const windowRouter = t.router({
   }),
 
   // WIN_MAXIMIZE_CHANNEL
-  maximize: publicProcedure.mutation(async () => {
+  maximize: publicProcedure.mutation(async (): Promise<WindowActionResult> => {
     try {
       if (!mainWindowRef) {
         throw new Error("Main window not available");
@@ -49,7 +54,7 @@ export const windowRouter = t.router({
   }),
 
   // WIN_CLOSE_CHANNEL
-  close: publicProcedure.mutation(async () => {
+  close: publicProcedure.mutation(async (): Promise<WindowActionResult> => {
     try {
       if (!mainWindowRef) {
         throw new Error("Main window not available");
@@ -65,7 +70,7 @@ export const windowRouter = t.router({
   // WIN_UPDATE_TRAY_TITLE_CHANNEL
   updateTrayTitle: publicProcedure
     .input(z.object({ title: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<WindowActionResult> => {
       try {
         if (!trayRef) {
           throw new Error("Tray not available");
@@ -81,7 +86,7 @@ export const windowRouter = t.router({
   // WIN_CLOCK_VISIBILITY_CHANGE_CHANNEL
   setClockVisibility: publicProcedure
     .input(z.object({ isVisible: z.boolean() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<WindowActionResult> => {
       try {
         // When clock visibility is disabled, hide the clock window
         if (!input.isVisible) {

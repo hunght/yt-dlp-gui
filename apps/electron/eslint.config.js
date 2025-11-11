@@ -146,12 +146,12 @@ export default [
       '@typescript-eslint/no-unsafe-call': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
 
-      /* 🎯 Require explicit return types for async functions only (prevents implicit any returns) */
+      /* 🎯 Require explicit return types for async functions (prevents implicit any returns) */
       '@typescript-eslint/explicit-function-return-type': [
-        'warn', // Use warn first, can escalate to error once codebase is clean
+        'warn', // Use warn for now, can escalate to error once codebase is clean
         {
-          allowExpressions: true, // Allow: const fn = () => value
-          allowTypedFunctionExpressions: true, // Allow: const fn: SomeType = () => ...
+          allowExpressions: true, // Allow: const fn = () => value (simple cases)
+          allowTypedFunctionExpressions: false, // 🚫 DISABLED - Require explicit types for tRPC mutations/queries!
           allowHigherOrderFunctions: true, // Allow: const fn = () => () => ...
           allowDirectConstAssertionInArrowFunctions: true, // Allow: () => ({ x: 1 } as const)
           allowConciseArrowFunctionExpressionsStartingWithVoid: true, // Allow: () => void fn()

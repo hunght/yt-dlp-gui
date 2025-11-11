@@ -40,9 +40,26 @@ const dictionaryEntrySchema = z.object({
 const dictionaryResponseSchema = z.union([z.array(dictionaryEntrySchema), dictionaryEntrySchema]);
 
 // Zod schema for Google Translate API response
-// Format: [[[translatedText, originalText, null, null, translatedWordCount]], ...otherData, detectedLang]
-// Note: Response structure varies, so we use a flexible schema
-const googleTranslateResponseSchema = z.array(z.unknown());
+// Based on actual API response:
+// [
+//   [[translatedText, originalText, null, null, count], ...more translations],  // index 0: translations
+//   null,                                                                       // index 1: unused
+//   detectedSourceLang,                                                         // index 2: detected language
+//   ...other fields (pronunciation, etc)
+// ]
+const googleTranslateResponseSchema = z
+  .tuple([
+    z.array(z.array(z.union([z.string(), z.number(), z.null()]))), // translations array
+    z.null().optional(), // unused field
+    z.string().optional(), // detected language
+    z.unknown().optional(), // other fields
+    z.unknown().optional(),
+    z.unknown().optional(),
+    z.unknown().optional(),
+    z.unknown().optional(),
+    z.unknown().optional(),
+  ])
+  .rest(z.unknown());
 
 export const utilsRouter = t.router({
   openExternalUrl: publicProcedure

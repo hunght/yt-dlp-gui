@@ -3,9 +3,9 @@ import fs from "fs";
 import path from "path";
 import { logger } from "@/helpers/logger";
 
-const getThumbCacheDir = () => path.join(app.getPath("userData"), "cache", "thumbnails");
+const getThumbCacheDir = (): string => path.join(app.getPath("userData"), "cache", "thumbnails");
 
-async function ensureDir(p: string) {
+async function ensureDir(p: string): Promise<void> {
   try {
     fs.mkdirSync(p, { recursive: true });
   } catch {

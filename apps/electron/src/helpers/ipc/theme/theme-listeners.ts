@@ -9,7 +9,7 @@ import {
 } from "./theme-channels";
 import { safelyRegisterListener } from "../safelyRegisterListener";
 
-export function addThemeEventListeners() {
+export function addThemeEventListeners(): void {
   safelyRegisterListener(THEME_MODE_CURRENT_CHANNEL, () => nativeTheme.themeSource);
   safelyRegisterListener(THEME_MODE_TOGGLE_CHANNEL, () => {
     if (nativeTheme.shouldUseDarkColors) {

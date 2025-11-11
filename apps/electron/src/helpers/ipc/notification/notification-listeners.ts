@@ -9,7 +9,7 @@ import { getNotificationWindow } from "../../../main/windows/notification";
 import { sendNotificationToWindow } from "../../notification/notification-window-utils";
 import { logger } from "../../logger";
 
-export const addNotificationEventListeners = () => {
+export const addNotificationEventListeners = (): void => {
   logger.debug("NotificationListeners: Adding notification listeners");
 
   // Send notification handler

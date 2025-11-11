@@ -7,7 +7,7 @@ import {
 } from "./notification-channels";
 import { NotificationData } from "@/helpers/notification/notification-window-utils";
 
-export function exposeNotificationContext() {
+export function exposeNotificationContext(): void {
   contextBridge.exposeInMainWorld("electronNotification", {
     // Function to send a notification
     send: (data: NotificationData) => {

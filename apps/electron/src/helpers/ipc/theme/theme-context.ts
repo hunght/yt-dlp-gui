@@ -6,7 +6,7 @@ import {
   THEME_MODE_TOGGLE_CHANNEL,
 } from "./theme-channels";
 
-export async function exposeThemeContext() {
+export async function exposeThemeContext(): Promise<void> {
   const { contextBridge, ipcRenderer } = await import("electron");
 
   contextBridge.exposeInMainWorld("themeMode", {

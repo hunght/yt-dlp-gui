@@ -401,7 +401,7 @@ const map: Record<string, number> = parsed as Record<string, number>; // Type as
 // Define type guard
 function isMyDataMap(value: unknown): value is Record<string, number> {
   if (!value || typeof value !== "object") return false;
-  
+
   return Object.entries(value).every(
     ([key, val]) => typeof key === "string" && typeof val === "number"
   );
@@ -410,7 +410,7 @@ function isMyDataMap(value: unknown): value is Record<string, number> {
 // Safe parser function
 function parseMyData(raw: string | null): Record<string, number> {
   if (!raw) return {};
-  
+
   try {
     const parsed: unknown = JSON.parse(raw);
     return isMyDataMap(parsed) ? parsed : {};

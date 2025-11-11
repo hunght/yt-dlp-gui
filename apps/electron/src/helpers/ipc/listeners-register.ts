@@ -5,7 +5,7 @@ import { addNotificationEventListeners } from "./notification/notification-liste
 import { addBlockingNotificationEventListeners } from "./blocking-notification/blocking-notification-listeners";
 import { addClockEventListeners } from "./clock/clock-listeners";
 
-export default function registerListeners(_mainWindow: BrowserWindow, _tray: Tray | null) {
+export default function registerListeners(_mainWindow: BrowserWindow, _tray: Tray | null): void {
   // Register listeners (window listeners now handled by tRPC)
   // addWindowEventListeners(mainWindow, tray); // Converted to tRPC
   addThemeEventListeners();

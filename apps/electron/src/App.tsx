@@ -69,14 +69,14 @@ posthog.register({
     // Update the global property with the correct version
     posthog.register({ app_version: appVersion });
   } catch (error) {
-    logger.error("Failed to get app version", error as Error);
+    logger.error("Failed to get app version", error);
   }
 })();
 
 const queryClient = new QueryClient({});
 
 // Initialize theme based on saved preference
-syncThemeWithLocal().catch((error) => logger.error("Failed to sync theme", error as Error));
+syncThemeWithLocal().catch((error) => logger.error("Failed to sync theme", error));
 
 function MainApp() {
   const { i18n } = useTranslation();

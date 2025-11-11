@@ -6,15 +6,26 @@ import fs from "fs";
 import path from "path";
 import { eq, sql } from "drizzle-orm";
 import { videoTranscripts, youtubeVideos } from "@/api/db/schema";
-import defaultDb from "@/api/db";
+import defaultDb, { type Database } from "@/api/db";
 import { spawnYtDlpWithLogging } from "@/api/utils/ytdlp-utils/ytdlp";
 
 const getTranscriptsDir = () => path.join(app.getPath("userData"), "cache", "transcripts");
 
+// Zod schema for validating transcript segments from JSON
+const transcriptSegmentSchema = z.array(
+  z.object({
+    start: z.number(),
+    end: z.number(),
+    text: z.string(),
+  })
+);
+
 function ensureDirSync(p: string) {
   try {
     fs.mkdirSync(p, { recursive: true });
-  } catch {}
+  } catch {
+    // Ignore - directory may already exist
+  }
 }
 
 /**
@@ -31,28 +42,30 @@ function normalizeLangCode(lang: string | null | undefined): string {
 // Helper function to decode HTML entities in transcript text
 function decodeHTMLEntities(text: string): string {
   const entities: Record<string, string> = {
-    '&amp;': '&',
-    '&lt;': '<',
-    '&gt;': '>',
-    '&quot;': '"',
-    '&apos;': "'",
-    '&#39;': "'",
-    '&nbsp;': ' ',
-    '&mdash;': '\u2014',
-    '&ndash;': '\u2013',
-    '&hellip;': '\u2026',
-    '&lsquo;': '\u2018',
-    '&rsquo;': '\u2019',
-    '&ldquo;': '\u201C',
-    '&rdquo;': '\u201D',
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+    "&apos;": "'",
+    "&#39;": "'",
+    "&nbsp;": " ",
+    "&mdash;": "\u2014",
+    "&ndash;": "\u2013",
+    "&hellip;": "\u2026",
+    "&lsquo;": "\u2018",
+    "&rsquo;": "\u2019",
+    "&ldquo;": "\u201C",
+    "&rdquo;": "\u201D",
   };
 
   let decoded = text;
   for (const [entity, char] of Object.entries(entities)) {
-    decoded = decoded.replace(new RegExp(entity, 'g'), char);
+    decoded = decoded.replace(new RegExp(entity, "g"), char);
   }
   decoded = decoded.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
-  decoded = decoded.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  decoded = decoded.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+    String.fromCharCode(parseInt(hex, 16))
+  );
   return decoded;
 }
 
@@ -67,7 +80,7 @@ export function parseVttToText(content: string): string {
       if (/^NOTE/i.test(trimmed)) return false;
       if (/^Kind:/i.test(trimmed)) return false;
       if (/^Language:/i.test(trimmed)) return false;
-      if (/^\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(trimmed)) return false;
+      if (/^\d{2}:\d{2}:\d{2}\.\d{3}\s+-->/.test(trimmed)) return false;
       if (/^\d+$/.test(trimmed)) return false;
       return true;
     })
@@ -119,20 +132,28 @@ function parseVttToSegments(content: string): Array<{ start: number; end: number
     const line = lines[i].trim();
     i++;
     if (!line) continue;
-    if (/^WEBVTT/i.test(line) || /^NOTE/i.test(line) || /^Kind:/i.test(line) || /^Language:/i.test(line)) {
+    if (
+      /^WEBVTT/i.test(line) ||
+      /^NOTE/i.test(line) ||
+      /^Kind:/i.test(line) ||
+      /^Language:/i.test(line)
+    ) {
       continue;
     }
     if (/^\d+$/.test(line)) {
       if (i >= lines.length) break;
     }
-    const timing = lines[i - 1].includes("-->") ? lines[i - 1] : lines[i]?.trim() ?? "";
+    const timing = lines[i - 1].includes("-->") ? lines[i - 1] : (lines[i]?.trim() ?? "");
     let timingLine = timing;
+    // eslint-disable-next-line no-useless-escape
     if (!/\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(timingLine)) {
+      // eslint-disable-next-line no-useless-escape
       if (!/\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(line)) continue;
       timingLine = line;
     } else {
       i++;
     }
+    // eslint-disable-next-line no-useless-escape
     const tm = timingLine.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s+--\>\s+(\d{2}:\d{2}:\d{2}\.\d{3})/);
     if (!tm) continue;
     const start = parseTime(tm[1]);
@@ -165,10 +186,18 @@ function parseVttToSegments(content: string): Array<{ start: number; end: number
   return segs;
 }
 
-async function upsertVideoSearchFts(db: any, videoId: string, title: string | null | undefined, transcript: string | null | undefined) {
+async function upsertVideoSearchFts(
+  db: Database,
+  videoId: string,
+  title: string | null | undefined,
+  transcript: string | null | undefined
+) {
   try {
-    await db.run(sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`);
+    await db.run(
+      sql`INSERT INTO video_search_fts (video_id, title, transcript) VALUES (${videoId}, ${title ?? ""}, ${transcript ?? ""})`
+    );
   } catch {
+    // Ignore - FTS table may not support this operation or entry already exists
     logger.debug("[fts] insert skipped", { videoId, reason: "already exists or error" });
   }
 }
@@ -186,7 +215,7 @@ export const transcriptsRouter = t.router({
           .select()
           .from(videoTranscripts)
           .where(eq(videoTranscripts.videoId, input.videoId));
-        rows = allTranscripts.filter(t => normalizeLangCode(t.language) === normalizedLang);
+        rows = allTranscripts.filter((t) => normalizeLangCode(t.language) === normalizedLang);
       } else {
         rows = await db
           .select()
@@ -196,11 +225,13 @@ export const transcriptsRouter = t.router({
       }
       if (rows.length === 0) return null;
 
-      const row = rows[0] as { id: string; videoId: string; text: string | null; language?: string | null; updatedAt?: number | null; rawVtt?: string | null };
+      const row = rows[0];
 
       // If the stored transcript still contains inline VTT tags, sanitize on read
       const t = row.text ?? "";
-      const looksLikeVttInline = /<\d{2}:\d{2}:\d{2}\.\d{3}>|<c>|<\/c>|WEBVTT|Kind:|Language:|--\>/i.test(t);
+
+      const looksLikeVttInline =
+        /<\d{2}:\d{2}:\d{2}\.\d{3}>|<c>|<\/c>|WEBVTT|Kind:|Language:|-->/i.test(t);
       if (looksLikeVttInline) {
         try {
           const cleaned = parseVttToText(t);
@@ -220,13 +251,19 @@ export const transcriptsRouter = t.router({
               const title = vid[0]?.title ?? null;
               await upsertVideoSearchFts(db, input.videoId, title, cleaned);
             } catch (e) {
-              logger.warn("[fts] update after transcript sanitize failed", { videoId: input.videoId, error: String(e) });
+              logger.warn("[fts] update after transcript sanitize failed", {
+                videoId: input.videoId,
+                error: String(e),
+              });
             }
 
-            return { ...row, text: cleaned, updatedAt: now } as typeof row;
+            return { ...row, text: cleaned, updatedAt: now };
           }
         } catch (e) {
-          logger.warn("[transcript] sanitize on read failed", { videoId: input.videoId, error: String(e) });
+          logger.warn("[transcript] sanitize on read failed", {
+            videoId: input.videoId,
+            error: String(e),
+          });
         }
       }
 
@@ -239,8 +276,10 @@ export const transcriptsRouter = t.router({
             .update(videoTranscripts)
             .set({ text: derived, updatedAt: now })
             .where(eq(videoTranscripts.id, row.id));
-          return { ...row, text: derived, updatedAt: now } as typeof row;
-        } catch {}
+          return { ...row, text: derived, updatedAt: now };
+        } catch {
+          // Ignore - VTT parsing may fail for malformed content
+        }
       }
 
       return row;
@@ -252,7 +291,10 @@ export const transcriptsRouter = t.router({
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
 
-      logger.info("[transcript] download called", { videoId: input.videoId, requestedLang: input.lang ?? "default" });
+      logger.info("[transcript] download called", {
+        videoId: input.videoId,
+        requestedLang: input.lang ?? "default",
+      });
 
       // Check DB first
       try {
@@ -263,7 +305,7 @@ export const transcriptsRouter = t.router({
             .select()
             .from(videoTranscripts)
             .where(eq(videoTranscripts.videoId, input.videoId));
-          existing = allTranscripts.filter(t => normalizeLangCode(t.language) === normalizedLang);
+          existing = allTranscripts.filter((t) => normalizeLangCode(t.language) === normalizedLang);
         } else {
           existing = await db
             .select()
@@ -274,14 +316,19 @@ export const transcriptsRouter = t.router({
 
         if (existing.length > 0) {
           const row = existing[0];
-          if (row.text && row.rawVtt && row.text.trim().length > 0 && row.rawVtt.trim().length > 0) {
+          if (
+            row.text &&
+            row.rawVtt &&
+            row.text.trim().length > 0 &&
+            row.rawVtt.trim().length > 0
+          ) {
             logger.info("[transcript] found existing in DB", { videoId: input.videoId });
             return {
               success: true as const,
               videoId: input.videoId,
               language: row.language ?? input.lang ?? "en",
               length: row.text.length,
-              fromCache: true as const
+              fromCache: true as const,
             } as const;
           }
           // Has rawVtt but missing text - derive it
@@ -294,7 +341,9 @@ export const transcriptsRouter = t.router({
               await db
                 .update(videoTranscripts)
                 .set({ text: derived, segmentsJson, updatedAt: now })
-                .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${row.language}`);
+                .where(
+                  sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${row.language}`
+                );
 
               try {
                 const vid = await db
@@ -305,6 +354,7 @@ export const transcriptsRouter = t.router({
                 const title = vid[0]?.title ?? null;
                 await upsertVideoSearchFts(db, input.videoId, title, derived);
               } catch {
+                // Ignore - FTS update is not critical
                 logger.warn("[fts] update failed", { videoId: input.videoId });
               }
 
@@ -313,14 +363,16 @@ export const transcriptsRouter = t.router({
                 videoId: input.videoId,
                 language: row.language ?? input.lang ?? "en",
                 length: derived.length,
-                fromCache: true as const
+                fromCache: true as const,
               } as const;
             } catch {
+              // Ignore - VTT parsing may fail
               logger.warn("[transcript] derive from rawVtt failed", { videoId: input.videoId });
             }
           }
         }
       } catch {
+        // Ignore - DB check is a fallback before download
         logger.error("[transcript] DB check failed", { videoId: input.videoId });
       }
 
@@ -369,13 +421,15 @@ export const transcriptsRouter = t.router({
             }
           );
           let err = "";
-          proc.stderr?.on("data", (d) => (err += d.toString()));
+          proc.stderr?.on("data", (d: Buffer | string) => (err += d.toString()));
           proc.on("error", reject);
-          proc.on("close", (code) => (code === 0 ? resolve() : reject(new Error(err || `yt-dlp exited ${code}`))));
+          proc.on("close", (code) =>
+            code === 0 ? resolve() : reject(new Error(err || `yt-dlp exited ${code}`))
+          );
         });
       } catch (e) {
         const msg = String(e);
-        logger.error("[transcript] yt-dlp failed", e as Error);
+        logger.error("[transcript] yt-dlp failed", e);
         const rateLimited = /429|Too Many Requests/i.test(msg);
         if (rateLimited) {
           return {
@@ -391,16 +445,23 @@ export const transcriptsRouter = t.router({
       // Find resulting VTT file
       let vttPath: string | null = null;
       try {
-        const files = fs.readdirSync(transcriptsDir).filter((f) => f.startsWith(input.videoId) && f.endsWith(".vtt"));
+        const files = fs
+          .readdirSync(transcriptsDir)
+          .filter((f) => f.startsWith(input.videoId) && f.endsWith(".vtt"));
         if (files.length > 0) {
           const withStat = files.map((f) => ({ f, s: fs.statSync(path.join(transcriptsDir, f)) }));
           withStat.sort((a, b) => b.s.mtimeMs - a.s.mtimeMs);
           vttPath = path.join(transcriptsDir, withStat[0].f);
         }
-      } catch {}
+      } catch {
+        // Ignore - directory may not exist or be unreadable
+      }
 
       if (!vttPath || !fs.existsSync(vttPath)) {
-        return { success: false as const, message: "Transcript file not found after yt-dlp" } as const;
+        return {
+          success: false as const,
+          message: "Transcript file not found after yt-dlp",
+        } as const;
       }
 
       // Parse VTT
@@ -420,7 +481,9 @@ export const transcriptsRouter = t.router({
         const existing = await db
           .select()
           .from(videoTranscripts)
-          .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${detectedLang}`)
+          .where(
+            sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${detectedLang}`
+          )
           .limit(1);
 
         if (existing.length === 0) {
@@ -447,10 +510,12 @@ export const transcriptsRouter = t.router({
               segmentsJson,
               updatedAt: now,
             })
-            .where(sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${detectedLang}`);
+            .where(
+              sql`${videoTranscripts.videoId} = ${input.videoId} AND ${videoTranscripts.language} = ${detectedLang}`
+            );
         }
       } catch (e) {
-        logger.error("[transcript] upsert failed", e as Error);
+        logger.error("[transcript] upsert failed", e);
         return { success: false as const, message: "Failed to store transcript" } as const;
       }
 
@@ -464,10 +529,16 @@ export const transcriptsRouter = t.router({
         const title = vid[0]?.title ?? null;
         await upsertVideoSearchFts(db, input.videoId, title, text);
       } catch {
+        // Ignore - FTS update is not critical
         logger.warn("[fts] update failed", { videoId: input.videoId });
       }
 
-      return { success: true as const, videoId: input.videoId, language: detectedLang, length: text.length } as const;
+      return {
+        success: true as const,
+        videoId: input.videoId,
+        language: detectedLang,
+        length: text.length,
+      } as const;
     }),
 
   // Get transcript segments with timestamps for highlighting
@@ -484,7 +555,7 @@ export const transcriptsRouter = t.router({
             .select()
             .from(videoTranscripts)
             .where(eq(videoTranscripts.videoId, input.videoId));
-          rows = allTranscripts.filter(t => normalizeLangCode(t.language) === normalizedLang);
+          rows = allTranscripts.filter((t) => normalizeLangCode(t.language) === normalizedLang);
         } else {
           rows = await db
             .select()
@@ -494,12 +565,19 @@ export const transcriptsRouter = t.router({
         }
 
         if (rows.length > 0) {
-          const row = rows[0] as { id: string; rawVtt?: string | null; segmentsJson?: string | null; language?: string | null };
+          const row = rows[0];
           if (row.segmentsJson) {
             try {
-              const segs = JSON.parse(row.segmentsJson) as Array<{ start: number; end: number; text: string }>;
-              return { segments: segs, language: (row as any).language ?? input.lang } as const;
-            } catch {}
+              const parseResult = transcriptSegmentSchema.safeParse(JSON.parse(row.segmentsJson));
+              if (parseResult.success) {
+                return {
+                  segments: parseResult.data,
+                  language: row.language ?? input.lang,
+                } as const;
+              }
+            } catch {
+              // Ignore - JSON parsing may fail for malformed data
+            }
           }
           if (row.rawVtt) {
             const segs = parseVttToSegments(row.rawVtt);
@@ -507,12 +585,16 @@ export const transcriptsRouter = t.router({
               await db
                 .update(videoTranscripts)
                 .set({ segmentsJson: JSON.stringify(segs), updatedAt: Date.now() })
-                .where(eq(videoTranscripts.id, (row as any).id));
-            } catch {}
-            return { segments: segs, language: (row as any).language ?? input.lang } as const;
+                .where(eq(videoTranscripts.id, row.id));
+            } catch {
+              // Ignore - DB update is not critical, segments still returned
+            }
+            return { segments: segs, language: row.language ?? input.lang } as const;
           }
         }
-      } catch {}
+      } catch {
+        // Ignore - DB query failure, will fall back to disk cache
+      }
 
       // Fallback to cached VTT files on disk
       const transcriptsDir = getTranscriptsDir();
@@ -520,7 +602,11 @@ export const transcriptsRouter = t.router({
         const files = fs
           .readdirSync(transcriptsDir)
           .filter((f) => f.startsWith(input.videoId) && f.endsWith(".vtt"));
-        if (files.length === 0) return { segments: [] as Array<{ start: number; end: number; text: string }>, language: input.lang } as const;
+        if (files.length === 0)
+          return {
+            segments: [],
+            language: input.lang,
+          } as const;
 
         const pickByLang = (lang: string, arr: string[]) => {
           const re = new RegExp(`\\.${lang}(?:[.-]|\\.vtt$)`, "i");
@@ -530,17 +616,23 @@ export const transcriptsRouter = t.router({
         };
 
         const candidates = input.lang ? pickByLang(input.lang, files) : files;
-        const withStat = candidates.map((f) => ({ f, s: fs.statSync(path.join(transcriptsDir, f)) }));
+        const withStat = candidates.map((f) => ({
+          f,
+          s: fs.statSync(path.join(transcriptsDir, f)),
+        }));
         withStat.sort((a, b) => b.s.mtimeMs - a.s.mtimeMs);
         const vttPath = path.join(transcriptsDir, withStat[0].f);
         const raw = fs.readFileSync(vttPath, "utf8");
         const segments = parseVttToSegments(raw);
         return { segments, language: input.lang } as const;
       } catch {
-        return { segments: [] as Array<{ start: number; end: number; text: string }>, language: input.lang } as const;
+        // Ignore - VTT parsing or file reading may fail
+        return {
+          segments: [],
+          language: input.lang,
+        } as const;
       }
     }),
 });
 
 // Router type not exported (unused)
-

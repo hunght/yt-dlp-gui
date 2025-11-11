@@ -145,15 +145,13 @@ function parseVttToSegments(content: string): Array<{ start: number; end: number
     }
     const timing = lines[i - 1].includes("-->") ? lines[i - 1] : (lines[i]?.trim() ?? "");
     let timingLine = timing;
-    // eslint-disable-next-line no-useless-escape
     if (!/\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(timingLine)) {
-      // eslint-disable-next-line no-useless-escape
       if (!/\d{2}:\d{2}:\d{2}\.\d{3}\s+--\>/.test(line)) continue;
       timingLine = line;
     } else {
       i++;
     }
-    // eslint-disable-next-line no-useless-escape
+
     const tm = timingLine.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s+--\>\s+(\d{2}:\d{2}:\d{2}\.\d{3})/);
     if (!tm) continue;
     const start = parseTime(tm[1]);

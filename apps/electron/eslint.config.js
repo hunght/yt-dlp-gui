@@ -210,7 +210,7 @@ export default [
       // General rules - adapted to your patterns
       'no-console': 'error', // Ban console - use logger instead
       'no-empty': 'error', // Empty catch blocks are not allowed
-      'no-useless-escape': 'error', // Turn off - regex escapes are fine
+      'no-useless-escape': 'off', // Turn off - regex escapes are fine
       'no-unreachable': 'error', // Turn off - might be intentional dead code for future use
       'no-redeclare': 'error', // Turn off - can be intentional for type/value
       'no-async-promise-executor': 'error', // Turn off

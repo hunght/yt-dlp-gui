@@ -56,12 +56,18 @@ export function HeaderNav(): React.JSX.Element {
           search: searchParams,
         });
       } else if (p === "player" && title) {
-        // Check if playing from a playlist by looking for playlistId
+        // Check if playing from a playlist
         const playlistId =
           searchParams &&
           "playlistId" in searchParams &&
           typeof searchParams.playlistId === "string"
             ? searchParams.playlistId
+            : undefined;
+
+        // Check if playing from a channel
+        const channelId =
+          searchParams && "channelId" in searchParams && typeof searchParams.channelId === "string"
+            ? searchParams.channelId
             : undefined;
 
         if (playlistId) {
@@ -81,6 +87,29 @@ export function HeaderNav(): React.JSX.Element {
             name: playlistTitle,
             to: "/playlist",
             search: { playlistId, title: playlistTitle },
+          });
+          acc.push({
+            name: title,
+            to: built,
+            search: searchParams,
+          });
+        } else if (channelId) {
+          // Try to get channel title from React Query cache
+          const cachedChannelData = queryClient.getQueryData(["ytdlp", "channel", channelId]);
+          const channelTitle =
+            cachedChannelData &&
+            typeof cachedChannelData === "object" &&
+            "channelTitle" in cachedChannelData &&
+            typeof cachedChannelData.channelTitle === "string"
+              ? cachedChannelData.channelTitle
+              : "Channel";
+
+          // Playing from channel: show channel hierarchy
+          acc.push({ name: "Channels", to: "/channels" });
+          acc.push({
+            name: channelTitle,
+            to: "/channel",
+            search: { channelId, title: channelTitle },
           });
           acc.push({
             name: title,

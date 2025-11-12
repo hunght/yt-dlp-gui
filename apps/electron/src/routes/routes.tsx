@@ -40,7 +40,7 @@ const PlayerRoute = createRoute({
       playlistId: typeof search.playlistId === "string" ? search.playlistId : undefined,
       playlistIndex: typeof search.playlistIndex === "number" ? search.playlistIndex : undefined,
       title: typeof search.title === "string" ? search.title : undefined,
-      playlistTitle: typeof search.playlistTitle === "string" ? search.playlistTitle : undefined,
+      channelId: typeof search.channelId === "string" ? search.channelId : undefined,
     };
   },
 });

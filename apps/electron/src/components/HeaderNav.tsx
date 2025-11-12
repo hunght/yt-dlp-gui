@@ -106,18 +106,25 @@ export function HeaderNav(): React.JSX.Element {
 
   return (
     <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white/70 px-4 py-2 backdrop-blur dark:bg-gray-900/70">
-      <div className="flex items-center gap-2 text-sm">
-        <nav className="flex items-center gap-1 text-muted-foreground">
-          <Link to="/" className="hover:underline">
+      <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+        <nav className="flex min-w-0 items-center gap-1 text-muted-foreground">
+          <Link to="/" className="flex-shrink-0 hover:underline">
             Home
           </Link>
           {segments.map((s, i) => (
             <Fragment key={`${s.to}-${i}`}>
-              <span>/</span>
+              <span className="flex-shrink-0">/</span>
               {i === segments.length - 1 ? (
-                <span className="text-foreground">{s.name}</span>
+                <span className="max-w-[200px] truncate text-foreground" title={s.name}>
+                  {s.name}
+                </span>
               ) : (
-                <Link to={s.to} search={s.search} className="hover:underline">
+                <Link
+                  to={s.to}
+                  search={s.search}
+                  className="max-w-[150px] truncate hover:underline"
+                  title={s.name}
+                >
                   {s.name}
                 </Link>
               )}

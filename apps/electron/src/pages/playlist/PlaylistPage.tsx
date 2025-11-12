@@ -73,6 +73,7 @@ export default function PlaylistPage(): React.JSX.Element {
           playlistId,
           playlistIndex: startIndex,
           title: video.title,
+          channelId: undefined,
         },
       });
     }
@@ -90,7 +91,7 @@ export default function PlaylistPage(): React.JSX.Element {
           playlistId,
           playlistIndex: videoIndex,
           title: video.title,
-          playlistTitle: data?.title,
+          channelId: undefined,
         },
       });
     }

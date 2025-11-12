@@ -68,6 +68,7 @@ export default function HistoryPage(): React.JSX.Element {
                               playlistId: undefined,
                               playlistIndex: undefined,
                               title: v.title,
+                              channelId: undefined,
                             },
                           })
                         }

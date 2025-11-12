@@ -168,6 +168,7 @@ export default function PlayerPage(): React.JSX.Element {
           playlistId,
           playlistIndex: nextIndex,
           title: nextVideo.title,
+          channelId: undefined,
         },
       });
     }
@@ -196,6 +197,7 @@ export default function PlayerPage(): React.JSX.Element {
           playlistId,
           playlistIndex: previousIndex,
           title: previousVideo.title,
+          channelId: undefined,
         },
       });
     }
@@ -204,7 +206,6 @@ export default function PlayerPage(): React.JSX.Element {
     playlistId,
     playlistCurrentIndex,
     playlistVideos,
-    playlistData?.title,
     updatePlaybackMutation,
     navigate,
   ]);

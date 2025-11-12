@@ -101,6 +101,7 @@ export default function MyWordsPage(): React.JSX.Element {
         playlistId: undefined,
         playlistIndex: undefined,
         title: videoTitle,
+        channelId: undefined,
       },
     });
   };

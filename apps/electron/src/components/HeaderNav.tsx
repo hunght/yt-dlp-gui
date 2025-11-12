@@ -95,7 +95,7 @@ export function HeaderNav(): React.JSX.Element {
           });
         } else if (channelId) {
           // Try to get channel title from React Query cache
-          const cachedChannelData = queryClient.getQueryData(["ytdlp", "channel", channelId]);
+          const cachedChannelData = queryClient.getQueryData(["channel", channelId]);
           const channelTitle =
             cachedChannelData &&
             typeof cachedChannelData === "object" &&

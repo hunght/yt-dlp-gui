@@ -102,6 +102,7 @@ export default function SubscriptionsPage(): React.JSX.Element {
                                 videoId: v.videoId,
                                 playlistId: undefined,
                                 playlistIndex: undefined,
+                                title: v.title,
                               },
                             })
                           }

@@ -163,6 +163,7 @@ export const PopularTab: React.FC<PopularTabProps> = ({ channelId, onDownload })
                           videoId: video.videoId,
                           playlistId: undefined,
                           playlistIndex: undefined,
+                          title: video.title,
                         }}
                         className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90"
                       >

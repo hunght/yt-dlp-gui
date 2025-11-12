@@ -39,6 +39,7 @@ const PlayerRoute = createRoute({
       videoId: typeof search.videoId === "string" ? search.videoId : undefined,
       playlistId: typeof search.playlistId === "string" ? search.playlistId : undefined,
       playlistIndex: typeof search.playlistIndex === "number" ? search.playlistIndex : undefined,
+      title: typeof search.title === "string" ? search.title : undefined,
     };
   },
 });
@@ -50,6 +51,7 @@ const ChannelRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => {
     return {
       channelId: typeof search.channelId === "string" ? search.channelId : undefined,
+      title: typeof search.title === "string" ? search.title : undefined,
     };
   },
 });
@@ -67,6 +69,7 @@ const PlaylistRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => {
     return {
       playlistId: typeof search.playlistId === "string" ? search.playlistId : undefined,
+      title: typeof search.title === "string" ? search.title : undefined,
     };
   },
 });

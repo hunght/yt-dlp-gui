@@ -72,6 +72,7 @@ export default function PlaylistPage(): React.JSX.Element {
           videoId: video.videoId,
           playlistId,
           playlistIndex: startIndex,
+          title: video.title,
         },
       });
     }
@@ -88,6 +89,7 @@ export default function PlaylistPage(): React.JSX.Element {
           videoId: video.videoId,
           playlistId,
           playlistIndex: videoIndex,
+          title: video.title,
         },
       });
     }

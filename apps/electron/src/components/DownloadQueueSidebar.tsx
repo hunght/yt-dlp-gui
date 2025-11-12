@@ -8,6 +8,7 @@ import { Pause, Play, X, RotateCw, PlayCircle } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { logger } from "@/helpers/logger";
 
 const statusColors = {
   pending: "bg-gray-500",
@@ -42,19 +43,39 @@ export const DownloadQueueSidebar: React.FC = () => {
     // Adaptive polling: Fast for active downloads, slower for completed/failed, stop when idle
     refetchInterval: (query): number | false => {
       const data = query.state.data;
-      if (!data) return 1500; // Poll initially until we get data
+
+      if (!data) {
+        logger.debug("[DownloadQueueSidebar] No data yet, polling at 1500ms");
+        return 1500; // Poll initially until we get data
+      }
 
       const hasActiveDownloads =
         data.downloading.length > 0 || data.queued.length > 0 || data.paused.length > 0;
 
+      logger.debug("[DownloadQueueSidebar] Polling decision", {
+        downloading: data.downloading.length,
+        queued: data.queued.length,
+        paused: data.paused.length,
+        completed: data.completed.length,
+        failed: data.failed.length,
+        hasActiveDownloads,
+      });
+
       // Fast polling for active downloads
-      if (hasActiveDownloads) return 1500;
+      if (hasActiveDownloads) {
+        logger.debug("[DownloadQueueSidebar] Active downloads detected, polling at 1500ms");
+        return 1500;
+      }
 
       // Slower polling if there are completed/failed downloads (to catch final updates)
       const hasRecentDownloads = data.completed.length > 0 || data.failed.length > 0;
-      if (hasRecentDownloads) return 5000; // Poll every 5 seconds
+      if (hasRecentDownloads) {
+        logger.debug("[DownloadQueueSidebar] Recent downloads detected, polling at 5000ms");
+        return 5000; // Poll every 5 seconds
+      }
 
       // Stop polling when completely idle
+      logger.debug("[DownloadQueueSidebar] Queue is idle, stopping polling");
       return false;
     },
     refetchOnWindowFocus: true,
@@ -205,6 +226,7 @@ export const DownloadQueueSidebar: React.FC = () => {
               key={download.id}
               className="group overflow-hidden rounded-lg border border-tracksy-gold/20 bg-white/50 shadow-sm transition-all hover:shadow-md dark:border-tracksy-gold/10 dark:bg-gray-800/50"
             >
+              {/* Top section with thumbnail and info */}
               <div className="flex gap-2 p-2.5">
                 {/* Thumbnail */}
                 {download.thumbnailUrl ? (
@@ -249,42 +271,6 @@ export const DownloadQueueSidebar: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Progress bar */}
-                  {download.status === "downloading" && (
-                    <div className="space-y-1">
-                      <Progress value={download.progress} className="h-1.5" />
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          {download.downloadedSize && download.totalSize && (
-                            <span>
-                              {download.downloadedSize} / {download.totalSize}
-                            </span>
-                          )}
-                          {download.downloadSpeed && (
-                            <span className="font-medium text-tracksy-gold">
-                              • {download.downloadSpeed}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {download.eta && (
-                            <span className="font-medium text-tracksy-blue dark:text-tracksy-gold">
-                              ETA {download.eta}
-                            </span>
-                          )}
-                          <span className="font-semibold">{download.progress}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Error message */}
-                  {download.status === "failed" && download.errorMessage && (
-                    <p className="line-clamp-2 text-[10px] text-red-600 dark:text-red-400">
-                      {download.errorMessage}
-                    </p>
-                  )}
-
                   {/* Action buttons */}
                   <div className="flex items-center justify-end gap-1.5">
                     {download.status === "completed" && download.filePath && download.videoId && (
@@ -294,6 +280,7 @@ export const DownloadQueueSidebar: React.FC = () => {
                           videoId: download.videoId,
                           playlistId: undefined,
                           playlistIndex: undefined,
+                          title: download.title,
                         }}
                         className="inline-flex h-6 items-center justify-center rounded-md border bg-background px-2 text-[10px] font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
                       >
@@ -352,6 +339,44 @@ export const DownloadQueueSidebar: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Full-width Progress bar section */}
+              {download.status === "downloading" && (
+                <div className="space-y-1 border-t border-tracksy-gold/20 bg-white/30 px-2.5 pb-2 pt-1.5 dark:border-tracksy-gold/10 dark:bg-gray-800/30">
+                  <Progress value={download.progress} className="h-1.5" />
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      {download.downloadedSize && download.totalSize && (
+                        <span>
+                          {download.downloadedSize} / {download.totalSize}
+                        </span>
+                      )}
+                      {download.downloadSpeed && (
+                        <span className="font-medium text-tracksy-gold">
+                          • {download.downloadSpeed}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {download.eta && (
+                        <span className="font-medium text-tracksy-blue dark:text-tracksy-gold">
+                          ETA {download.eta}
+                        </span>
+                      )}
+                      <span className="font-semibold">{download.progress}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Full-width Error message section */}
+              {download.status === "failed" && download.errorMessage && (
+                <div className="border-t border-red-200 bg-red-50/50 px-2.5 pb-2 pt-1.5 dark:border-red-900/30 dark:bg-red-950/20">
+                  <p className="line-clamp-2 text-[10px] text-red-600 dark:text-red-400">
+                    {download.errorMessage}
+                  </p>
+                </div>
+              )}
             </div>
           ))
         )}

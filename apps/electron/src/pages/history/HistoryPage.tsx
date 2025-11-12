@@ -3,33 +3,19 @@ import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Loader2 } from "lucide-react";
+import { Play } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import Thumbnail from "@/components/Thumbnail";
 
 export default function HistoryPage(): React.JSX.Element {
   const navigate = useNavigate();
 
-  // Queue status for in-progress downloads and recent completed
-  const queue = useQuery({
-    queryKey: ["queue-status"],
-    queryFn: async () => trpcClient.queue.getQueueStatus.query(),
-    refetchInterval: 3000,
-  });
-
-  // Recently played list is now DB-backed; no local atom
-
-  // Fetch metadata for recently played videos in parallel
+  // Fetch metadata for recently played videos
   // Use DB-backed recent watched list
   const playedMeta = useQuery({
     queryKey: ["recent-watched"],
     queryFn: async () => trpcClient.watchStats.listRecentWatched.query({ limit: 30 }),
   });
-
-  const inProgress = queue.data?.data?.downloading || [];
-  const queued = queue.data?.data?.queued || [];
-  const paused = queue.data?.data?.paused || [];
-  const completed = queue.data?.data?.completed || [];
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -81,6 +67,7 @@ export default function HistoryPage(): React.JSX.Element {
                               videoId: v.videoId,
                               playlistId: undefined,
                               playlistIndex: undefined,
+                              title: v.title,
                             },
                           })
                         }
@@ -92,77 +79,6 @@ export default function HistoryPage(): React.JSX.Element {
                   </div>
                 );
               })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">In Progress</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {queue.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : inProgress.length === 0 && queued.length === 0 && paused.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No active downloads.</p>
-          ) : (
-            <div className="space-y-3">
-              {[...inProgress, ...queued, ...paused].map((d) => (
-                <div
-                  key={d.id}
-                  className="flex items-center justify-between rounded border p-3 text-sm"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="truncate">{d.title || d.url}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {d.status === "downloading" ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin" /> {d.progress || 0}%
-                      </span>
-                    ) : (
-                      <span className="capitalize">{d.status}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recently Downloaded</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {queue.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : completed.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No recent downloads.</p>
-          ) : (
-            <div className="space-y-2 text-sm">
-              {completed.map((c) => (
-                <div key={c.id} className="flex items-center justify-between rounded border p-3">
-                  <div className="min-w-0 truncate">{c.title}</div>
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      navigate({
-                        to: "/player",
-                        search: {
-                          videoId: c.videoId ?? undefined,
-                          playlistId: undefined,
-                          playlistIndex: undefined,
-                        },
-                      })
-                    }
-                  >
-                    <Play className="mr-1 h-3 w-3" /> Play
-                  </Button>
-                </div>
-              ))}
             </div>
           )}
         </CardContent>

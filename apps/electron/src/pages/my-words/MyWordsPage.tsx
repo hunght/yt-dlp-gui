@@ -89,13 +89,18 @@ export default function MyWordsPage(): React.JSX.Element {
     });
   };
 
-  const handlePlayFromContext = (videoId: string, _timestampSeconds: number): void => {
+  const handlePlayFromContext = (
+    videoId: string,
+    _timestampSeconds: number,
+    videoTitle?: string
+  ): void => {
     navigate({
       to: "/player",
       search: {
         videoId,
         playlistId: undefined,
         playlistIndex: undefined,
+        title: videoTitle,
       },
     });
   };
@@ -116,7 +121,11 @@ export default function MyWordsPage(): React.JSX.Element {
   const isLoading = debouncedSearch ? searchLoading : savedWordsLoading;
 
   // Helper component to show video contexts for a translation
-  const VideoContexts = ({ translationId }: { translationId: string }): React.JSX.Element | null => {
+  const VideoContexts = ({
+    translationId,
+  }: {
+    translationId: string;
+  }): React.JSX.Element | null => {
     const { data: contexts, isLoading: contextsLoading } = useQuery({
       queryKey: ["translation-contexts", translationId],
       queryFn: async () => trpcClient.translation.getTranslationContexts.query({ translationId }),
@@ -189,7 +198,13 @@ export default function MyWordsPage(): React.JSX.Element {
                 size="sm"
                 variant="default"
                 className="flex-shrink-0"
-                onClick={() => handlePlayFromContext(context.videoId, context.timestampSeconds)}
+                onClick={() =>
+                  handlePlayFromContext(
+                    context.videoId,
+                    context.timestampSeconds,
+                    context.videoTitle ?? undefined
+                  )
+                }
               >
                 <Play className="mr-1 h-3 w-3" />
                 Play

@@ -331,7 +331,7 @@ export default function DashboardPage(): React.JSX.Element {
                 <Link
                   key={channel.channelId}
                   to="/channel"
-                  search={{ channelId: channel.channelId }}
+                  search={{ channelId: channel.channelId, title: channel.channelTitle }}
                   className="group flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm transition-all hover:shadow-md"
                 >
                   {/* Channel Avatar and Title */}

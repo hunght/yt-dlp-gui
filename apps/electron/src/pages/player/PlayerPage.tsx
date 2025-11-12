@@ -167,6 +167,7 @@ export default function PlayerPage(): React.JSX.Element {
           videoId: nextVideo.videoId,
           playlistId,
           playlistIndex: nextIndex,
+          title: nextVideo.title,
         },
       });
     }
@@ -194,6 +195,7 @@ export default function PlayerPage(): React.JSX.Element {
           videoId: previousVideo.videoId,
           playlistId,
           playlistIndex: previousIndex,
+          title: previousVideo.title,
         },
       });
     }

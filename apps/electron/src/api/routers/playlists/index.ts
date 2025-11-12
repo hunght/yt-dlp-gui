@@ -25,22 +25,22 @@ const ytDlpThumbnailSchema = z.object({
 
 const ytDlpPlaylistEntrySchema = z.object({
   id: z.string().optional(),
-  title: z.string().optional(),
-  duration: z.number().optional(),
-  view_count: z.number().optional(),
-  channel: z.string().optional(),
-  uploader: z.string().optional(),
+  title: z.string().nullish(),
+  duration: z.number().nullish(),
+  view_count: z.number().nullish(),
+  channel: z.string().nullish(),
+  uploader: z.string().nullish(),
   thumbnails: z.array(ytDlpThumbnailSchema).optional(),
-  thumbnail: z.string().optional(),
+  thumbnail: z.string().nullish(),
 });
 
 const ytDlpPlaylistDataSchema = z.object({
-  title: z.string().optional(),
-  description: z.string().optional(),
-  channel: z.string().optional(),
-  uploader: z.string().optional(),
-  channel_id: z.string().optional(),
-  channel_url: z.string().optional(),
+  title: z.string().nullish(),
+  description: z.string().nullish(),
+  channel: z.string().nullish(),
+  uploader: z.string().nullish(),
+  channel_id: z.string().nullish(),
+  channel_url: z.string().nullish(),
   thumbnails: z.array(ytDlpThumbnailSchema).optional(),
   entries: z.array(ytDlpPlaylistEntrySchema).optional(),
 });

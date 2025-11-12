@@ -90,6 +90,7 @@ export default function PlaylistPage(): React.JSX.Element {
           playlistId,
           playlistIndex: videoIndex,
           title: video.title,
+          playlistTitle: data?.title,
         },
       });
     }

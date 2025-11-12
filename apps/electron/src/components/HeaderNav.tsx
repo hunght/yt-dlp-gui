@@ -1,5 +1,6 @@
 import React, { useMemo, Fragment } from "react";
 import { Link, useMatches } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 
 interface Segment {
@@ -11,6 +12,7 @@ interface Segment {
 export function HeaderNav(): React.JSX.Element {
   const matches = useMatches();
   const leaf = matches[matches.length - 1];
+  const queryClient = useQueryClient();
 
   const segments = useMemo(() => {
     const path = leaf?.pathname || "/";
@@ -54,21 +56,53 @@ export function HeaderNav(): React.JSX.Element {
           search: searchParams,
         });
       } else if (p === "player" && title) {
-        // Add "History" parent link
-        acc.push({ name: "History", to: "/history" });
-        // Add current video title
-        acc.push({
-          name: title,
-          to: built,
-          search: searchParams,
-        });
+        // Check if playing from a playlist by looking for playlistId
+        const playlistId =
+          searchParams &&
+          "playlistId" in searchParams &&
+          typeof searchParams.playlistId === "string"
+            ? searchParams.playlistId
+            : undefined;
+
+        if (playlistId) {
+          // Try to get playlist title from React Query cache
+          const cachedPlaylistData = queryClient.getQueryData(["playlist-details", playlistId]);
+          const playlistTitle =
+            cachedPlaylistData &&
+            typeof cachedPlaylistData === "object" &&
+            "title" in cachedPlaylistData &&
+            typeof cachedPlaylistData.title === "string"
+              ? cachedPlaylistData.title
+              : "Playlist";
+
+          // Playing from playlist: show playlist hierarchy
+          acc.push({ name: "Playlists", to: "/playlists" });
+          acc.push({
+            name: playlistTitle,
+            to: "/playlist",
+            search: { playlistId, title: playlistTitle },
+          });
+          acc.push({
+            name: title,
+            to: built,
+            search: searchParams,
+          });
+        } else {
+          // Playing standalone: show history
+          acc.push({ name: "History", to: "/history" });
+          acc.push({
+            name: title,
+            to: built,
+            search: searchParams,
+          });
+        }
       } else {
         acc.push({ name: p.charAt(0).toUpperCase() + p.slice(1), to: built });
       }
     }
 
     return acc;
-  }, [leaf]);
+  }, [leaf, queryClient]);
 
   return (
     <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white/70 px-4 py-2 backdrop-blur dark:bg-gray-900/70">

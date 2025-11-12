@@ -204,6 +204,7 @@ export default function PlayerPage(): React.JSX.Element {
     playlistId,
     playlistCurrentIndex,
     playlistVideos,
+    playlistData?.title,
     updatePlaybackMutation,
     navigate,
   ]);

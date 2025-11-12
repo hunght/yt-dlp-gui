@@ -168,21 +168,21 @@ function toPlaylistResponse(p: ChannelPlaylist): PlaylistResponse {
 
 // Zod schema for yt-dlp flat-playlist response (used in listChannelLatest/Popular)
 const playlistResponseSchema = z.object({
-  channel_id: z.string().optional(),
-  channel: z.string().optional(),
-  uploader: z.string().optional(),
-  channel_url: z.string().optional(),
+  channel_id: z.string().nullish(),
+  channel: z.string().nullish(),
+  uploader: z.string().nullish(),
+  channel_url: z.string().nullish(),
   entries: z
     .array(
       z.object({
         id: z.string(),
-        title: z.string().optional(),
-        duration: z.number().optional(),
-        view_count: z.number().optional(),
-        channel: z.string().optional(),
-        uploader: z.string().optional(),
+        title: z.string().nullish(),
+        duration: z.number().nullish(),
+        view_count: z.number().nullish(),
+        channel: z.string().nullish(),
+        uploader: z.string().nullish(),
         thumbnails: z.array(z.object({ url: z.string() })).optional(),
-        thumbnail: z.string().optional(),
+        thumbnail: z.string().nullish(),
       })
     )
     .optional(),
@@ -190,15 +190,15 @@ const playlistResponseSchema = z.object({
 
 // Zod schema for yt-dlp playlist metadata response (for channel playlists)
 const playlistEntrySchema = z.object({
-  id: z.string().optional(),
-  playlist_id: z.string().optional(),
-  title: z.string().optional(),
-  url: z.string().optional(),
-  webpage_url: z.string().optional(),
-  playlist_count: z.number().optional(),
-  n_entries: z.number().optional(),
+  id: z.string().nullish(),
+  playlist_id: z.string().nullish(),
+  title: z.string().nullish(),
+  url: z.string().nullish(),
+  webpage_url: z.string().nullish(),
+  playlist_count: z.number().nullish(),
+  n_entries: z.number().nullish(),
   thumbnails: z.array(z.object({ url: z.string() })).optional(),
-  thumbnail: z.string().optional(),
+  thumbnail: z.string().nullish(),
 });
 
 const playlistsListResponseSchema = z.object({

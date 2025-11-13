@@ -49,7 +49,7 @@
     "db:counts": "npx tsx scripts/db-counts.ts",
     "db:vacuum": "npx tsx scripts/db-vacuum.ts",
     "db:analyze": "npx tsx scripts/db-analyze.ts",
-    "prepare": "lefthook install"
+    "postinstall": "lefthook install || true"
   },
   "author": "HungHoang <hth321@gmail.com>",
   "license": "MIT",

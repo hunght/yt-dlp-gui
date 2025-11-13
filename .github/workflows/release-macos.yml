@@ -94,6 +94,10 @@ jobs:
         run: |
           echo "Setting up notarization environment..."
           echo "Building for architecture: $ARCH"
+          
+          # Change to electron directory
+          cd apps/electron
+          
           echo "Checking for entitlements.plist..."
           if [ ! -f "entitlements.plist" ]; then
             echo " entitlements.plist not found"

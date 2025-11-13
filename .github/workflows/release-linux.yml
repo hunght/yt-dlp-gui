@@ -27,6 +27,7 @@ jobs:
         run: npm run build --workspace=packages/database
 
       - name: Build app
+        working-directory: apps/electron
         env:
           NODE_ENV: production
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

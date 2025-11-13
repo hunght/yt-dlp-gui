@@ -1,8 +1,8 @@
 {
-  "name": "@yt-dlp-gui/electron",
-  "productName": "yt-dlp-gui",
+  "name": "@learnifytube/electron",
+  "productName": "LearnifyTube",
   "version": "1.0.2",
-  "description": "A productivity app that tracks time, boosts focus, and provides insights into work habits, helping you manage time effectively and stay productive.",
+  "description": "LearnifyTube - A powerful YouTube downloader application with a beautiful modern interface for downloading videos, playlists, and managing your downloads efficiently.",
   "main": ".vite/build/main.js",
   "scripts": {
     "rebuild": "./node_modules/.bin/electron-rebuild; npm rebuild",
@@ -21,7 +21,7 @@
     "win-make": "npm run clean:out && npm run debug-make",
     "win-build": "cross-env PLATFORM=win32 npm run make",
     "mac-build": "cross-env PLATFORM=darwin npm run make",
-    "clean:out": "powershell -Command \"Stop-Process -Name yt-dlp-gui -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Path out -Force -Recurse -ErrorAction SilentlyContinue\"",
+    "clean:out": "powershell -Command \"Stop-Process -Name LearnifyTube -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Path out -Force -Recurse -ErrorAction SilentlyContinue\"",
     "publish": "electron-forge publish",
     "prett": "prettier . --write",
     "storybook": "storybook dev -p 6006",
@@ -54,7 +54,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hunght/yt-dlp-gui.git"
+    "url": "https://github.com/hunght/LearnifyTube.git"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.8.3",
@@ -164,7 +164,7 @@
     "@tiptap/starter-kit": "^2.11.5",
     "@trpc/client": "^10.45.2",
     "@trpc/server": "^10.45.2",
-    "@yt-dlp-gui/database": "*",
+    "@learnifytube/database": "*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",

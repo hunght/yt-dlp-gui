@@ -1,5 +1,5 @@
 {
-  "name": "@yt-dlp-gui/database",
+  "name": "@learnifytube/database",
   "version": "1.0.001",
   "type": "module",
   "main": "./dist/index.js",

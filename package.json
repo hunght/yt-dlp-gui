@@ -1,8 +1,8 @@
 {
-  "name": "@yt-dlp-gui/root",
+  "name": "@learnifytube/root",
   "version": "1.0.001",
   "private": true,
-  "description": "YouTube downloader GUI monorepo",
+  "description": "LearnifyTube - YouTube downloader application monorepo",
   "workspaces": [
     "apps/*",
     "packages/*"

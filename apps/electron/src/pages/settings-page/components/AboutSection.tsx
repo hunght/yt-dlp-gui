@@ -31,7 +31,7 @@ export function AboutSection(): React.JSX.Element {
     <>
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>About yt-dlp-gui</CardTitle>
+          <CardTitle>About LearnifyTube</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

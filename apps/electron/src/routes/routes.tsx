@@ -7,7 +7,6 @@ import ChannelPage from "@/pages/channel/ChannelPage";
 import ChannelsPage from "@/pages/channels/ChannelsPage";
 import PlaylistPage from "@/pages/playlist/PlaylistPage";
 import PlaylistsPage from "@/pages/playlists/PlaylistsPage";
-import LogsPage from "@/pages/logs/LogsPage";
 import SubscriptionsPage from "@/pages/subscriptions/SubscriptionsPage";
 import HistoryPage from "@/pages/history/HistoryPage";
 import MyWordsPage from "@/pages/my-words/MyWordsPage";
@@ -16,12 +15,6 @@ const DashboardRoute = createRoute({
   getParentRoute: () => RootRoute,
   path: "/",
   component: DashboardPage,
-});
-
-const LogsRoute = createRoute({
-  getParentRoute: () => RootRoute,
-  path: "/logs",
-  component: LogsPage,
 });
 
 const SettingsRoute = createRoute({
@@ -98,7 +91,6 @@ const MyWordsRoute = createRoute({
 export const rootTree = RootRoute.addChildren([
   DashboardRoute,
   SettingsRoute,
-  LogsRoute,
   PlayerRoute,
   ChannelRoute,
   ChannelsRoute,

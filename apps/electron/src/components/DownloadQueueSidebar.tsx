@@ -280,8 +280,6 @@ export const DownloadQueueSidebar: React.FC = () => {
                           videoId: download.videoId,
                           playlistId: undefined,
                           playlistIndex: undefined,
-                          title: download.title,
-                          channelId: undefined,
                         }}
                         className="inline-flex h-6 items-center justify-center rounded-md border bg-background px-2 text-[10px] font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
                       >

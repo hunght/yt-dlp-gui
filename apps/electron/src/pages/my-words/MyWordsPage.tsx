@@ -89,19 +89,13 @@ export default function MyWordsPage(): React.JSX.Element {
     });
   };
 
-  const handlePlayFromContext = (
-    videoId: string,
-    _timestampSeconds: number,
-    videoTitle?: string
-  ): void => {
+  const handlePlayFromContext = (videoId: string, _timestampSeconds: number): void => {
     navigate({
       to: "/player",
       search: {
         videoId,
         playlistId: undefined,
         playlistIndex: undefined,
-        title: videoTitle,
-        channelId: undefined,
       },
     });
   };
@@ -199,13 +193,7 @@ export default function MyWordsPage(): React.JSX.Element {
                 size="sm"
                 variant="default"
                 className="flex-shrink-0"
-                onClick={() =>
-                  handlePlayFromContext(
-                    context.videoId,
-                    context.timestampSeconds,
-                    context.videoTitle ?? undefined
-                  )
-                }
+                onClick={() => handlePlayFromContext(context.videoId, context.timestampSeconds)}
               >
                 <Play className="mr-1 h-3 w-3" />
                 Play

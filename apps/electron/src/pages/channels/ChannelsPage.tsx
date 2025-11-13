@@ -103,7 +103,7 @@ export default function ChannelsPage(): React.JSX.Element {
                 <Link
                   key={channel.channelId}
                   to="/channel"
-                  search={{ channelId: channel.channelId, title: channel.channelTitle }}
+                  search={{ channelId: channel.channelId }}
                   className="group rounded-lg border p-4 transition-colors hover:bg-accent"
                 >
                   <div className="flex items-start gap-3">

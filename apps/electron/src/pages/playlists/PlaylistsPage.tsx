@@ -136,7 +136,7 @@ export default function PlaylistsPage(): React.JSX.Element {
                     {/* Thumbnail */}
                     <Link
                       to="/playlist"
-                      search={{ playlistId: playlist.playlistId, title: playlist.title }}
+                      search={{ playlistId: playlist.playlistId }}
                       onClick={() => handlePlaylistClick(playlist.playlistId)}
                       className="relative flex-shrink-0"
                     >
@@ -163,7 +163,7 @@ export default function PlaylistsPage(): React.JSX.Element {
                       <div>
                         <Link
                           to="/playlist"
-                          search={{ playlistId: playlist.playlistId, title: playlist.title }}
+                          search={{ playlistId: playlist.playlistId }}
                           onClick={() => handlePlaylistClick(playlist.playlistId)}
                           className="font-semibold hover:text-primary"
                         >
@@ -172,7 +172,7 @@ export default function PlaylistsPage(): React.JSX.Element {
                         {playlist.channelTitle && playlist.channelId && (
                           <Link
                             to="/channel"
-                            search={{ channelId: playlist.channelId, title: playlist.channelTitle }}
+                            search={{ channelId: playlist.channelId }}
                             className="block text-sm text-muted-foreground hover:text-primary"
                           >
                             {playlist.channelTitle}
@@ -237,7 +237,7 @@ export default function PlaylistsPage(): React.JSX.Element {
                     <div className="flex flex-col gap-2">
                       <Link
                         to="/playlist"
-                        search={{ playlistId: playlist.playlistId, title: playlist.title }}
+                        search={{ playlistId: playlist.playlistId }}
                         onClick={() => handlePlaylistClick(playlist.playlistId)}
                       >
                         <Button size="sm" variant="outline" className="w-full">

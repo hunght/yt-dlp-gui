@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
-import { channels } from "@yt-dlp-gui/database";
+import { channels } from "@learnifytube/database";
 import { logger } from "@/helpers/logger";
 import { extractChannelData } from "./metadata";
 import { downloadImageToCache } from "./thumbnail";

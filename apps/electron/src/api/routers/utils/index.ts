@@ -13,7 +13,7 @@ import fs from "fs";
 import os from "os";
 import { extractZipWithYauzl } from "./service";
 import { getDatabasePath } from "@/utils/paths";
-import { translationCache, translationContexts } from "@yt-dlp-gui/database";
+import { translationCache, translationContexts } from "@learnifytube/database";
 import crypto from "crypto";
 
 // Zod schemas for dictionary API response
@@ -159,7 +159,9 @@ type SendNotificationResult = SendNotificationSuccess | SendNotificationFailure;
 
 type CloseNotificationWindowSuccess = { success: true };
 type CloseNotificationWindowFailure = { success: false; error: string };
-type CloseNotificationWindowResult = CloseNotificationWindowSuccess | CloseNotificationWindowFailure;
+type CloseNotificationWindowResult =
+  | CloseNotificationWindowSuccess
+  | CloseNotificationWindowFailure;
 
 type InstallUpdateSuccess = {
   status: "success";

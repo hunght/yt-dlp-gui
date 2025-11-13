@@ -8,7 +8,7 @@ import {
   youtubeVideos,
   savedWords,
   type TranslationCache,
-} from "@yt-dlp-gui/database/schema";
+} from "@learnifytube/database/schema";
 import { desc, sql, eq } from "drizzle-orm";
 import crypto from "crypto";
 

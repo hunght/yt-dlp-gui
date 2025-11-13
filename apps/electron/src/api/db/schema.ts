@@ -1,5 +1,5 @@
-// Re-export everything from the @yt-dlp-gui/database package
-export * from "@yt-dlp-gui/database/schema";
+// Re-export everything from the @learnifytube/database package
+export * from "@learnifytube/database/schema";
 
 // Local extension tables (ensure types available even if package dist not updated)
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";

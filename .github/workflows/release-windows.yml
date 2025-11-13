@@ -1,8 +1,10 @@
 name: Release Windows
 
 on:
-  push:
-    tags: ["v*.*.*"]
+  workflow_dispatch:
+  # Disabled temporarily - focus on macOS first
+  # push:
+  #   tags: ["v*.*.*"]
 
 permissions:
   contents: write

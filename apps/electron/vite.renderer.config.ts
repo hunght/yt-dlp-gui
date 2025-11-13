@@ -20,6 +20,7 @@ export default defineConfig((env) => {
     plugins: [pluginExposeRenderer(name), react()],
     resolve: {
       preserveSymlinks: true,
+      extensions: [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"],
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },

@@ -31,13 +31,17 @@ jobs:
 
       - name: Install architecture-specific dependencies
         run: |
-          # Install architecture-specific dependencies based on target architecture using --cpu and --os flags
-          cd apps/electron
+          # Install architecture-specific dependencies at root level for npm workspaces
           if [ "${{ matrix.arch }}" == "x64" ]; then
             npm i --cpu=x64 --os=darwin @libsql/client-darwin@npm:@libsql/client --no-save
           elif [ "${{ matrix.arch }}" == "arm64" ]; then
             npm i --cpu=arm64 --os=darwin @libsql/client-darwin@npm:@libsql/client --no-save
           fi
+          
+          # Verify installation
+          echo "Checking @libsql/client installation:"
+          ls -la node_modules/@libsql/ || echo "Not in root node_modules"
+          ls -la apps/electron/node_modules/@libsql/ || echo "Not in electron node_modules"
 
       - name: Create data directories
         shell: bash

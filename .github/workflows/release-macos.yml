@@ -110,6 +110,5 @@ jobs:
           npm run publish -- --arch=$ARCH
 
       - name: Clean up keychain
-        if: ${{ secrets.BUILD_CERTIFICATE_BASE64 != '' }}
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db

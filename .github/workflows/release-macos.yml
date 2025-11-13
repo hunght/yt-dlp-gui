@@ -32,6 +32,7 @@ jobs:
       - name: Install architecture-specific dependencies
         run: |
           # Install architecture-specific dependencies based on target architecture using --cpu and --os flags
+          cd apps/electron
           if [ "${{ matrix.arch }}" == "x64" ]; then
             npm i --cpu=x64 --os=darwin @libsql/client-darwin@npm:@libsql/client --no-save
           elif [ "${{ matrix.arch }}" == "arm64" ]; then

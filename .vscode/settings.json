@@ -1,24 +1,9 @@
 {
-  "eslint.enable": true,
-  "eslint.workingDirectories": [
-    "apps/electron"
-  ],
-  "eslint.validate": [
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "typescriptreact"
-  ],
-  "eslint.probe": [
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "typescriptreact"
-  ],
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true
+  "eslint.format.enable": true,
+  // Highlight complexity issues in the editor
+  "eslint.lintTask.options": "--max-warnings 0"
 }
-

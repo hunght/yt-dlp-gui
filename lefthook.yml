@@ -1,8 +1,29 @@
-# Root Lefthook Configuration
+# LearnifyTube Lefthook Configuration
 
-# Extends workspace-specific configurations
-extends:
-  - apps/electron/lefthook.yml
+pre-commit:
+  parallel: true
+  commands:
+    type-check:
+      run: npm run type-check
+
+    # Lint TypeScript files
+    lint:
+      glob: "**/*.{ts,tsx}"
+      run: npx eslint --fix {staged_files}
+      stage_fixed: true
+
+    # Format files with Prettier
+    format:
+      glob: "**/*.{ts,tsx,json}"
+      run: npx prettier --write {staged_files}
+      stage_fixed: true
+
+    # Run tests for changed files
+    test:
+      glob: "src/**/*.{ts,tsx}"
+      exclude: '\.(test|spec)\.(ts|tsx)$'
+      run: npx jest --bail --findRelatedTests --passWithNoTests {staged_files}
+
 commit-msg:
   commands:
     message-validation:

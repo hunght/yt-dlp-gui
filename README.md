@@ -1,278 +1,207 @@
-# YT-DLP GUI Monorepo
+# YT-DLP GUI
 
-A modern YouTube downloader GUI built with Electron and React, organized as a monorepo using npm workspaces and Turborepo.
+YT-DLP GUI is a powerful desktop application for tracking your activities and managing projects efficiently. It provides real-time window activity tracking, project management with boards, and detailed time analytics to help you understand how you spend your time.
 
-## 📦 Project Structure
+![Screenshot 2025-03-08 at 20 18 19](https://github.com/user-attachments/assets/e2255cb1-4a3c-4ab8-a83b-c95c3196caab)
+![Screenshot 2025-03-25 at 14 40 29](https://github.com/user-attachments/assets/617b065d-88ff-4f5b-9734-518fe9e4436d)
 
+## What's New 🎉
+
+**Latest Release Features:**
+- ⏰ **Custom Session Times** - Set your own focus session durations
+- ⚙️ **Clock Window Controls** - Toggle the floating clock on/off in settings
+- 📊 **Reports & Export** - New reports page with CSV export functionality
+- 🎵 **Music Page** - Focus-enhancing playlists to keep you in the zone
+- 🔕 **Notification Controls** - Disable time exceeded notifications to avoid interruptions
+
+📋 **[View Full Release Notes](./RELEASE_NOTES.md)** for detailed information about all new features and improvements.
+
+## Features
+
+- **Activity Tracking**: Automatically tracks window activities and provides detailed insights about your application usage
+- **Browser URL Tracking**: Captures browser URLs for detailed website analytics (requires macOS permissions)
+- **Project Management**: Organize your work with kanban boards, lists, and cards
+- **Time Analytics**: View detailed breakdowns of time spent on different applications, domains, and tasks
+- **Activity Classification**: Track your productivity goals with focus sessions and classify activities to improve insights
+- **Rule-Based Classification**: Customize how activities are categorized with a flexible rule system
+
+## Installation
+
+### Download
+
+Download the latest release for your platform from the [GitHub Releases page](https://github.com/hunght/yt-dlp-gui/releases).
+
+### Windows Installation
+
+**Important**: The Windows executable is unsigned, which means Windows Defender/SmartScreen will show security warnings when you try to install or run the application. This is expected behavior for unsigned executables.
+
+When you see the "Windows protected your PC" dialog:
+1. Click **"More info"**
+2. Click **"Run anyway"** to proceed with installation
+
+This warning appears because the application hasn't been digitally signed with a code signing certificate. The application is safe to use - the warning is simply Windows being cautious about unsigned software.
+
+### macOS Installation
+
+The macOS version is properly signed and notarized, so you shouldn't see security warnings during installation.
+
+## macOS Permissions
+
+For full functionality on macOS, YT-DLP GUI requires system permissions to track browser URLs:
+
+- **Accessibility Permission**: Required to detect active applications and window information
+- **Screen Recording Permission**: Required to access browser URLs and detailed window content
+
+### Quick Setup
+1. Launch YT-DLP GUI - it will automatically prompt for permissions
+2. Follow the guided setup to open System Settings
+3. Grant both Accessibility and Screen Recording permissions
+4. Restart YT-DLP GUI for changes to take effect
+
+### Manual Setup
+See [`docs/MACOS_PERMISSIONS.md`](docs/MACOS_PERMISSIONS.md) for detailed instructions.
+
+### Test Permissions
+Run `npm run test-permissions` to verify your permission setup.
+
+## Technology Stack
+
+### Core
+- **Electron 32**: Cross-platform desktop application framework
+- **Vite 5 & SWC**: Fast frontend tooling and compilation
+- **tRPC**: End-to-end typesafe API communication between main and renderer processes
+
+### Database
+- **Drizzle ORM**: Type-safe database operations
+- **libSQL**: SQLite-compatible client for data storage
+
+### UI/UX
+- **React & Tailwind CSS**: Frontend development
+- **Shadcn UI**: Component library
+- **Geist**: Default typography
+- **i18next**: Internationalization
+- **Lucide**: Icon library
+
+### Development & Testing
+- **TypeScript 5**: Static typing
+- **Zod**: Schema validation
+- **React Query**: Data fetching
+- **Jest & Playwright**: Testing framework
+- **Storybook**: Component documentation
+
+### Distribution
+- **Electron Forge**: Building and packaging
+- **Auto-Updates**: Automatic updates via update.electronjs.org
+- **GitHub Actions**: CI/CD pipeline
+- **Azure Code Signing**: Certificate signing for Windows
+
+## Auto-Updates
+
+YT-DLP GUI automatically updates to the latest version, ensuring you always have the newest features and improvements. The app checks for updates every 24 hours and downloads them in the background.
+
+### How It Works
+- **Automatic**: Updates are downloaded and installed automatically
+- **Seamless**: No interruption to your workflow
+- **Secure**: All updates are verified and signed
+- **Free**: Uses the free update.electronjs.org service
+
+### Manual Update Check
+You can manually check for updates by restarting the application.
+
+📖 **[View Auto-Update Documentation](./docs/AUTO_UPDATE_SETUP.md)** for detailed information.
+
+## Architecture
+
+YT-DLP GUI uses tRPC for type-safe communication between the main and renderer processes:
+
+```typescript
+// In main process (src/api/index.ts)
+export const router = t.router({
+  getActivities: t.procedure
+    .query(async () => {
+      return await getActivities();
+    }),
+  startTracking: t.procedure
+    .input(trackingSettingsSchema)
+    .mutation(async ({ input }) => {
+      // Handle tracking start
+    })
+});
+
+// In renderer process
+const activities = await trpcClient.getActivities.query();
 ```
-yt-dlp-gui/
-├── apps/
-│   └── electron/          # Main Electron application
-├── packages/
-│   ├── database/          # Shared database schema and types
-│   └── tsconfig/          # Shared TypeScript configurations
-├── package.json           # Root workspace configuration
-└── turbo.json            # Turborepo pipeline configuration
-```
 
-## 🚀 Getting Started
+## Activity Classification System
+
+YT-DLP GUI includes a powerful activity classification system that helps you visualize and improve your productivity:
+
+- **Focus Session Tracking**: Monitor your dedicated work sessions and see your improvement over time
+- **Productivity Percentage**: Get insights into how productive your time usage is based on your own classification rules
+- **Activity Classification Progress**: Track what percentage of your activities have been classified
+- **Time-Range Selection**: View classification data across different time periods (daily, weekly, monthly)
+
+### Rule-Based Classification
+
+The rule system allows you to classify your activities automatically:
+
+- **Custom Rules**: Create personalized rules to categorize applications and websites as productive, neutral, or distracting
+- **Pattern Matching**: Rules can match by application name, window title, or domain
+- **Priority System**: Rules are applied in order of specificity, with more specific rules taking precedence
+- **Rule Management**: Easily create, edit, and delete rules through the intuitive interface
+
+
+## Getting Started
 
 ### Prerequisites
+- Node.js 18 or later
+- npm 9 or later
 
-- **Node.js**: >= 18.0.0
-- **npm**: >= 9.0.0
-
-### Installation
-
-1. Clone the repository:
+### Development
 ```bash
-git clone https://github.com/hunght/yt-dlp-gui.git
-cd yt-dlp-gui
-```
+# Clone repository
+git clone https://github.com/hunght/YT-DLP GUI.git
 
-2. Install dependencies (from the root):
-```bash
+# Install dependencies
 npm install
+
+# Start development mode
+npm run start
 ```
 
-This will install dependencies for all workspaces automatically.
+### Database Management
+```bash
+# Generate new migrations
+npm run db:generate
 
-## 🛠️ Development
+# View and manage database
+npm run db:studio
+```
 
-### Running the Application
+### Common Scripts
+- `npm run start`: Development mode
+- `npm run package`: Create executable bundle
+- `npm run make`: Generate platform-specific distributables
+- `npm run test`: Run unit tests
+- `npm run test:e2e`: Run end-to-end tests
+- `npm run storybook`: Start Storybook
 
-From the root directory:
+## Releasing New Versions
 
 ```bash
-# Start the Electron app in development mode
-npm run dev
-
-# Or run it from the electron workspace
-npm run dev --workspace=apps/electron
+npm run release         # Increment patch version (1.0.0 -> 1.0.1)
+npm run release minor   # Increment minor version (1.0.0 -> 1.1.0)
+npm run release major   # Increment major version (1.0.0 -> 2.0.0)
+npm run release 1.2.3   # Set specific version
 ```
 
-### Building
+The GitHub Actions workflow will automatically build, create a release, and upload artifacts.
 
-```bash
-# Build all packages
-npm run build
+## Troubleshooting
 
-# Build specific workspace
-npm run build --workspace=packages/database
-```
+### Native Modules in Production Build
+Native module issues are handled via `packageAfterPrune` in `forge.config.ts`, ensuring proper rebuilding for production.
 
-### Testing
+## License
 
-```bash
-# Run all tests
-npm run test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run database tests
-npm run test:database --workspace=apps/electron
-
-# Run E2E tests
-npm run test:e2e --workspace=apps/electron
-```
-
-### Type Checking
-
-```bash
-# Type check all workspaces
-npm run type-check
-```
-
-## 📚 Workspaces
-
-### @yt-dlp-gui/electron
-
-The main Electron application with React UI.
-
-**Key Scripts:**
-- `npm run dev --workspace=apps/electron` - Start development server
-- `npm run make --workspace=apps/electron` - Build distributable
-- `npm run test --workspace=apps/electron` - Run tests
-
-### @yt-dlp-gui/database
-
-Shared database schema, types, migrations, and utilities using Drizzle ORM.
-
-**Key Features:**
-- Centralized schema and migrations
-- Type-safe database access
-- Configurable database path per application
-
-**Key Scripts:**
-- `npm run build --workspace=packages/database` - Build package
-- `npm run dev --workspace=packages/database` - Watch mode
-- `DATABASE_URL="file:./local.db" npm run db:generate --workspace=packages/database` - Generate migrations
-- `DATABASE_URL="file:./local.db" npm run db:studio --workspace=packages/database` - Open Drizzle Studio
-
-See [packages/database/README.md](packages/database/README.md) for detailed usage.
-
-### @yt-dlp-gui/tsconfig
-
-Shared TypeScript configurations for consistent type checking across the monorepo.
-
-## 🗄️ Database Management
-
-### Schema and Migrations
-
-The database schema and migrations are centralized in `packages/database/`:
-- **Schema**: `packages/database/src/schema.ts`
-- **Migrations**: `packages/database/drizzle/`
-- **Config**: Each app has its own `drizzle.config.ts` with app-specific database path
-
-### From the Database Package (Shared)
-
-```bash
-# Generate new migrations after schema changes
-DATABASE_URL="file:./local.db" npm run db:generate --workspace=packages/database
-
-# Open Drizzle Studio
-DATABASE_URL="file:./local.db" npm run db:studio --workspace=packages/database
-```
-
-### From the Electron App (App-Specific)
-
-```bash
-# Generate migrations (uses electron app's database path)
-npm run db:generate --workspace=apps/electron
-
-# Apply migrations
-npm run db:migrate --workspace=apps/electron
-
-# Open Drizzle Studio for electron app's database
-npm run db:studio --workspace=apps/electron
-
-# Push schema changes directly (development)
-npm run db:push --workspace=apps/electron
-
-# Database utilities
-npm run db:health --workspace=apps/electron
-npm run db:backup --workspace=apps/electron
-npm run db:backup --workspace=apps/electron
-```
-
-## 🔧 Common Tasks
-
-### Adding a New Package
-
-1. Create a new directory in `packages/`
-2. Add a `package.json` with a scoped name: `@yt-dlp-gui/package-name`
-3. The package will be automatically included in the workspace
-
-### Adding Dependencies
-
-```bash
-# Add to root (dev dependencies for all workspaces)
-npm install -D package-name -w root
-
-# Add to specific workspace
-npm install package-name --workspace=apps/electron
-
-# Add workspace package to another workspace
-npm install @yt-dlp-gui/database --workspace=apps/electron
-```
-
-### Cleaning Build Artifacts
-
-```bash
-# Clean all build outputs
-npm run clean
-
-# Clean specific workspace
-npm run clean --workspace=apps/electron
-```
-
-## 🏗️ Turborepo
-
-This monorepo uses Turborepo for efficient task orchestration:
-
-- **Caching**: Build outputs are cached for faster rebuilds
-- **Parallel Execution**: Tasks run in parallel when possible
-- **Dependency-aware**: Automatically builds dependencies first
-
-### Turbo Commands
-
-```bash
-# Run a command across all workspaces
-turbo run build
-turbo run test
-turbo run type-check
-
-# Force rebuild (ignore cache)
-turbo run build --force
-
-# View task graph
-turbo run build --graph
-```
-
-## 📝 Code Quality
-
-### Formatting
-
-```bash
-# Format all code
-npm run format
-```
-
-### Project Standards
-
-- **Functional Programming**: Use pure functions, avoid classes
-- **TypeScript**: Strict mode enabled, no `any` types
-- **Component Size**: Maximum 300 lines per component
-- **Single Responsibility**: Each module/component has one clear purpose
-
-See `.github/copilot-instructions.md` for detailed coding standards.
-
-## 🔒 Security
-
-- Database backups are created automatically before migrations
-- Environment variables should be stored in `.env` files (not committed)
-- Sensitive credentials are managed through secure environment variables
-
-## 📄 License
-
-MIT License - see [LICENSE](apps/electron/LICENSE) for details.
-
-## 👥 Contributing
-
-1. Follow the coding standards in `.github/copilot-instructions.md`
-2. Keep components small and focused
-3. Write tests for new features
-4. Use conventional commits
-
-## 🐛 Troubleshooting
-
-### npm install fails
-
-Try clearing the npm cache and reinstalling:
-```bash
-npm run clear
-npm install
-```
-
-### TypeScript errors after adding new package
-
-Run type checking to see detailed errors:
-```bash
-npm run type-check
-```
-
-### Database migration issues
-
-Check database health and create a backup:
-```bash
-npm run db:health --workspace=apps/electron
-npm run db:backup --workspace=apps/electron
-```
-
-## 📚 Additional Resources
-
-- [Electron Documentation](https://www.electronjs.org/docs)
-- [Turborepo Documentation](https://turbo.build/repo/docs)
-- [npm Workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces)
-- [Drizzle ORM](https://orm.drizzle.team/)
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/hunght/YT-DLP GUI/blob/main/LICENSE) file for details.

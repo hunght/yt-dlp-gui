@@ -26,22 +26,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build database package
-        run: npm run build --workspace=packages/database
-
       - name: Install architecture-specific dependencies
         run: |
-          # Install architecture-specific dependencies at root level for npm workspaces
+          # Install architecture-specific dependencies
           if [ "${{ matrix.arch }}" == "x64" ]; then
             npm i --cpu=x64 --os=darwin @libsql/client-darwin@npm:@libsql/client --no-save
           elif [ "${{ matrix.arch }}" == "arm64" ]; then
             npm i --cpu=arm64 --os=darwin @libsql/client-darwin@npm:@libsql/client --no-save
           fi
-          
-          # Verify installation
-          echo "Checking @libsql/client installation:"
-          ls -la node_modules/@libsql/ || echo "Not in root node_modules"
-          ls -la apps/electron/node_modules/@libsql/ || echo "Not in electron node_modules"
 
       - name: Create data directories
         shell: bash
@@ -99,10 +91,6 @@ jobs:
         run: |
           echo "Setting up notarization environment..."
           echo "Building for architecture: $ARCH"
-
-          # Change to electron directory
-          cd apps/electron
-
           echo "Checking for entitlements.plist..."
           if [ ! -f "entitlements.plist" ]; then
             echo " entitlements.plist not found"

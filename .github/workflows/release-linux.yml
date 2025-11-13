@@ -23,6 +23,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build database package
+        run: npm run build --workspace=packages/database
+
       - name: Build app
         env:
           NODE_ENV: production

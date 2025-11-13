@@ -15,14 +15,7 @@ function validateEnvVar(value: string | undefined, name: string): string {
 }
 
 const config = {
-  // @ts-ignore
-  axiomToken: validateEnvVar(import.meta.env.VITE_AXIOM_TOKEN, "VITE_AXIOM_TOKEN"),
-  // @ts-ignore
-  axiomOrgId: validateEnvVar(import.meta.env.VITE_AXIOM_ORG_ID, "VITE_AXIOM_ORG_ID"),
-  // @ts-ignore
-  axiomDataset: validateEnvVar(import.meta.env.VITE_AXIOM_DATASET, "VITE_AXIOM_DATASET"),
   // PostHog config
-
   posthogKey: validateEnvVar(
     // @ts-ignore
     import.meta.env.VITE_PUBLIC_POSTHOG_KEY,

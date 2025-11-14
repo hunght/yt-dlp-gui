@@ -49,6 +49,7 @@
     "db:counts": "npx tsx scripts/db-counts.ts",
     "db:vacuum": "npx tsx scripts/db-vacuum.ts",
     "db:analyze": "npx tsx scripts/db-analyze.ts",
+    "icons:generate": "node scripts/svg-to-icons.js",
     "postinstall": "lefthook install || true"
   },
   "author": "HungHoang <hth321@gmail.com>",

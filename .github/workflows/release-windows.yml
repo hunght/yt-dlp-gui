@@ -2,9 +2,8 @@ name: Release Windows
 
 on:
   workflow_dispatch:
-  # Disabled temporarily - focus on macOS first
-  # push:
-  #   tags: ["v*.*.*"]
+  push:
+    tags: ["v*.*.*"]
 
 permissions:
   contents: write

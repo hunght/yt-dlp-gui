@@ -80,7 +80,7 @@ const packagerConfig: ForgePackagerOptions = {
     },
   ],
   // Include additional resources in the final build
-  extraResource: ["./resources"],
+  extraResource: ["./resources", "./drizzle"],
 };
 
 // Configure macOS-specific settings (both development and production)
@@ -130,16 +130,10 @@ if (process.platform === "darwin") {
       console.log("   APPLE_TEAM_ID:", teamId ? "✓" : "✗");
     }
   } else {
-    // Development signing configuration
-    packagerConfig.osxSign = {
-      optionsForFile: (filePath: string) => ({
-        identity: "Developer ID Application", // Or use your development certificate
-        entitlements: path.join(__dirname, "entitlements.plist"),
-        "entitlements-inherit": path.join(__dirname, "entitlements.plist"),
-        hardenedRuntime: true,
-        "gatekeeper-assess": false,
-      }),
-    };
+    // Development mode - disable codesigning to avoid invalid signature issues
+    // Ad-hoc signing is automatically applied by Electron which is sufficient for development
+    console.log("ℹ️  Development build - skipping codesigning (ad-hoc signature will be used)");
+    // packagerConfig.osxSign is intentionally NOT set for development builds
   }
 }
 
@@ -250,8 +244,8 @@ const config: ForgeConfig = {
     prune: true,
     // Unpack *.node files from the asar archive
     asar: { unpack: "*.node" },
-    // Add resources folder
-    extraResource: ["./resources"],
+    // Add resources folder and migrations
+    extraResource: ["./resources", "./drizzle"],
     // Ignore files that match the following conditions
     ignore: (file) => {
       const filePath = file.toLowerCase();

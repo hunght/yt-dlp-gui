@@ -292,8 +292,10 @@ async function main(): Promise<void> {
 // Export for use in other modules
 export { runMigrations, validateDatabaseIntegrity };
 
-// Run if called directly
-if (require.main === module) {
+// Run if called directly from CLI (not when imported as a module in Electron app)
+// DISABLED: This was causing the app to exit in packaged builds
+// To run migrations standalone, use: RUN_MIGRATIONS_STANDALONE=true node path/to/migrate.js
+if (process.env.RUN_MIGRATIONS_STANDALONE === "true") {
   main().catch((err) => {
     try {
       logger.error("Migration runner error", err);

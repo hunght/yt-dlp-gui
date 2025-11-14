@@ -238,16 +238,33 @@ function createWindow(): void {
   });
 }
 
+// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+// Only check this on Windows as Squirrel is Windows-specific
+// This must be checked BEFORE requesting single instance lock
+if (process.platform === "win32") {
+  const squirrelStartup = await import("electron-squirrel-startup");
+  logger.info("[app] Squirrel startup check:", squirrelStartup);
+  if (squirrelStartup.default) {
+    logger.info("[app] Squirrel installer event detected, quitting...");
+    app.quit();
+  }
+} else {
+  logger.info("[app] Skipping Squirrel check on non-Windows platform");
+}
+
 // Ensure single instance - prevent multiple app instances
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   // Another instance is already running, quit this one
+  logger.info("[app] Another instance is running, quitting...");
   app.quit();
 } else {
+  logger.info("[app] Got single instance lock, continuing...");
   // This is the first instance, handle second instance events
   app.on("second-instance", () => {
     // Someone tried to run a second instance, focus our window instead
+    logger.info("[app] Second instance detected, focusing window...");
     if (mainWindow) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
@@ -271,9 +288,12 @@ if (!gotTheLock) {
 
 // Initialize app when ready
 app.whenReady().then(async () => {
+  logger.info("[app] App is ready, starting initialization...");
   try {
     logger.clearLogFile();
+    logger.info("[app] Initializing database...");
     await initializeDatabase();
+    logger.info("[app] Database initialized successfully");
 
     // Initialize download queue manager
     logger.info("[app] Initializing download queue manager");
@@ -281,10 +301,16 @@ app.whenReady().then(async () => {
     logger.info("[app] Download queue manager initialized");
   } catch (error) {
     logger.error("[app.whenReady] Failed to initialize database:", error);
+    // Don't quit on error, try to continue
   }
 
+  logger.info("[app] Creating tray...");
   await createTray();
+  logger.info("[app] Tray created successfully");
+
+  logger.info("[app] Creating main window...");
   createWindow();
+  logger.info("[app] Main window created successfully");
 
   // Modify CSP to allow scripts from PostHog and inline scripts
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -351,10 +377,6 @@ app.on("activate", () => {
     showMainWindow();
   }
 });
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (require("electron-squirrel-startup")) {
-  app.quit();
-}
 
 export {};
 

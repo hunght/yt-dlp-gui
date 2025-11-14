@@ -25,7 +25,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci --force
+        run: npm ci
 
       - name: Install Rosetta 2 (for x64 builds)
         if: matrix.arch == 'x64'

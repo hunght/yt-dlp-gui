@@ -242,9 +242,10 @@ function createWindow(): void {
 // Only check this on Windows as Squirrel is Windows-specific
 // This must be checked BEFORE requesting single instance lock
 if (process.platform === "win32") {
-  const squirrelStartup = await import("electron-squirrel-startup");
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const squirrelStartup: boolean = require("electron-squirrel-startup");
   logger.info("[app] Squirrel startup check:", squirrelStartup);
-  if (squirrelStartup.default) {
+  if (squirrelStartup) {
     logger.info("[app] Squirrel installer event detected, quitting...");
     app.quit();
   }

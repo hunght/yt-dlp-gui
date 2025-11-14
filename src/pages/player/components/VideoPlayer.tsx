@@ -17,7 +17,7 @@ export function VideoPlayer({
   onSeek,
   onError,
 }: VideoPlayerProps): React.JSX.Element {
-  const toLocalFileUrl = (p: string): string => `local-file://${p}`;
+  const toLocalFileUrl = (p: string): string => `local-file://${encodeURI(p)}`;
   const containerRef = useRef<HTMLDivElement>(null);
   const isSeekingRef = useRef<boolean>(false);
   // Handle video load error

@@ -47,22 +47,6 @@ LearnifyTube is the modern YouTube downloader for students, educators and lifelo
 👉 [Download LearnifyTube Now](https://github.com/hunght/LearnifyTube/releases)
 
 
-## SEO Keywords We Rank For
-> youtube downloader for students, download youtube lectures mac, offline learning app, playlist downloader for educators, yt-dlp gui for education, study playlist organizer, download youtube subtitles offline, convert youtube courses to mp3, learnifytube
-
-
-## Social Proof & Trust
-- Built on the battle-tested yt-dlp engine
-- App notarized on macOS and signed for Windows
-- Loved by 10,000+ independent learners and teachers
-- MIT Licensed – transparent, open-source, community-driven
-
-
-## Product Roadmap Sneak Peek
-- AI-powered lesson summaries
-- Progressive web app companion
-- Classroom license management
-- One-click export to Canvas, Moodle & Google Classroom
 
 
 ## Questions?

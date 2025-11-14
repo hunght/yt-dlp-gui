@@ -4,7 +4,9 @@ import { useSetAtom } from "jotai";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Rewind, FastForward } from "lucide-react";
+import { toast } from "sonner";
 import { useWatchProgress } from "./hooks/useWatchProgress";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { DownloadStatus } from "./components/DownloadStatus";
@@ -32,6 +34,9 @@ export default function PlayerPage(): React.JSX.Element {
   } | null>(null);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Track if video file failed to load (e.g., file was deleted)
+  const [videoLoadError, setVideoLoadError] = useState(false);
+
   // Helper function to trigger seek indicator
   const triggerSeekIndicator = useCallback((direction: "forward" | "backward", amount: number) => {
     setSeekIndicator({ direction, amount });
@@ -43,6 +48,11 @@ export default function PlayerPage(): React.JSX.Element {
     seekTimeoutRef.current = setTimeout(() => {
       setSeekIndicator(null);
     }, 800);
+  }, []);
+
+  // Handle video load error (e.g., file was deleted)
+  const handleVideoLoadError = useCallback(() => {
+    setVideoLoadError(true);
   }, []);
 
   // ============================================================================
@@ -66,15 +76,36 @@ export default function PlayerPage(): React.JSX.Element {
   const startDownloadMutation = useMutation({
     mutationFn: async () => {
       if (!videoId) throw new Error("Missing videoId");
+
+      // If video has error or is being re-downloaded, reset the download status first
+      if (videoLoadError || playback?.status === "completed") {
+        await trpcClient.ytdlp.resetDownloadStatus.mutate({ videoId });
+      }
+
       const url = `https://www.youtube.com/watch?v=${videoId}`;
       return await trpcClient.queue.addToQueue.mutate({ urls: [url] });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      // Clear error state when starting a new download
+      setVideoLoadError(false);
       queryClient.invalidateQueries({ queryKey: ["video-playback", videoId] });
       // Invalidate queue status to resume polling and update sidebar
       queryClient.invalidateQueries({ queryKey: ["queue", "status"] });
+
+      if (result.success) {
+        toast.success("Download started");
+      }
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to start download");
     },
   });
+
+  // Reset error state when videoId or filePath changes
+  useEffect(() => {
+    setVideoLoadError(false);
+    autoStartedRef.current = false;
+  }, [videoId, playback?.filePath]);
 
   // Auto-start download once if file is missing and not already downloading
   const autoStartedRef = useRef(false);
@@ -299,6 +330,19 @@ export default function PlayerPage(): React.JSX.Element {
               onStartDownload={() => startDownloadMutation.mutate()}
               isStarting={startDownloadMutation.isPending}
             />
+          ) : videoLoadError ? (
+            <Alert variant="destructive">
+              <AlertTitle>Video file not found</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>The video file could not be loaded. It may have been deleted or moved.</p>
+                <Button
+                  onClick={() => startDownloadMutation.mutate()}
+                  disabled={startDownloadMutation.isPending}
+                >
+                  {startDownloadMutation.isPending ? "Starting download..." : "Re-download video"}
+                </Button>
+              </AlertDescription>
+            </Alert>
           ) : (
             <div className="space-y-4">
               <VideoPlayer
@@ -306,6 +350,7 @@ export default function PlayerPage(): React.JSX.Element {
                 videoRef={videoRef}
                 onTimeUpdate={handleTimeUpdate}
                 onSeek={triggerSeekIndicator}
+                onError={handleVideoLoadError}
               />
 
               {/* Transcript - Self-contained, owns all its state */}

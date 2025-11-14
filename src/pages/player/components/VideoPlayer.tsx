@@ -7,6 +7,7 @@ interface VideoPlayerProps {
   videoRef: React.RefObject<HTMLVideoElement>;
   onTimeUpdate: (e: React.SyntheticEvent<HTMLVideoElement, Event>) => void;
   onSeek?: (direction: "forward" | "backward", amount: number) => void;
+  onError?: () => void;
 }
 
 export function VideoPlayer({
@@ -14,10 +15,17 @@ export function VideoPlayer({
   videoRef,
   onTimeUpdate,
   onSeek,
+  onError,
 }: VideoPlayerProps): React.JSX.Element {
   const toLocalFileUrl = (p: string): string => `local-file://${p}`;
   const containerRef = useRef<HTMLDivElement>(null);
   const isSeekingRef = useRef<boolean>(false);
+  // Handle video load error
+  const handleVideoError = (): void => {
+    if (onError) {
+      onError();
+    }
+  };
 
   // Mouse wheel seeking
   useEffect(() => {
@@ -153,6 +161,7 @@ export function VideoPlayer({
           controls
           className="max-h-[60vh] w-full rounded border bg-black"
           onTimeUpdate={onTimeUpdate}
+          onError={handleVideoError}
         />
 
         {/* Keyboard Shortcuts Hint (shows on hover) */}

@@ -710,6 +710,31 @@ export const ytdlpRouter = t.router({
         lastPositionSeconds,
       } as const;
     }),
+
+  // Reset download status for a video (for re-downloading)
+  resetDownloadStatus: publicProcedure
+    .input(z.object({ videoId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      logger.info("[ytdlp] Resetting download status", { videoId: input.videoId });
+
+      await db
+        .update(youtubeVideos)
+        .set({
+          downloadStatus: null,
+          downloadProgress: null,
+          downloadFilePath: null,
+          downloadFileSize: null,
+          lastErrorMessage: null,
+          errorType: null,
+          updatedAt: Date.now(),
+        })
+        .where(eq(youtubeVideos.videoId, input.videoId))
+        .execute();
+
+      return { success: true };
+    }),
+
   // Full-text search across video titles + transcripts
   searchVideosText: publicProcedure
     .input(z.object({ q: z.string().min(1), limit: z.number().min(1).max(100).optional() }))

@@ -324,9 +324,15 @@ const config: ForgeConfig = {
       // - LearnifyTube-linux-x64-1.0.234.zip (Linux)
     }),
     new MakerRpm({
+      options: {
+        bin: "LearnifyTube",
+      },
       // Default naming pattern: LearnifyTube-{version}-1.x86_64.rpm
     }),
     new MakerDeb({
+      options: {
+        bin: "LearnifyTube",
+      },
       // Default naming pattern: LearnifyTube_{version}_amd64.deb
     }),
   ],

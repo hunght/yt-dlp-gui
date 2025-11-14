@@ -474,7 +474,7 @@ const createQueueManager = (
           }
 
           // Get output path
-          const downloadsRoot = path.join(app.getPath("downloads"), "yt-dlp-gui");
+          const downloadsRoot = path.join(app.getPath("downloads"), "LearnifyTube");
           const outputPath = path.join(downloadsRoot, "%(fulltitle)s [%(id)s].%(ext)s");
 
           // Update status to downloading

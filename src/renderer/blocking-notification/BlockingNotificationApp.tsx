@@ -113,7 +113,7 @@ const BlockingNotificationApp: React.FC = () => {
         <div className="header">
           <div className="icon">⚠️</div>
           <h1 className="title">Work Activity Alert</h1>
-          <p className="subtitle">YT-DLP GUI has detected a potentially distracting activity</p>
+          <p className="subtitle">LearnifyTube has detected a potentially distracting activity</p>
           <button
             className="close-button"
             onClick={handleClose}
@@ -146,7 +146,7 @@ const BlockingNotificationApp: React.FC = () => {
           </div>
 
           <div className="note">
-            <strong>Note:</strong> Your response affects how YT-DLP GUI monitors your future
+            <strong>Note:</strong> Your response affects how LearnifyTube monitors your future
             activities.
           </div>
         </div>

@@ -731,7 +731,7 @@ export const utilsRouter = t.router({
 
         // Extract filename from URL
         const urlParts = downloadUrl.split("/");
-        const filename = urlParts[urlParts.length - 1] || "yt-dlp-gui-update.dmg";
+        const filename = urlParts[urlParts.length - 1] || "LearnifyTube-update.dmg";
         const filePath = path.join(downloadsDir, filename);
 
         // Ensure downloads directory exists

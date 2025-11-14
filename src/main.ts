@@ -95,11 +95,12 @@ async function createTray(): Promise<void> {
     // In production mode
     if (process.platform === "darwin") {
       // For macOS, use the Contents/Resources directory
-      iconPath = path.join(process.resourcesPath, "icon_16x16.png");
+      // The resources folder is packaged as extraResource, so files are in resources/ subdirectory
+      iconPath = path.join(process.resourcesPath, "resources", "icon_16x16.png");
       logger.debug("Main: Using macOS production path:", iconPath);
     } else {
       // For Windows and other platforms
-      iconPath = path.join(__dirname, "../resources/icon.ico");
+      iconPath = path.join(process.resourcesPath, "resources", "icon.ico");
     }
   }
 
@@ -149,7 +150,7 @@ async function createTray(): Promise<void> {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "Show yt-dlp-gui",
+      label: "Show LearnifyTube",
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -173,7 +174,7 @@ async function createTray(): Promise<void> {
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.setToolTip("yt-dlp-gui");
+  tray.setToolTip("LearnifyTube");
 
   tray.setTitle("");
 

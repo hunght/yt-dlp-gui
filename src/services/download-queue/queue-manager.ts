@@ -1,5 +1,5 @@
 import { desc, eq } from "drizzle-orm";
-import { youtubeVideos } from "@/api/db/schema";
+import { youtubeVideos, userPreferences } from "@/api/db/schema";
 import type { Database } from "@/api/db";
 import { DEFAULT_QUEUE_CONFIG } from "./config";
 import type { QueueConfig, QueueStatus, QueueStats, QueuedDownload } from "./types";
@@ -38,6 +38,28 @@ interface QueueItem {
   totalSize: string | null;
   eta: string | null;
 }
+
+/**
+ * Get the download path from user preferences or use default
+ */
+const getDownloadPath = async (db: Database): Promise<string> => {
+  try {
+    const prefs = await db
+      .select()
+      .from(userPreferences)
+      .where(eq(userPreferences.id, "default"))
+      .limit(1);
+
+    if (prefs.length > 0 && prefs[0].downloadPath) {
+      return prefs[0].downloadPath;
+    }
+  } catch (error) {
+    logger.warn("[queue-manager] Failed to get download path from preferences", { error });
+  }
+
+  // Default path
+  return path.join(app.getPath("downloads"), "LearnifyTube");
+};
 
 /**
  * Type-safe helper to convert QueueItem to QueuedDownload
@@ -473,8 +495,8 @@ const createQueueManager = (
             }
           }
 
-          // Get output path
-          const downloadsRoot = path.join(app.getPath("downloads"), "LearnifyTube");
+          // Get output path from preferences or use default
+          const downloadsRoot = await getDownloadPath(db);
           const outputPath = path.join(downloadsRoot, "%(fulltitle)s [%(id)s].%(ext)s");
 
           // Update status to downloading

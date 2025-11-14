@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
-import { shell, net, app } from "electron";
+import { shell, net, app, dialog } from "electron";
 import {
   createNotificationWindow,
   closeNotificationWindow as closeWindow,
@@ -112,6 +112,11 @@ type OpenLocalFileResult = OpenLocalFileSuccess | OpenLocalFileFailure;
 type OpenFolderSuccess = { success: true };
 type OpenFolderFailure = { success: false; error: string };
 type OpenFolderResult = OpenFolderSuccess | OpenFolderFailure;
+
+type SelectFolderSuccess = { success: true; folderPath: string };
+type SelectFolderCancelled = { success: false; cancelled: true };
+type SelectFolderFailure = { success: false; cancelled: false; error: string };
+type SelectFolderResult = SelectFolderSuccess | SelectFolderCancelled | SelectFolderFailure;
 
 type QuitAppSuccess = { success: true };
 type QuitAppFailure = { success: false; error: string };
@@ -591,6 +596,37 @@ export const utilsRouter = t.router({
       } catch (error) {
         logger.error("Failed to open folder:", error);
         return { success: false, error: String(error) };
+      }
+    }),
+
+  selectFolder: publicProcedure
+    .input(
+      z.object({
+        defaultPath: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }): Promise<SelectFolderResult> => {
+      try {
+        const result = await dialog.showOpenDialog({
+          properties: ["openDirectory", "createDirectory"],
+          defaultPath: input.defaultPath,
+          title: "Select Download Folder",
+          message: "Choose a folder to save downloaded videos",
+        });
+
+        if (result.canceled) {
+          return { success: false, cancelled: true };
+        }
+
+        const folderPath = result.filePaths[0];
+        if (!folderPath) {
+          return { success: false, cancelled: true };
+        }
+
+        return { success: true, folderPath };
+      } catch (error) {
+        logger.error("Failed to select folder:", error);
+        return { success: false, cancelled: false, error: String(error) };
       }
     }),
 

@@ -249,6 +249,7 @@ export const userPreferences = sqliteTable("user_preferences", {
   id: text("id").primaryKey().notNull().default("default"),
   preferredLanguages: text("preferred_languages").notNull().default("[]"), // JSON array of language codes like ["en", "es", "fr"]
   systemLanguage: text("system_language"), // Detected system language (read-only after first detect)
+  downloadPath: text("download_path"), // Custom download folder path (null = use default)
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at"),
 });

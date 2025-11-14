@@ -5,6 +5,7 @@ import { app } from "electron";
 import { eq } from "drizzle-orm";
 import { userPreferences } from "@/api/db/schema";
 import defaultDb, { type Database } from "@/api/db";
+import * as path from "path";
 
 // Zod schema for preferred languages JSON
 const languagesArraySchema = z.array(z.string());
@@ -14,6 +15,7 @@ type UserPreferencesResult = {
   id: string;
   preferredLanguages: string[];
   systemLanguage: string;
+  downloadPath: string | null;
   createdAt: number;
   updatedAt: number | null;
 };
@@ -36,6 +38,23 @@ type GetSystemLanguageResult = {
   language: string;
 };
 
+type GetDownloadPathResult = {
+  downloadPath: string;
+  isDefault: boolean;
+};
+
+type UpdateDownloadPathSuccess = {
+  success: true;
+  downloadPath: string | null;
+};
+
+type UpdateDownloadPathFailure = {
+  success: false;
+  message: string;
+};
+
+type UpdateDownloadPathResult = UpdateDownloadPathSuccess | UpdateDownloadPathFailure;
+
 // Get system language from Electron
 const getSystemLanguage = (): string => {
   try {
@@ -47,6 +66,11 @@ const getSystemLanguage = (): string => {
     logger.warn("[preferences] Failed to get system language", { error: String(e) });
     return "en";
   }
+};
+
+// Get default download path
+const getDefaultDownloadPath = (): string => {
+  return path.join(app.getPath("downloads"), "LearnifyTube");
 };
 
 // Initialize user preferences with system language if not exists
@@ -103,6 +127,7 @@ export const preferencesRouter = t.router({
           id: "default",
           preferredLanguages: [systemLang],
           systemLanguage: systemLang,
+          downloadPath: null,
           createdAt: Date.now(),
           updatedAt: null,
         } as const;
@@ -116,6 +141,7 @@ export const preferencesRouter = t.router({
         id: row.id,
         preferredLanguages: langsResult.success ? langsResult.data : [],
         systemLanguage: row.systemLanguage ?? getSystemLanguage(),
+        downloadPath: row.downloadPath,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       } as const;
@@ -126,6 +152,7 @@ export const preferencesRouter = t.router({
         id: "default",
         preferredLanguages: [systemLang],
         systemLanguage: systemLang,
+        downloadPath: null,
         createdAt: Date.now(),
         updatedAt: null,
       } as const;
@@ -159,6 +186,56 @@ export const preferencesRouter = t.router({
   getSystemLanguage: publicProcedure.query((): GetSystemLanguageResult => {
     return { language: getSystemLanguage() };
   }),
+
+  // Get download path (returns custom path or default)
+  getDownloadPath: publicProcedure.query(async ({ ctx }): Promise<GetDownloadPathResult> => {
+    const db = ctx.db ?? defaultDb;
+    await ensurePreferencesExist(db);
+
+    try {
+      const rows = await db
+        .select()
+        .from(userPreferences)
+        .where(eq(userPreferences.id, "default"))
+        .limit(1);
+
+      const customPath = rows.length > 0 ? rows[0].downloadPath : null;
+      const downloadPath = customPath || getDefaultDownloadPath();
+
+      return {
+        downloadPath,
+        isDefault: !customPath,
+      };
+    } catch (e) {
+      logger.error("[preferences] getDownloadPath failed", e);
+      return {
+        downloadPath: getDefaultDownloadPath(),
+        isDefault: true,
+      };
+    }
+  }),
+
+  // Update download path (null = use default)
+  updateDownloadPath: publicProcedure
+    .input(z.object({ downloadPath: z.string().nullable() }))
+    .mutation(async ({ input, ctx }): Promise<UpdateDownloadPathResult> => {
+      const db = ctx.db ?? defaultDb;
+      await ensurePreferencesExist(db);
+
+      try {
+        const now = Date.now();
+        await db
+          .update(userPreferences)
+          .set({ downloadPath: input.downloadPath, updatedAt: now })
+          .where(eq(userPreferences.id, "default"));
+
+        logger.info("[preferences] Updated download path", { downloadPath: input.downloadPath });
+        return { success: true as const, downloadPath: input.downloadPath };
+      } catch (e) {
+        logger.error("[preferences] updateDownloadPath failed", e);
+        return { success: false as const, message: String(e) };
+      }
+    }),
 });
 
 // Router type not exported (unused)

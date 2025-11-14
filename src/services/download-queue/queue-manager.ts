@@ -693,6 +693,26 @@ const createQueueManager = (
 
         queue.set(id, queueItem);
         downloadIds.push(id);
+
+        // Reflect queued state in database for immediate UI feedback
+        if (videoId) {
+          try {
+            await db
+              .update(youtubeVideos)
+              .set({
+                downloadStatus: "queued",
+                downloadProgress: 0,
+                updatedAt: now,
+              })
+              .where(eq(youtubeVideos.videoId, videoId))
+              .execute();
+          } catch (updateError) {
+            logger.warn("[queue-manager] Failed to mark video as queued", {
+              videoId,
+              error: updateError,
+            });
+          }
+        }
       }
 
       logger.info("[queue-manager] Added to queue", {

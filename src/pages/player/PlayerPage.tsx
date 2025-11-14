@@ -55,10 +55,6 @@ export default function PlayerPage(): React.JSX.Element {
     setVideoLoadError(true);
   }, []);
 
-  // ============================================================================
-  // VIDEO PLAYBACK (previously in useVideoPlayback hook)
-  // ============================================================================
-
   const { data: playback, isLoading: playbackIsLoading } = useQuery({
     queryKey: ["video-playback", videoId],
     queryFn: async () => {

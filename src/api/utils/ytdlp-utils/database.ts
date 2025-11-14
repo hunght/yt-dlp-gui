@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
-import { channels } from "@/api/db/schema";
+import { channels, youtubeVideos } from "@/api/db/schema";
 import { logger } from "@/helpers/logger";
 import { extractChannelData } from "./metadata";
 import { downloadImageToCache } from "./thumbnail";
@@ -71,6 +71,21 @@ export const upsertChannelData = async (
       logger.debug("[database] Updated channel", {
         channelId: channelData.channelId,
         preservedThumbnail: !channelData.thumbnailUrl && !!existingChannel.thumbnailUrl,
+      });
+    }
+
+    // Ensure youtube_videos rows referencing this channel keep their denormalized title populated.
+    try {
+      await db
+        .update(youtubeVideos)
+        .set({
+          channelTitle: channelData.channelTitle,
+        })
+        .where(eq(youtubeVideos.channelId, channelData.channelId));
+    } catch (videoUpdateError) {
+      logger.warn("[database] Failed to propagate channel title to videos", {
+        channelId: channelData.channelId,
+        error: videoUpdateError,
       });
     }
   } catch (e) {

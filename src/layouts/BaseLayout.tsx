@@ -17,7 +17,7 @@ export default function BaseLayout({ children }: { children: React.ReactNode }):
         <div className="flex flex-1 overflow-hidden">
           <AppSidebar />
 
-          <main className="flex-1 overflow-auto bg-gradient-to-br from-tracksy-blue/5 to-tracksy-gold/5 dark:from-tracksy-blue/10 dark:to-tracksy-gold/10">
+          <main className="flex-1 overflow-auto bg-gradient-to-br from-primary/5 to-accent/5 dark:from-primary/10 dark:to-accent/10">
             <HeaderNav />
             {children}
           </main>

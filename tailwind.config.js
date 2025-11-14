@@ -23,16 +23,54 @@ module.exports = {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
-        tracksy: {
-          blue: "#2B4474",
-          gold: "#E5A853",
+        // LearnifyTube Brand Colors
+        brand: {
+          blue: "#3B82F6",
+          green: "#10B981",
+          gradient: "linear-gradient(135deg, #3B82F6 0%, #10B981 100%)",
         },
         primary: {
-          DEFAULT: "#E5A853",
+          DEFAULT: "#3B82F6",
+          50: "#EFF6FF",
+          100: "#DBEAFE",
+          200: "#BFDBFE",
+          300: "#93C5FD",
+          400: "#60A5FA",
+          500: "#3B82F6",
+          600: "#2563EB",
+          700: "#1D4ED8",
+          800: "#1E40AF",
+          900: "#1E3A8A",
           foreground: "#FFFFFF",
         },
         secondary: {
-          DEFAULT: "#2B4474",
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        accent: {
+          DEFAULT: "#10B981",
+          50: "#ECFDF5",
+          100: "#D1FAE5",
+          200: "#A7F3D0",
+          300: "#6EE7B7",
+          400: "#34D399",
+          500: "#10B981",
+          600: "#059669",
+          700: "#047857",
+          800: "#065F46",
+          900: "#064E3B",
+          foreground: "#FFFFFF",
+        },
+        success: {
+          DEFAULT: "#10B981",
+          foreground: "#FFFFFF",
+        },
+        warning: {
+          DEFAULT: "#F59E0B",
+          foreground: "#FFFFFF",
+        },
+        error: {
+          DEFAULT: "#EF4444",
           foreground: "#FFFFFF",
         },
         destructive: {
@@ -42,10 +80,6 @@ module.exports = {
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "#E5A853",
-          foreground: "#FFFFFF",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -67,7 +101,16 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ["Geist", "sans-serif"],
+        sans: ["Geist", "Inter", "sans-serif"],
+      },
+      spacing: {
+        xs: "4px",
+        sm: "8px",
+        md: "16px",
+        lg: "24px",
+        xl: "32px",
+        "2xl": "48px",
+        "3xl": "64px",
       },
       borderRadius: {
         lg: "var(--radius)",

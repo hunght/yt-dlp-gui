@@ -82,9 +82,9 @@ export const ResizablePanel = React.forwardRef<HTMLDivElement, ResizablePanelPro
         <div
           onMouseDown={handleMouseDown}
           className={cn(
-            "absolute inset-y-0 z-30 w-1 cursor-col-resize transition-colors hover:bg-tracksy-gold/30",
+            "absolute inset-y-0 z-30 w-1 cursor-col-resize transition-colors hover:bg-primary/30",
             side === "right" ? "left-0" : "right-0",
-            isResizing && "bg-tracksy-gold/50"
+            isResizing && "bg-primary/50"
           )}
         >
           <div className="absolute inset-y-0 -left-1 w-3" />

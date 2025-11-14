@@ -180,42 +180,40 @@ export const DownloadQueueSidebar: React.FC = () => {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-tracksy-gold/20 pb-3 dark:border-tracksy-gold/10">
-        <h2 className="text-base font-semibold text-tracksy-blue dark:text-white">
-          Download Queue
-        </h2>
+      <div className="flex items-center justify-between border-b border-primary/20 pb-3 dark:border-primary/10">
+        <h2 className="text-base font-semibold text-primary dark:text-white">Download Queue</h2>
       </div>
 
       {/* Queue Stats - 2x2 Grid */}
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <div className="rounded-md border border-tracksy-gold/20 bg-white/50 p-2 dark:border-tracksy-gold/10 dark:bg-gray-800/50">
+        <div className="rounded-md border border-primary/20 bg-white/50 p-2 dark:border-primary/10 dark:bg-gray-800/50">
           <p className="text-[10px] font-medium uppercase text-muted-foreground">Active</p>
-          <p className="text-xl font-bold text-tracksy-blue dark:text-white">
+          <p className="text-xl font-bold text-primary dark:text-white">
             {queueData.stats.totalActive}
           </p>
         </div>
-        <div className="rounded-md border border-tracksy-gold/20 bg-white/50 p-2 dark:border-tracksy-gold/10 dark:bg-gray-800/50">
+        <div className="rounded-md border border-primary/20 bg-white/50 p-2 dark:border-primary/10 dark:bg-gray-800/50">
           <p className="text-[10px] font-medium uppercase text-muted-foreground">Queued</p>
-          <p className="text-xl font-bold text-tracksy-blue dark:text-white">
+          <p className="text-xl font-bold text-primary dark:text-white">
             {queueData.stats.totalQueued}
           </p>
         </div>
-        <div className="rounded-md border border-tracksy-gold/20 bg-white/50 p-2 dark:border-tracksy-gold/10 dark:bg-gray-800/50">
+        <div className="rounded-md border border-accent/20 bg-white/50 p-2 dark:border-accent/10 dark:bg-gray-800/50">
           <p className="text-[10px] font-medium uppercase text-muted-foreground">Done</p>
-          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+          <p className="text-xl font-bold text-accent-600 dark:text-accent-400">
             {queueData.stats.totalCompleted}
           </p>
         </div>
-        <div className="rounded-md border border-tracksy-gold/20 bg-white/50 p-2 dark:border-tracksy-gold/10 dark:bg-gray-800/50">
+        <div className="rounded-md border border-error/20 bg-white/50 p-2 dark:border-error/10 dark:bg-gray-800/50">
           <p className="text-[10px] font-medium uppercase text-muted-foreground">Failed</p>
-          <p className="text-xl font-bold text-red-600 dark:text-red-400">
+          <p className="text-xl font-bold text-error dark:text-error">
             {queueData.stats.totalFailed}
           </p>
         </div>
       </div>
 
       {/* Download List */}
-      <div className="scrollbar-tracksy mt-4 flex-1 space-y-2 overflow-auto">
+      <div className="scrollbar-brand mt-4 flex-1 space-y-2 overflow-auto">
         {allDownloads.length === 0 ? (
           <div className="flex h-32 items-center justify-center">
             <p className="text-center text-xs text-muted-foreground">No downloads in queue</p>
@@ -224,7 +222,7 @@ export const DownloadQueueSidebar: React.FC = () => {
           allDownloads.map((download) => (
             <div
               key={download.id}
-              className="group overflow-hidden rounded-lg border border-tracksy-gold/20 bg-white/50 shadow-sm transition-all hover:shadow-md dark:border-tracksy-gold/10 dark:bg-gray-800/50"
+              className="group overflow-hidden rounded-lg border border-primary/20 bg-white/50 shadow-sm transition-all hover:shadow-md dark:border-primary/10 dark:bg-gray-800/50"
             >
               {/* Top section with thumbnail and info */}
               <div className="flex gap-2 p-2.5">
@@ -261,7 +259,7 @@ export const DownloadQueueSidebar: React.FC = () => {
                 <div className="min-w-0 flex-1 space-y-2">
                   {/* Header */}
                   <div className="space-y-0.5">
-                    <p className="line-clamp-2 text-xs font-semibold leading-tight text-tracksy-blue dark:text-white">
+                    <p className="line-clamp-2 text-xs font-semibold leading-tight text-primary dark:text-white">
                       {download.title || download.url}
                     </p>
                     {download.channelTitle && (
@@ -341,7 +339,7 @@ export const DownloadQueueSidebar: React.FC = () => {
 
               {/* Full-width Progress bar section */}
               {download.status === "downloading" && (
-                <div className="space-y-1 border-t border-tracksy-gold/20 bg-white/30 px-2.5 pb-2 pt-1.5 dark:border-tracksy-gold/10 dark:bg-gray-800/30">
+                <div className="space-y-1 border-t border-primary/20 bg-white/30 px-2.5 pb-2 pt-1.5 dark:border-primary/10 dark:bg-gray-800/30">
                   <Progress value={download.progress} className="h-1.5" />
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                     <div className="flex items-center gap-1.5">
@@ -351,14 +349,12 @@ export const DownloadQueueSidebar: React.FC = () => {
                         </span>
                       )}
                       {download.downloadSpeed && (
-                        <span className="font-medium text-tracksy-gold">
-                          • {download.downloadSpeed}
-                        </span>
+                        <span className="font-medium text-accent">• {download.downloadSpeed}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       {download.eta && (
-                        <span className="font-medium text-tracksy-blue dark:text-tracksy-gold">
+                        <span className="font-medium text-primary dark:text-accent">
                           ETA {download.eta}
                         </span>
                       )}

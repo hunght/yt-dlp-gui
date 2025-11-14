@@ -2,16 +2,9 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ScrollTextIcon } from "lucide-react";
 import { trpcClient } from "@/utils/trpc";
+import { LogViewerModal } from "./LogViewerModal";
 
 export function AboutSection(): React.JSX.Element {
   const [logContent, setLogContent] = useState<string>("");
@@ -22,6 +15,15 @@ export function AboutSection(): React.JSX.Element {
       const content = await trpcClient.utils.getLogFileContent.query();
       setLogContent(content);
       setIsLogDialogOpen(true);
+    } catch (error) {
+      // Error will be shown in UI if needed
+    }
+  };
+
+  const handleRefreshLogs = async (): Promise<void> => {
+    try {
+      const content = await trpcClient.utils.getLogFileContent.query();
+      setLogContent(content);
     } catch (error) {
       // Error will be shown in UI if needed
     }
@@ -45,21 +47,12 @@ export function AboutSection(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      <Dialog open={isLogDialogOpen} onOpenChange={setIsLogDialogOpen}>
-        <DialogContent className="max-h-[90vh] w-full max-w-[95vw]">
-          <DialogHeader>
-            <DialogTitle>Application Logs</DialogTitle>
-            <DialogDescription>
-              View and review application logs for debugging and troubleshooting
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="h-[75vh] w-full rounded-md border p-4">
-            <div className="w-full">
-              <pre className="whitespace-pre-wrap break-words font-mono text-xs">{logContent}</pre>
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+      <LogViewerModal
+        open={isLogDialogOpen}
+        onOpenChange={setIsLogDialogOpen}
+        logContent={logContent}
+        onRefresh={handleRefreshLogs}
+      />
     </>
   );
 }

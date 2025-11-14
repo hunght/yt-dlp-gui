@@ -53,88 +53,112 @@
     src: url("../assets/fonts/geist/Geist-UltraBlack.woff2") format("woff2");
   }
   :root {
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* LearnifyTube Light Mode - Sidebar */
+    --sidebar-background: 210 20% 98%; /* Gray 50 */
+    --sidebar-foreground: 217 19% 27%; /* Gray 700 */
+    --sidebar-primary: 217.2 91.2% 59.8%; /* Primary Blue */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 96%; /* Gray 100 */
+    --sidebar-accent-foreground: 217 19% 27%;
+    --sidebar-border: 220 13% 91%; /* Gray 200 */
+    --sidebar-ring: 217.2 91.2% 59.8%; /* Primary Blue */
   }
   .dark {
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    /* LearnifyTube Dark Mode - Sidebar */
+    --sidebar-background: 220 26% 12%; /* Gray 900 */
+    --sidebar-foreground: 210 20% 98%; /* Gray 50 */
+    --sidebar-primary: 217.2 91.2% 59.8%; /* Primary Blue */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 217 19% 17%; /* Gray 800 */
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 217 19% 27%; /* Gray 700 */
+    --sidebar-ring: 217.2 91.2% 59.8%; /* Primary Blue */
   }
 }
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* LearnifyTube Light Mode Colors */
+    --background: 0 0% 100%; /* White */
+    --foreground: 217 19% 27%; /* Gray 700 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 217 19% 27%; /* Gray 700 */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%; /* White */
+    --popover-foreground: 217 19% 27%; /* Gray 700 */
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%; /* Primary Blue #3B82F6 */
+    --primary-foreground: 0 0% 100%; /* White */
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 220 14% 96%; /* Gray 100 */
+    --secondary-foreground: 217 19% 27%; /* Gray 700 */
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 220 14% 96%; /* Gray 100 */
+    --muted-foreground: 220 9% 46%; /* Gray 500 */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 160 84% 39.4%; /* Accent Green #10B981 */
+    --accent-foreground: 0 0% 100%; /* White */
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --success: 160 84% 39.4%; /* Accent Green #10B981 */
+    --success-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --warning: 38 92% 50%; /* Warning Orange #F59E0B */
+    --warning-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    --destructive: 0 84% 60%; /* Error Red #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%; /* Gray 200 */
+    --input: 220 13% 91%; /* Gray 200 */
+    --ring: 217.2 91.2% 59.8%; /* Primary Blue */
+
+    --radius: 0.5rem; /* 8px - matches brand guidelines */
+
+    /* LearnifyTube Brand Specific */
+    --brand-blue: 217.2 91.2% 59.8%;
+    --brand-green: 160 84% 39.4%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* LearnifyTube Dark Mode Colors */
+    --background: 220 26% 12%; /* Gray 900 #111827 */
+    --foreground: 210 20% 98%; /* Gray 50 #F9FAFB */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 217 19% 17%; /* Gray 800 #1F2937 */
+    --card-foreground: 210 20% 98%; /* Gray 50 */
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 217 19% 17%; /* Gray 800 */
+    --popover-foreground: 210 20% 98%; /* Gray 50 */
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 217.2 91.2% 59.8%; /* Primary Blue - same in dark mode */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 217 19% 27%; /* Gray 700 */
+    --secondary-foreground: 210 20% 98%; /* Gray 50 */
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 217 19% 27%; /* Gray 700 */
+    --muted-foreground: 218 11% 65%; /* Gray 400 */
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 160 84% 39.4%; /* Accent Green - same in dark mode */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --success: 160 84% 39.4%; /* Accent Green */
+    --success-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --warning: 38 92% 50%; /* Warning Orange */
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%; /* Error Red */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 217 19% 27%; /* Gray 700 */
+    --input: 217 19% 27%; /* Gray 700 */
+    --ring: 217.2 91.2% 59.8%; /* Primary Blue */
+
+    /* Brand colors remain same in dark mode */
+    --brand-blue: 217.2 91.2% 59.8%;
+    --brand-green: 160 84% 39.4%;
   }
 }
 
@@ -232,32 +256,32 @@
     scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
   }
 
-  /* Optional: Accent scrollbar for specific containers with tracksy theme */
-  .scrollbar-tracksy {
-    scrollbar-color: hsl(43 74% 66% / 0.4) transparent;
+  /* Optional: Accent scrollbar for specific containers with LearnifyTube brand */
+  .scrollbar-brand {
+    scrollbar-color: hsl(217.2 91.2% 59.8% / 0.4) transparent;
   }
 
-  .scrollbar-tracksy::-webkit-scrollbar-thumb {
-    background: hsl(43 74% 66% / 0.4);
+  .scrollbar-brand::-webkit-scrollbar-thumb {
+    background: hsl(217.2 91.2% 59.8% / 0.4);
     background-clip: padding-box;
   }
 
-  .scrollbar-tracksy::-webkit-scrollbar-thumb:hover {
-    background: hsl(43 74% 66% / 0.6);
+  .scrollbar-brand::-webkit-scrollbar-thumb:hover {
+    background: hsl(217.2 91.2% 59.8% / 0.6);
     background-clip: padding-box;
   }
 
-  .dark .scrollbar-tracksy {
-    scrollbar-color: hsl(43 74% 66% / 0.3) transparent;
+  .dark .scrollbar-brand {
+    scrollbar-color: hsl(217.2 91.2% 59.8% / 0.3) transparent;
   }
 
-  .dark .scrollbar-tracksy::-webkit-scrollbar-thumb {
-    background: hsl(43 74% 66% / 0.3);
+  .dark .scrollbar-brand::-webkit-scrollbar-thumb {
+    background: hsl(217.2 91.2% 59.8% / 0.3);
     background-clip: padding-box;
   }
 
-  .dark .scrollbar-tracksy::-webkit-scrollbar-thumb:hover {
-    background: hsl(43 74% 66% / 0.5);
+  .dark .scrollbar-brand::-webkit-scrollbar-thumb:hover {
+    background: hsl(217.2 91.2% 59.8% / 0.5);
     background-clip: padding-box;
   }
 }

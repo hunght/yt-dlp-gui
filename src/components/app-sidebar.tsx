@@ -7,12 +7,14 @@ import { cn } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { SidebarThemeToggle } from "@/components/SidebarThemeToggle";
 
 // This is sample data.
 const items = [
@@ -61,12 +63,12 @@ export function AppSidebar({
     <Sidebar
       collapsible="icon"
       className={cn(
-        "border-r border-tracksy-gold/20 bg-white/80 backdrop-blur-sm dark:border-tracksy-gold/10 dark:bg-gray-900/80",
+        "border-r border-primary/20 bg-white/80 backdrop-blur-sm dark:border-primary/10 dark:bg-gray-900/80",
         className
       )}
       {...props}
     >
-      <SidebarHeader className="text-sm font-semibold text-tracksy-blue dark:text-white"></SidebarHeader>
+      <SidebarHeader className="text-sm font-semibold text-primary dark:text-white"></SidebarHeader>
 
       <SidebarContent className="pt-7">
         <SidebarMenu>
@@ -77,11 +79,11 @@ export function AppSidebar({
                 isActive={activeItem === item.title}
                 tooltip={item.title}
                 className={cn(
-                  "gap-2 text-tracksy-blue/70 transition-colors dark:text-white/70",
-                  "hover:bg-tracksy-gold/10 hover:text-tracksy-blue",
-                  "dark:hover:bg-tracksy-gold/5 dark:hover:text-tracksy-gold",
+                  "gap-2 text-primary/70 transition-colors dark:text-white/70",
+                  "hover:bg-accent/10 hover:text-primary",
+                  "dark:hover:bg-accent/5 dark:hover:text-accent",
                   activeItem === item.title &&
-                    "bg-tracksy-gold/10 text-tracksy-blue dark:bg-tracksy-gold/5 dark:text-white"
+                    "bg-accent/10 text-primary dark:bg-accent/5 dark:text-white"
                 )}
               >
                 <Link
@@ -104,7 +106,14 @@ export function AppSidebar({
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarRail className="border-tracksy-gold/20 dark:border-tracksy-gold/10" />
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarThemeToggle />
+        </SidebarMenu>
+      </SidebarFooter>
+
+      <SidebarRail className="border-primary/20 dark:border-primary/10" />
     </Sidebar>
   );
 }

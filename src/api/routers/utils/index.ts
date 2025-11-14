@@ -867,7 +867,7 @@ export const utilsRouter = t.router({
         // Use a more reliable way to detect platform in main process
         const platform = process.platform;
         const arch = process.arch;
-        const expectedFilename = `itracksy-${platform}-${arch}-${version}.zip`;
+        const expectedFilename = `learnifytube-${platform}-${arch}-${version}.zip`;
         const downloadsDir = path.join(os.homedir(), "Downloads");
         const expectedPath = path.join(downloadsDir, expectedFilename);
 

@@ -46,7 +46,7 @@ export function AppRightSidebar({
         <SheetContent
           side="right"
           className={cn(
-            "w-[85vw] max-w-md border-l border-tracksy-gold/20 bg-white/95 p-0 backdrop-blur-sm dark:border-tracksy-gold/10 dark:bg-gray-900/95",
+            "w-[85vw] max-w-md border-l border-primary/20 bg-white/95 p-0 backdrop-blur-sm dark:border-primary/10 dark:bg-gray-900/95",
             className
           )}
         >
@@ -64,7 +64,7 @@ export function AppRightSidebar({
       minWidth={250}
       maxWidth={500}
       className={cn(
-        "border-l border-tracksy-gold/20 bg-white/80 backdrop-blur-sm dark:border-tracksy-gold/10 dark:bg-gray-900/80",
+        "border-l border-primary/20 bg-white/80 backdrop-blur-sm dark:border-primary/10 dark:bg-gray-900/80",
         className
       )}
       {...props}

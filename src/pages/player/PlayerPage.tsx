@@ -109,6 +109,21 @@ export default function PlayerPage(): React.JSX.Element {
     autoStartedRef.current = false;
   }, [videoId, playback?.filePath]);
 
+  useEffect(() => {
+    return () => {
+      const video = videoRef.current;
+      if (!video) return;
+      try {
+        if (document.pictureInPictureElement === video) {
+          void document.exitPictureInPicture();
+        }
+      } catch (error) {
+        logger.warn("[PlayerPage] Failed to exit PiP on cleanup", error);
+      }
+      video.pause();
+    };
+  }, [videoRef]);
+
   // Auto-start download once if file is missing and not already downloading
   const autoStartedRef = useRef(false);
   useEffect(() => {

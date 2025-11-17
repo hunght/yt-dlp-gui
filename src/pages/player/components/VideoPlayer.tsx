@@ -21,6 +21,7 @@ export function VideoPlayer({
 }: VideoPlayerProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const isSeekingRef = useRef<boolean>(false);
+  const wasPlayingOnHideRef = useRef<boolean>(false);
   const logVideoState = (label: string): void => {
     const video = videoRef.current;
     if (!video) return;
@@ -111,6 +112,27 @@ export function VideoPlayer({
       video.removeEventListener("enterpictureinpicture", handleEnterPiP);
       video.removeEventListener("leavepictureinpicture", handleLeavePiP);
     };
+  }, [videoRef]);
+
+  useEffect(() => {
+    const handleVisibilityChange = (): void => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      if (document.hidden) {
+        wasPlayingOnHideRef.current = !video.paused;
+        if (document.pictureInPictureElement !== video) {
+          video.pause();
+        }
+      } else if (wasPlayingOnHideRef.current && document.pictureInPictureElement !== video) {
+        void video.play().catch((err) => {
+          logger.warn("[VideoPlayer] Failed to resume after returning to tab", err);
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [videoRef]);
 
   // Mouse wheel seeking

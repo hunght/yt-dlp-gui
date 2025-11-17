@@ -238,7 +238,7 @@ export function VideoPlayer({
         />
 
         {/* Keyboard Shortcuts Hint (shows on hover) */}
-        <div className="pointer-events-none absolute bottom-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="pointer-events-none absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
           <div className="space-y-1 rounded-md bg-black/70 px-3 py-2 text-xs text-white backdrop-blur-sm">
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="px-1 py-0 text-[10px]">

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { logger } from "@/helpers/logger";
+import { toLocalFileUrl } from "@/helpers/localFile";
 
 interface VideoPlayerProps {
   filePath: string;
@@ -18,22 +19,6 @@ export function VideoPlayer({
   onSeek,
   onError,
 }: VideoPlayerProps): React.JSX.Element {
-  const normalizePath = (p: string): string => {
-    if (!p) return "";
-    return p.startsWith("/") ? p : `/${p}`;
-  };
-
-  const toLocalFileUrl = (p: string): string => {
-    const normalized = normalizePath(p);
-    const url = `local-file://${encodeURI(normalized)}`;
-    if (normalized !== p) {
-      logger.warn("[VideoPlayer] Normalized file path missing leading slash", {
-        original: p,
-        normalized,
-      });
-    }
-    return url;
-  };
   const containerRef = useRef<HTMLDivElement>(null);
   const isSeekingRef = useRef<boolean>(false);
   const logVideoState = (label: string): void => {
@@ -97,6 +82,34 @@ export function VideoPlayer({
       listeners.forEach(({ eventName, handler }) => {
         video.removeEventListener(eventName, handler);
       });
+    };
+  }, [videoRef]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleEnterPiP = (): void => {
+      logger.debug("[VideoPlayer] enter picture-in-picture");
+    };
+
+    const handleLeavePiP = (): void => {
+      logger.debug("[VideoPlayer] leave picture-in-picture");
+      const shouldResume = video.paused && !video.ended;
+      if (shouldResume) {
+        void video.play().catch((err) => {
+          logger.warn("[VideoPlayer] Failed to resume after PiP exit", err);
+        });
+      }
+      video.focus();
+    };
+
+    video.addEventListener("enterpictureinpicture", handleEnterPiP);
+    video.addEventListener("leavepictureinpicture", handleLeavePiP);
+
+    return () => {
+      video.removeEventListener("enterpictureinpicture", handleEnterPiP);
+      video.removeEventListener("leavepictureinpicture", handleLeavePiP);
     };
   }, [videoRef]);
 

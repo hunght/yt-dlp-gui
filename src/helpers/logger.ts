@@ -55,6 +55,7 @@ interface UniversalLogger extends LogFunctions {
   fatal: (...args: unknown[]) => void;
   clearLogFile: () => Promise<void>;
   getFileContent: () => Promise<string>;
+  getFilePath: () => Promise<string | null>;
 }
 
 // Check if we're in main process
@@ -138,6 +139,29 @@ if (!isTest) {
   });
 }
 
+const resolveLogFilePath = async (): Promise<string | null> => {
+  try {
+    const mod = await import("electron-log/main");
+    const log = mod.default ?? mod;
+    const file = log.transports?.file?.getFile?.();
+    if (file?.path) {
+      return file.path;
+    }
+  } catch {
+    // ignore and fall through to fallback path
+  }
+
+  try {
+    const { app } = await import("electron");
+    const userData = app.getPath("userData");
+    return path.join(userData, "logs", "main.log");
+  } catch {
+    // ignore
+  }
+
+  return null;
+};
+
 // Adapter that preserves previous API surface
 export const logger: UniversalLogger = {
   debug: (...args: unknown[]) => internal.debug?.(...args),
@@ -148,49 +172,32 @@ export const logger: UniversalLogger = {
   clearLogFile: async () => {
     if (!isMain) return; // no-op in renderer
     try {
-      const mod = await import("electron-log/main");
-      const log = mod.default ?? mod;
-
-      const file = log.transports?.file?.getFile?.();
-      if (file?.path) {
-        await fs.promises.writeFile(file.path, "", { encoding: "utf-8" });
+      const filePath = await resolveLogFilePath();
+      if (filePath) {
+        await fs.promises.writeFile(filePath, "", { encoding: "utf-8" });
       }
     } catch {
-      // As a last resort, try typical default path
-      try {
-        // electron-log default dir: {userData}/logs/main.log
-        const { app } = await import("electron");
-        const userData = app.getPath("userData");
-        const p = path.join(userData, "logs", "main.log");
-        await fs.promises.writeFile(p, "", { encoding: "utf-8" });
-      } catch {
-        // ignore
-      }
+      // ignore
     }
   },
   getFileContent: async () => {
     if (!isMain) return ""; // not available in renderer
     try {
-      const mod = await import("electron-log/main");
-      const log = mod.default ?? mod;
-
-      const file = log.transports?.file?.getFile?.();
-      if (file?.path && fs.existsSync(file.path)) {
-        return await fs.promises.readFile(file.path, "utf8");
+      const filePath = await resolveLogFilePath();
+      if (filePath && fs.existsSync(filePath)) {
+        return await fs.promises.readFile(filePath, "utf8");
       }
     } catch {
-      // Fallback to default path if needed
-      try {
-        const { app } = await import("electron");
-        const userData = app.getPath("userData");
-        const p = path.join(userData, "logs", "main.log");
-        if (fs.existsSync(p)) {
-          return await fs.promises.readFile(p, "utf8");
-        }
-      } catch {
-        // ignore
-      }
+      // ignore
     }
     return "";
+  },
+  getFilePath: async () => {
+    if (!isMain) return null;
+    try {
+      return await resolveLogFilePath();
+    } catch {
+      return null;
+    }
   },
 };

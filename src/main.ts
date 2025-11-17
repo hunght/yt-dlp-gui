@@ -11,6 +11,7 @@ import {
   session,
   protocol,
 } from "electron";
+import { Readable } from "stream";
 import { createIPCHandler } from "electron-trpc/main";
 import registerListeners from "./helpers/ipc/listeners-register";
 import { router } from "./api";
@@ -71,6 +72,20 @@ export function showMainWindow(): void {
   }
 }
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "local-file",
+    privileges: {
+      standard: true,
+      secure: true,
+      corsEnabled: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      allowServiceWorkers: false,
+    },
+  },
+]);
+
 async function createTray(): Promise<void> {
   // Request notification permission on macOS
   if (process.platform === "darwin") {
@@ -82,7 +97,7 @@ async function createTray(): Promise<void> {
 
   // Get the correct path to the resources directory
   let iconPath: string;
-  const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
+  const isDev = !app.isPackaged;
 
   if (isDev) {
     // In development mode, use the root project directory
@@ -193,6 +208,7 @@ function createWindow(): void {
     icon: iconPath,
     movable: true,
     webPreferences: {
+      webSecurity: false,
       devTools: true,
       contextIsolation: true,
       nodeIntegration: true,
@@ -223,6 +239,7 @@ function createWindow(): void {
     logger.info("Main: Loading main window from:", mainPath);
     logger.info("Main: MAIN_WINDOW_VITE_NAME:", MAIN_WINDOW_VITE_NAME);
     mainWindow.loadFile(mainPath);
+    mainWindow.webContents.openDevTools();
   }
 
   // Set up window references for tRPC window router
@@ -347,15 +364,78 @@ app.whenReady().then(async () => {
     }
   );
 
-  // Register custom protocol to safely load local files from http(s) pages (dev server)
-  protocol.registerFileProtocol("local-file", (request, callback) => {
+  // Register custom protocol that streams local files from main (supports Range)
+  protocol.registerStreamProtocol("local-file", (request, callback) => {
     try {
-      // request.url example: local-file:///absolute/path/to/file.mp4
-      const url = decodeURIComponent(request.url.replace("local-file://", ""));
-      callback({ path: url });
+      const rawUrl = request.url;
+      const decodedPath = decodeURIComponent(rawUrl.replace("local-file://", ""));
+      const normalizedPath = decodedPath.startsWith("/") ? decodedPath : `/${decodedPath}`;
+      if (normalizedPath !== decodedPath) {
+        logger.warn("[protocol] normalized path missing leading slash", {
+          rawUrl,
+          decodedPath,
+          normalizedPath,
+        });
+      }
+      const filePath = path.resolve(normalizedPath);
+      if (!fs.existsSync(filePath)) {
+        logger.error("[protocol] Requested local file does not exist", { rawUrl, filePath });
+        callback({ statusCode: 404, data: Readable.from([]) });
+        return;
+      }
+
+      const stat = fs.statSync(filePath);
+      const totalSize = stat.size;
+      const range = request.headers.Range || request.headers.range;
+
+      // naive content-type based on extension
+      const ext = path.extname(filePath).toLowerCase();
+      const contentType =
+        ext === ".mp4"
+          ? "video/mp4"
+          : ext === ".webm"
+            ? "video/webm"
+            : ext === ".mkv"
+              ? "video/x-matroska"
+              : "application/octet-stream";
+
+      if (range && typeof range === "string") {
+        const match = range.match(/bytes=(\d+)-(\d*)/);
+        if (match) {
+          const start = parseInt(match[1], 10);
+          const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
+          const chunkSize = end - start + 1;
+          const headers = {
+            "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+            "Accept-Ranges": "bytes",
+            "Content-Length": String(chunkSize),
+            "Content-Type": contentType,
+          };
+          const stream = fs.createReadStream(filePath, { start, end });
+          logger.debug("[protocol] local-file partial stream", {
+            filePath,
+            start,
+            end,
+            chunkSize,
+            totalSize,
+          });
+          callback({ statusCode: 206, headers, data: stream });
+          return;
+        }
+      }
+
+      // full file
+      const headers = {
+        "Content-Length": String(totalSize),
+        "Content-Type": contentType,
+        "Accept-Ranges": "bytes",
+      };
+      const stream = fs.createReadStream(filePath);
+      logger.debug("[protocol] local-file full stream", { filePath, totalSize });
+      callback({ statusCode: 200, headers, data: stream });
     } catch (e) {
-      logger.error("[protocol] Failed to resolve local-file URL", e);
-      callback({ error: -2 }); // FILE_NOT_FOUND
+      logger.error("[protocol] Failed to stream local-file URL", e);
+      callback({ statusCode: 500, data: Readable.from([]) });
     }
   });
 });

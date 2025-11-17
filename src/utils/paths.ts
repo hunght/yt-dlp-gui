@@ -1,12 +1,17 @@
 import { app } from "electron";
 import path from "path";
 
+const resolveDevDatabasePath = (): string => path.resolve(process.cwd(), "local.db");
+
 export const getDatabasePath = (): string => {
-  if (process.env.NODE_ENV === "development") {
-    // In development
-    return "file:local.db";
+  const isPackaged = Boolean(app?.isPackaged);
+  const forceDevDb = process.env.LEARNIFYTUBE_FORCE_DEV_DB === "true";
+  const shouldUseDevDb = forceDevDb || !isPackaged;
+
+  if (shouldUseDevDb) {
+    return `file:${resolveDevDatabasePath()}`;
   }
 
-  // In production, store in user data directory
-  return `file:${path.join(app.getPath("userData"), "local.db")}`;
+  const userDataDir = app?.getPath("userData") ?? process.cwd();
+  return `file:${path.join(userDataDir, "local.db")}`;
 };

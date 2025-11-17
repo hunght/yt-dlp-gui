@@ -35,6 +35,8 @@ interface LogViewerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   logContent: string;
+  logFilePath?: string | null;
+  logFileExists?: boolean;
   onRefresh?: () => Promise<void>;
 }
 
@@ -48,10 +50,13 @@ export function LogViewerModal({
   open,
   onOpenChange,
   logContent,
+  logFilePath,
+  logFileExists,
   onRefresh,
 }: LogViewerModalProps): React.JSX.Element {
   const [searchTerm, setSearchTerm] = useState("");
   const [isCopied, setIsCopied] = useState(false);
+  const [isPathCopied, setIsPathCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState<FilterLevel>("all");
 
@@ -60,6 +65,7 @@ export function LogViewerModal({
     if (!open) {
       setSearchTerm("");
       setIsCopied(false);
+      setIsPathCopied(false);
     }
   }, [open]);
 
@@ -137,6 +143,17 @@ export function LogViewerModal({
     }
   };
 
+  const handleCopyFilePath = async (): Promise<void> => {
+    if (!logFilePath) return;
+    try {
+      await navigator.clipboard.writeText(logFilePath);
+      setIsPathCopied(true);
+      setTimeout(() => setIsPathCopied(false), 2000);
+    } catch (error) {
+      logger.error("Failed to copy log file path:", error);
+    }
+  };
+
   const handleDownloadLog = (): void => {
     const blob = new Blob([filteredLogText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -184,6 +201,49 @@ export function LogViewerModal({
           <DialogDescription>
             View and review application logs for debugging and troubleshooting
           </DialogDescription>
+
+          {/* Log Path */}
+          <div className="space-y-1 rounded-md border bg-muted/40 px-3 py-2 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/90">
+                Log file location
+              </span>
+              {logFilePath && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyFilePath}
+                  className="h-7 gap-1 px-2 text-xs"
+                >
+                  {isPathCopied ? (
+                    <>
+                      <CheckIcon className="h-3.5 w-3.5" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <CopyIcon className="h-3.5 w-3.5" />
+                      Copy path
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+            {logFilePath ? (
+              <code className="block break-all font-mono text-xs text-foreground">
+                {logFilePath}
+              </code>
+            ) : (
+              <span className="text-muted-foreground">
+                Log file path unavailable in this environment.
+              </span>
+            )}
+            {logFilePath && logFileExists === false && (
+              <span className="text-[11px] text-amber-600">
+                File not found yet — perform an action to generate logs, then refresh.
+              </span>
+            )}
+          </div>
 
           {/* Action Bar */}
           <div className="flex flex-col gap-2 pt-2 sm:flex-row">

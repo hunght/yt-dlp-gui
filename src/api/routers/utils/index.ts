@@ -123,7 +123,11 @@ type QuitAppFailure = { success: false; error: string };
 type QuitAppResult = QuitAppSuccess | QuitAppFailure;
 
 type GetAppVersionResult = { version: string };
-type GetLogFileContentResult = string;
+type GetLogFileContentResult = {
+  content: string;
+  path: string | null;
+  exists: boolean;
+};
 type ClearLogFileSuccess = { success: true };
 type ClearLogFileFailure = { success: false; error: string };
 type ClearLogFileResult = ClearLogFileSuccess | ClearLogFileFailure;
@@ -649,7 +653,9 @@ export const utilsRouter = t.router({
   // Get log file content
   getLogFileContent: publicProcedure.query(async (): Promise<GetLogFileContentResult> => {
     try {
-      return await logger.getFileContent();
+      const [content, path] = await Promise.all([logger.getFileContent(), logger.getFilePath()]);
+      const exists = Boolean(path && fs.existsSync(path));
+      return { content, path, exists };
     } catch (error) {
       logger.error("Failed to get log file content", error);
       throw error;

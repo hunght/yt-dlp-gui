@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { logger } from "@/helpers/logger";
-import { app } from "electron";
+import { app, dialog } from "electron";
 import { eq } from "drizzle-orm";
 import { userPreferences } from "@/api/db/schema";
 import defaultDb, { type Database } from "@/api/db";
 import * as path from "path";
+import * as fs from "fs";
 
 // Zod schema for preferred languages JSON
 const languagesArraySchema = z.array(z.string());
@@ -55,6 +56,20 @@ type UpdateDownloadPathFailure = {
 
 type UpdateDownloadPathResult = UpdateDownloadPathSuccess | UpdateDownloadPathFailure;
 
+type EnsureDirectoryAccessSuccess = {
+  success: true;
+  downloadPath: string;
+  updated: boolean;
+};
+
+type EnsureDirectoryAccessFailure = {
+  success: false;
+  message: string;
+  cancelled?: boolean;
+};
+
+type EnsureDirectoryAccessResult = EnsureDirectoryAccessSuccess | EnsureDirectoryAccessFailure;
+
 // Get system language from Electron
 const getSystemLanguage = (): string => {
   try {
@@ -71,6 +86,20 @@ const getSystemLanguage = (): string => {
 // Get default download path
 const getDefaultDownloadPath = (): string => {
   return path.join(app.getPath("downloads"), "LearnifyTube");
+};
+
+const hasReadAccess = async (targetPath: string): Promise<boolean> => {
+  try {
+    await fs.promises.access(targetPath, fs.constants.R_OK);
+  } catch (error) {
+    return !(
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error.code === "EPERM" || error.code === "EACCES")
+    );
+  }
+  return true;
 };
 
 // Initialize user preferences with system language if not exists
@@ -234,6 +263,69 @@ export const preferencesRouter = t.router({
       } catch (e) {
         logger.error("[preferences] updateDownloadPath failed", e);
         return { success: false as const, message: String(e) };
+      }
+    }),
+
+  ensureDownloadDirectoryAccess: publicProcedure
+    .input(z.object({ filePath: z.string().optional() }))
+    .mutation(async ({ input, ctx }): Promise<EnsureDirectoryAccessResult> => {
+      const db = ctx.db ?? defaultDb;
+      await ensurePreferencesExist(db);
+
+      try {
+        const rows = await db
+          .select()
+          .from(userPreferences)
+          .where(eq(userPreferences.id, "default"))
+          .limit(1);
+
+        const storedPath = rows.length > 0 ? rows[0].downloadPath : null;
+        const fallbackPath = storedPath ?? getDefaultDownloadPath();
+        const candidateDir = input.filePath ? path.dirname(input.filePath) : fallbackPath;
+        const resolvedTarget = path.resolve(candidateDir);
+
+        if (await hasReadAccess(resolvedTarget)) {
+          return { success: true, downloadPath: resolvedTarget, updated: false };
+        }
+
+        const selection = await dialog.showOpenDialog({
+          title: "Allow LearnifyTube to access this folder",
+          message:
+            "macOS blocked access to this folder. Please select the Downloads folder (or another folder) to grant permission.",
+          properties: ["openDirectory", "createDirectory"],
+          defaultPath: resolvedTarget,
+          securityScopedBookmarks: false,
+        });
+
+        if (selection.canceled || selection.filePaths.length === 0) {
+          return {
+            success: false,
+            cancelled: true,
+            message: "Folder selection was cancelled",
+          };
+        }
+
+        const selectedPath = selection.filePaths[0];
+        await db
+          .update(userPreferences)
+          .set({
+            downloadPath: selectedPath,
+            updatedAt: Date.now(),
+          })
+          .where(eq(userPreferences.id, "default"))
+          .execute();
+
+        return {
+          success: true,
+          downloadPath: selectedPath,
+          updated: selectedPath !== storedPath,
+        };
+      } catch (e) {
+        logger.error("[preferences] ensureDownloadDirectoryAccess failed", e);
+        return {
+          success: false,
+          message: String(e),
+        };
       }
     }),
 });

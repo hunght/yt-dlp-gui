@@ -15,6 +15,7 @@ import { AnnotationForm } from "./components/AnnotationForm";
 import { PlaylistNavigation } from "./components/PlaylistNavigation";
 import { rightSidebarContentAtom, annotationsSidebarDataAtom } from "@/context/rightSidebar";
 import { trpcClient } from "@/utils/trpc";
+import { logger } from "@/helpers/logger";
 
 export default function PlayerPage(): React.JSX.Element {
   const search = useSearch({ from: "/player" });
@@ -50,11 +51,6 @@ export default function PlayerPage(): React.JSX.Element {
     }, 800);
   }, []);
 
-  // Handle video load error (e.g., file was deleted)
-  const handleVideoLoadError = useCallback(() => {
-    setVideoLoadError(true);
-  }, []);
-
   const { data: playback, isLoading: playbackIsLoading } = useQuery({
     queryKey: ["video-playback", videoId],
     queryFn: async () => {
@@ -68,6 +64,8 @@ export default function PlayerPage(): React.JSX.Element {
       return ["downloading", "queued", "paused"].includes(status) ? 1500 : false;
     },
   });
+
+  const ensuredDirectoryRef = useRef<Set<string>>(new Set());
 
   const startDownloadMutation = useMutation({
     mutationFn: async () => {
@@ -94,6 +92,14 @@ export default function PlayerPage(): React.JSX.Element {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to start download");
+    },
+  });
+
+  const ensureDirectoryAccessMutation = useMutation({
+    mutationFn: async (targetFile?: string) => {
+      return await trpcClient.preferences.ensureDownloadDirectoryAccess.mutate({
+        filePath: targetFile,
+      });
     },
   });
 
@@ -243,6 +249,53 @@ export default function PlayerPage(): React.JSX.Element {
 
   const filePath = playback?.filePath || null;
   const videoTitle = playback?.title || playback?.videoId || "Video";
+  const playbackStatus = playback && typeof playback.status === "string" ? playback.status : null;
+
+  // Handle video load error (e.g., file was deleted)
+  const handleVideoLoadError = useCallback(() => {
+    logger.error("[PlayerPage] Video load error reported by VideoPlayer", {
+      videoId,
+      filePath,
+    });
+    setVideoLoadError(true);
+  }, [videoId, filePath]);
+
+  useEffect(() => {
+    if (!videoId) return;
+    if (filePath) {
+      logger.info("[PlayerPage] Ready to play local file", { videoId, filePath });
+    } else if (playbackStatus === "completed") {
+      logger.warn("[PlayerPage] Completed download missing file path", { videoId });
+    } else {
+      logger.debug("[PlayerPage] Awaiting file availability", {
+        videoId,
+        playbackStatus,
+      });
+    }
+  }, [videoId, filePath, playbackStatus]);
+
+  useEffect(() => {
+    if (!filePath) return;
+    const normalizedPath = filePath.toLowerCase();
+    if (ensuredDirectoryRef.current.has(normalizedPath)) {
+      return;
+    }
+
+    ensureDirectoryAccessMutation.mutate(filePath, {
+      onSuccess: (result) => {
+        if (result.success) {
+          ensuredDirectoryRef.current.add(normalizedPath);
+        } else {
+          toast.error(result.message || "LearnifyTube needs access to this folder.");
+          setVideoLoadError(true);
+        }
+      },
+      onError: (error) => {
+        toast.error(error instanceof Error ? error.message : "Unable to access download folder");
+        setVideoLoadError(true);
+      },
+    });
+  }, [filePath, ensureDirectoryAccessMutation, setVideoLoadError]);
 
   // Set sidebar to show annotations when on PlayerPage
   useEffect(() => {

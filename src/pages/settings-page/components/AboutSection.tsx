@@ -6,27 +6,36 @@ import { ScrollTextIcon } from "lucide-react";
 import { trpcClient } from "@/utils/trpc";
 import { LogViewerModal } from "./LogViewerModal";
 
+interface LogFileInfo {
+  content: string;
+  path: string | null;
+  exists: boolean;
+}
+
 export function AboutSection(): React.JSX.Element {
-  const [logContent, setLogContent] = useState<string>("");
+  const [logInfo, setLogInfo] = useState<LogFileInfo>({
+    content: "",
+    path: null,
+    exists: false,
+  });
   const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
 
-  const handleOpenLogFile = async (): Promise<void> => {
+  const loadLogFile = async (): Promise<void> => {
     try {
-      const content = await trpcClient.utils.getLogFileContent.query();
-      setLogContent(content);
-      setIsLogDialogOpen(true);
+      const result = await trpcClient.utils.getLogFileContent.query();
+      setLogInfo(result);
     } catch (error) {
       // Error will be shown in UI if needed
     }
   };
 
+  const handleOpenLogFile = async (): Promise<void> => {
+    await loadLogFile();
+    setIsLogDialogOpen(true);
+  };
+
   const handleRefreshLogs = async (): Promise<void> => {
-    try {
-      const content = await trpcClient.utils.getLogFileContent.query();
-      setLogContent(content);
-    } catch (error) {
-      // Error will be shown in UI if needed
-    }
+    await loadLogFile();
   };
 
   return (
@@ -50,7 +59,9 @@ export function AboutSection(): React.JSX.Element {
       <LogViewerModal
         open={isLogDialogOpen}
         onOpenChange={setIsLogDialogOpen}
-        logContent={logContent}
+        logContent={logInfo.content}
+        logFilePath={logInfo.path}
+        logFileExists={logInfo.exists}
         onRefresh={handleRefreshLogs}
       />
     </>

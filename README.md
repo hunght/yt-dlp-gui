@@ -46,8 +46,14 @@ LearnifyTube is the modern YouTube downloader for students, educators and lifelo
 
 👉 [Download LearnifyTube Now](https://github.com/hunght/LearnifyTube/releases)
 
+## macOS Permissions & Playback (new streaming engine)
+We now follow the same pattern as lossless-cut so macOS security doesn’t break playback:
 
+- 🔐 **Main-process streaming** – the renderer never touches `file://` URLs. The Electron main process streams bytes directly to the player, so Chromium’s `DEMUXER_ERROR_COULD_NOT_OPEN` is gone.
+- 🗂 **One-time folder authorization** – if macOS blocks a file in Downloads/Desktop/Documents, LearnifyTube automatically asks you to “Allow Access.” Approve the Downloads folder (or your custom library) once and macOS remembers it. You can also manage it from **Settings → Download Folder → Open / Change Folder**.
+- ✅ **No hacks required** – we use Apple’s user-selected-folder entitlement, so there’s no need for Full Disk Access tricks. Once the folder is authorized, streaming “just works.”
 
+Moving your library? Reopen Settings → Download Folder, point to the new location, and we’ll refresh the permission for you.
 
 ## Questions?
 Reach us via GitHub issues or email `hello@learnifytube.com`.

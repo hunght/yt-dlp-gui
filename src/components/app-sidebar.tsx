@@ -15,6 +15,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { SidebarThemeToggle } from "@/components/SidebarThemeToggle";
+import { MinimizedPlayer } from "@/components/MinimizedPlayer";
 
 // This is sample data.
 const items = [
@@ -108,6 +109,8 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter>
+        {/* Minimized player - always rendered to keep video element mounted, but only shows UI when not on player page */}
+        <MinimizedPlayer />
         <SidebarMenu>
           <SidebarThemeToggle />
         </SidebarMenu>

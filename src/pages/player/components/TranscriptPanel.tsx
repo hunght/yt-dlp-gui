@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { z } from "zod";
 import {
   showInlineTranslationsAtom,
@@ -12,6 +12,12 @@ import {
   transcriptCollapsedAtom,
 } from "@/context/transcriptSettings";
 import { openAnnotationFormAtom } from "@/context/annotations";
+import {
+  videoRefAtom,
+  currentTimeAtom,
+  playbackDataAtom,
+  seekIndicatorAtom,
+} from "@/context/player";
 import { toast } from "sonner";
 import { TranscriptContent } from "./TranscriptContent";
 import { TranslationTooltip } from "./TranslationTooltip";
@@ -44,23 +50,18 @@ const _playbackDataSchema = z
   .passthrough(); // Allow additional fields
 
 type AvailableLanguage = z.infer<typeof availableLanguageSchema>;
-type PlaybackData = z.infer<typeof _playbackDataSchema>;
 
 interface TranscriptPanelProps {
   videoId: string;
-  currentTime: number;
-  videoRef: React.RefObject<HTMLVideoElement>;
-  playbackData?: PlaybackData;
-  onSeek?: (direction: "forward" | "backward", amount: number) => void;
 }
 
-export function TranscriptPanel({
-  videoId,
-  currentTime,
-  videoRef,
-  playbackData,
-  onSeek,
-}: TranscriptPanelProps): React.JSX.Element {
+export function TranscriptPanel({ videoId }: TranscriptPanelProps): React.JSX.Element {
+  // Get shared state from atoms
+  const videoRef = useAtomValue(videoRefAtom);
+  const currentTime = useAtomValue(currentTimeAtom);
+  const playbackData = useAtomValue(playbackDataAtom);
+  const setSeekIndicatorAtom = useAtom(seekIndicatorAtom)[1];
+
   const queryClient = useQueryClient();
   const { toast: toastHook } = useToast();
 
@@ -549,6 +550,7 @@ export function TranscriptPanel({
 
   // Wheel event handling for seeking within transcript
   useEffect(() => {
+    if (!videoRef) return;
     const container = transcriptContainerRef.current;
     const video = videoRef.current;
     if (!container || !video || segments.length === 0) return;
@@ -576,9 +578,7 @@ export function TranscriptPanel({
       video.currentTime = newTime;
 
       // Trigger shared seek indicator
-      if (onSeek) {
-        onSeek(direction, seekAmount);
-      }
+      setSeekIndicatorAtom({ direction, amount: seekAmount });
 
       // Reset seeking flag after a short delay
       setTimeout(() => {
@@ -593,7 +593,7 @@ export function TranscriptPanel({
       container.removeEventListener("wheel", handleWheel);
       isSeekingRef.current = false;
     };
-  }, [videoRef, segments.length, onSeek]);
+  }, [videoRef, segments.length, setSeekIndicatorAtom]);
 
   // Handle word hover with translation
 
@@ -737,6 +737,7 @@ export function TranscriptPanel({
   // Keyboard navigation within transcript container
   const handleTranscriptKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
     if (!segments.length) return;
+    if (!videoRef) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       const next = activeSegIndex === null ? 0 : Math.min(segments.length - 1, activeSegIndex + 1);

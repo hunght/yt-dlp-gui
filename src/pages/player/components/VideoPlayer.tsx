@@ -1,27 +1,27 @@
 import React, { useEffect, useRef } from "react";
+import { useAtom, useAtomValue } from "jotai";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { logger } from "@/helpers/logger";
 import { toLocalFileUrl } from "@/helpers/localFile";
+import { videoRefAtom, filePathAtom, seekIndicatorAtom, isPlayingAtom } from "@/context/player";
 
 interface VideoPlayerProps {
-  filePath: string;
-  videoRef: React.RefObject<HTMLVideoElement>;
   onTimeUpdate: (e: React.SyntheticEvent<HTMLVideoElement, Event>) => void;
-  onSeek?: (direction: "forward" | "backward", amount: number) => void;
   onError?: () => void;
 }
 
-export function VideoPlayer({
-  filePath,
-  videoRef,
-  onTimeUpdate,
-  onSeek,
-  onError,
-}: VideoPlayerProps): React.JSX.Element {
+export function VideoPlayer({ onTimeUpdate, onError }: VideoPlayerProps): React.JSX.Element {
+  // Get shared state from atoms
+  const videoRef = useAtomValue(videoRefAtom);
+  const filePath = useAtomValue(filePathAtom);
+  const setSeekIndicatorAtom = useAtom(seekIndicatorAtom)[1];
+  const [, setIsPlaying] = useAtom(isPlayingAtom);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const isSeekingRef = useRef<boolean>(false);
   const logVideoState = (label: string): void => {
+    if (!videoRef) return;
     const video = videoRef.current;
     if (!video) return;
     logger.debug("[VideoPlayer]", label, {
@@ -35,6 +35,7 @@ export function VideoPlayer({
 
   // Handle video load error
   const handleVideoError = (): void => {
+    if (!videoRef) return;
     const video = videoRef.current;
     const mediaError = video?.error;
     logger.error("[VideoPlayer] video playback error", {
@@ -50,10 +51,35 @@ export function VideoPlayer({
   };
 
   useEffect(() => {
-    logVideoState(`filePath changed -> ${filePath}`);
+    if (filePath) {
+      logVideoState(`filePath changed -> ${filePath}`);
+    }
   }, [filePath]);
 
+  // Sync playing state to atom
   useEffect(() => {
+    if (!videoRef) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const updatePlayingState = (): void => {
+      setIsPlaying(!video.paused);
+    };
+
+    video.addEventListener("play", updatePlayingState);
+    video.addEventListener("pause", updatePlayingState);
+
+    // Update initial state
+    setIsPlaying(!video.paused);
+
+    return () => {
+      video.removeEventListener("play", updatePlayingState);
+      video.removeEventListener("pause", updatePlayingState);
+    };
+  }, [videoRef, setIsPlaying]);
+
+  useEffect(() => {
+    if (!videoRef) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -86,6 +112,7 @@ export function VideoPlayer({
   }, [videoRef]);
 
   useEffect(() => {
+    if (!videoRef) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -115,6 +142,7 @@ export function VideoPlayer({
 
   // Automatically enter Picture-in-Picture when window is hidden/closed
   useEffect(() => {
+    if (!videoRef) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -173,6 +201,7 @@ export function VideoPlayer({
 
     const handleWheel = (e: WheelEvent): void => {
       // Only handle wheel events when hovering over the video player area
+      if (!videoRef) return;
       const video = videoRef.current;
       if (!video) return;
 
@@ -198,9 +227,7 @@ export function VideoPlayer({
       video.currentTime = newTime;
 
       // Trigger shared seek indicator
-      if (onSeek) {
-        onSeek(direction, seekAmount);
-      }
+      setSeekIndicatorAtom({ direction, amount: seekAmount });
 
       // Reset seeking flag after a short delay
       setTimeout(() => {
@@ -215,11 +242,12 @@ export function VideoPlayer({
       container.removeEventListener("wheel", handleWheel);
       isSeekingRef.current = false;
     };
-  }, [videoRef, onSeek]);
+  }, [videoRef, setSeekIndicatorAtom]);
 
   // Keyboard shortcuts for seeking
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
+      if (!videoRef) return;
       const video = videoRef.current;
       if (!video) return;
 
@@ -279,29 +307,31 @@ export function VideoPlayer({
 
       if (handled) {
         e.preventDefault();
-        if (direction && onSeek) {
-          onSeek(direction, seekAmount);
+        if (direction) {
+          setSeekIndicatorAtom({ direction, amount: seekAmount });
         }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [videoRef, onSeek]);
+  }, [videoRef, setSeekIndicatorAtom]);
 
   return (
     <div className="space-y-4" ref={containerRef}>
       <div className="group relative">
-        <video
-          ref={videoRef}
-          key={filePath}
-          src={toLocalFileUrl(filePath)}
-          autoPlay
-          controls
-          className="max-h-[60vh] w-full rounded border bg-black"
-          onTimeUpdate={onTimeUpdate}
-          onError={handleVideoError}
-        />
+        {videoRef && filePath && (
+          <video
+            ref={videoRef}
+            key={filePath}
+            src={toLocalFileUrl(filePath)}
+            autoPlay
+            controls
+            className="max-h-[60vh] w-full rounded border bg-black"
+            onTimeUpdate={onTimeUpdate}
+            onError={handleVideoError}
+          />
+        )}
 
         {/* Keyboard Shortcuts Hint (shows on hover) */}
         <div className="pointer-events-none absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">

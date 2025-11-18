@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useSearch, useNavigate } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
+import { useSetAtom, useAtomValue } from "jotai";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -14,6 +14,13 @@ import { TranscriptPanel } from "./components/TranscriptPanel";
 import { AnnotationForm } from "./components/AnnotationForm";
 import { PlaylistNavigation } from "./components/PlaylistNavigation";
 import { rightSidebarContentAtom, annotationsSidebarDataAtom } from "@/context/rightSidebar";
+import {
+  videoRefAtom,
+  currentTimeAtom,
+  filePathAtom,
+  playbackDataAtom,
+  seekIndicatorAtom,
+} from "@/context/player";
 import { trpcClient } from "@/utils/trpc";
 import { logger } from "@/helpers/logger";
 
@@ -28,28 +35,44 @@ export default function PlayerPage(): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Shared seek indicator state for both VideoPlayer and TranscriptPanel
-  const [seekIndicator, setSeekIndicator] = useState<{
-    direction: "forward" | "backward";
-    amount: number;
-  } | null>(null);
+  // Atom setters for shared state
+  const setVideoRefAtom = useSetAtom(videoRefAtom);
+  const setCurrentTimeAtom = useSetAtom(currentTimeAtom);
+  const setFilePathAtom = useSetAtom(filePathAtom);
+  const setPlaybackDataAtom = useSetAtom(playbackDataAtom);
+  const setSeekIndicatorAtom = useSetAtom(seekIndicatorAtom);
+  const seekIndicator = useAtomValue(seekIndicatorAtom);
+
+  // Timeout ref for seek indicator
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Track if video file failed to load (e.g., file was deleted)
   const [videoLoadError, setVideoLoadError] = useState(false);
 
-  // Helper function to trigger seek indicator
-  const triggerSeekIndicator = useCallback((direction: "forward" | "backward", amount: number) => {
-    setSeekIndicator({ direction, amount });
+  // Auto-clear seek indicator after 800ms
+  useEffect(() => {
+    if (!seekIndicator) {
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+        seekTimeoutRef.current = null;
+      }
+      return;
+    }
 
     if (seekTimeoutRef.current) {
       clearTimeout(seekTimeoutRef.current);
     }
 
     seekTimeoutRef.current = setTimeout(() => {
-      setSeekIndicator(null);
+      setSeekIndicatorAtom(null);
     }, 800);
-  }, []);
+
+    return () => {
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+      }
+    };
+  }, [seekIndicator, setSeekIndicatorAtom]);
 
   const { data: playback, isLoading: playbackIsLoading } = useQuery({
     queryKey: ["video-playback", videoId],
@@ -144,6 +167,26 @@ export default function PlayerPage(): React.JSX.Element {
     videoRef,
     playback?.lastPositionSeconds
   );
+
+  // Update videoRef atom when ref changes
+  useEffect(() => {
+    setVideoRefAtom(videoRef);
+  }, [setVideoRefAtom]);
+
+  // Update currentTime atom when time changes
+  useEffect(() => {
+    setCurrentTimeAtom(currentTime);
+  }, [currentTime, setCurrentTimeAtom]);
+
+  // Update filePath atom when playback data changes
+  useEffect(() => {
+    setFilePathAtom(playback?.filePath || null);
+  }, [playback?.filePath, setFilePathAtom]);
+
+  // Update playbackData atom when playback data changes
+  useEffect(() => {
+    setPlaybackDataAtom(playback || null);
+  }, [playback, setPlaybackDataAtom]);
 
   // Fetch playlist details if we have a playlistId
   const playlistQuery = useQuery({
@@ -382,22 +425,10 @@ export default function PlayerPage(): React.JSX.Element {
             </Alert>
           ) : (
             <div className="space-y-4">
-              <VideoPlayer
-                filePath={filePath}
-                videoRef={videoRef}
-                onTimeUpdate={handleTimeUpdate}
-                onSeek={triggerSeekIndicator}
-                onError={handleVideoLoadError}
-              />
+              <VideoPlayer onTimeUpdate={handleTimeUpdate} onError={handleVideoLoadError} />
 
               {/* Transcript - Self-contained, owns all its state */}
-              <TranscriptPanel
-                videoId={videoId}
-                currentTime={currentTime}
-                videoRef={videoRef}
-                playbackData={playback}
-                onSeek={triggerSeekIndicator}
-              />
+              <TranscriptPanel videoId={videoId} />
 
               {/* Playlist Navigation - Show when playing from a playlist */}
               {isPlaylist && (
@@ -413,7 +444,7 @@ export default function PlayerPage(): React.JSX.Element {
               )}
 
               {/* Annotation Form Dialog - Self-contained, owns all its state */}
-              <AnnotationForm videoId={videoId} currentTime={currentTime} videoRef={videoRef} />
+              <AnnotationForm videoId={videoId} />
             </div>
           )}
         </CardContent>

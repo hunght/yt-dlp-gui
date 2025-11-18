@@ -145,10 +145,6 @@ export default function PlayerPage(): React.JSX.Element {
     playback?.lastPositionSeconds
   );
 
-  // ============================================================================
-  // PLAYLIST NAVIGATION (previously in usePlaylistNavigation hook)
-  // ============================================================================
-
   // Fetch playlist details if we have a playlistId
   const playlistQuery = useQuery({
     queryKey: ["playlist-details", playlistId],

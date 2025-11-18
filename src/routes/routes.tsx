@@ -10,6 +10,7 @@ import PlaylistsPage from "@/pages/playlists/PlaylistsPage";
 import SubscriptionsPage from "@/pages/subscriptions/SubscriptionsPage";
 import HistoryPage from "@/pages/history/HistoryPage";
 import MyWordsPage from "@/pages/my-words/MyWordsPage";
+import StorageManagerPage from "@/pages/storage/StorageManagerPage";
 
 const DashboardRoute = createRoute({
   getParentRoute: () => RootRoute,
@@ -88,6 +89,12 @@ const MyWordsRoute = createRoute({
   component: MyWordsPage,
 });
 
+const StorageRoute = createRoute({
+  getParentRoute: () => RootRoute,
+  path: "/storage",
+  component: StorageManagerPage,
+});
+
 export const rootTree = RootRoute.addChildren([
   DashboardRoute,
   SettingsRoute,
@@ -99,4 +106,5 @@ export const rootTree = RootRoute.addChildren([
   SubscriptionsRoute,
   HistoryRoute,
   MyWordsRoute,
+  StorageRoute,
 ]);

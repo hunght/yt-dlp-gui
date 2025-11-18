@@ -29,6 +29,10 @@ import crypto from "crypto";
 const getBinDir = (): string => path.join(app.getPath("userData"), "bin");
 const getBinaryFilePath = (): string => path.join(getBinDir(), getYtDlpAssetName(process.platform));
 
+const isNodeError = (value: unknown): value is NodeJS.ErrnoException => {
+  return typeof value === "object" && value !== null && "code" in value;
+};
+
 // Helper type for video update fields to avoid repetition
 type VideoUpdateFields = {
   title: string;
@@ -451,6 +455,81 @@ export const ytdlpRouter = t.router({
       }
     }),
 
+  listDownloadedVideosDetailed: publicProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().min(1).max(1000).optional(),
+        })
+        .optional()
+    )
+    .query(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const limit = input?.limit ?? 500;
+
+      const rows = await db
+        .select({
+          videoId: youtubeVideos.videoId,
+          title: youtubeVideos.title,
+          channelTitle: youtubeVideos.channelTitle,
+          thumbnailUrl: youtubeVideos.thumbnailUrl,
+          thumbnailPath: youtubeVideos.thumbnailPath,
+          filePath: youtubeVideos.downloadFilePath,
+          downloadFileSize: youtubeVideos.downloadFileSize,
+          downloadStatus: youtubeVideos.downloadStatus,
+          downloadProgress: youtubeVideos.downloadProgress,
+          durationSeconds: youtubeVideos.durationSeconds,
+          lastDownloadedAt: youtubeVideos.lastDownloadedAt,
+          createdAt: youtubeVideos.createdAt,
+          updatedAt: youtubeVideos.updatedAt,
+          totalWatchSeconds: videoWatchStats.totalWatchSeconds,
+          lastWatchedAt: videoWatchStats.lastWatchedAt,
+          lastPositionSeconds: videoWatchStats.lastPositionSeconds,
+        })
+        .from(youtubeVideos)
+        .leftJoin(videoWatchStats, eq(videoWatchStats.videoId, youtubeVideos.videoId))
+        .where(eq(youtubeVideos.downloadStatus, "completed"))
+        .orderBy(desc(youtubeVideos.lastDownloadedAt))
+        .limit(limit);
+
+      return rows.map((row) => {
+        const fileExists = row.filePath ? fs.existsSync(row.filePath) : false;
+        let fileSizeBytes = row.downloadFileSize ?? null;
+
+        if (!fileSizeBytes && row.filePath && fileExists) {
+          try {
+            const stats = fs.statSync(row.filePath);
+            fileSizeBytes = stats.size;
+          } catch (error) {
+            logger.warn("[ytdlp] Unable to stat file", {
+              filePath: row.filePath,
+              error: String(error),
+            });
+          }
+        }
+
+        return {
+          videoId: row.videoId,
+          title: row.title,
+          channelTitle: row.channelTitle,
+          thumbnailUrl: row.thumbnailUrl,
+          thumbnailPath: row.thumbnailPath,
+          filePath: row.filePath,
+          fileExists,
+          fileSizeBytes,
+          downloadStatus: row.downloadStatus,
+          downloadProgress: row.downloadProgress,
+          durationSeconds: row.durationSeconds,
+          lastDownloadedAt: row.lastDownloadedAt,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          totalWatchSeconds: row.totalWatchSeconds,
+          lastWatchedAt: row.lastWatchedAt,
+          lastPositionSeconds: row.lastPositionSeconds,
+        };
+      });
+    }),
+
   // Get a single video/download by ID (for tracking download progress)
   getVideoById: publicProcedure
     .input(z.object({ id: z.string() }))
@@ -531,6 +610,68 @@ export const ytdlpRouter = t.router({
       } catch (e) {
         logger.error("[ytdlp] getVideoByVideoId failed", e);
         return null;
+      }
+    }),
+
+  deleteDownloadedVideo: publicProcedure
+    .input(z.object({ videoId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      try {
+        const existing = await db
+          .select({
+            videoId: youtubeVideos.videoId,
+            title: youtubeVideos.title,
+            filePath: youtubeVideos.downloadFilePath,
+          })
+          .from(youtubeVideos)
+          .where(eq(youtubeVideos.videoId, input.videoId))
+          .limit(1);
+
+        if (existing.length === 0) {
+          return { success: false as const, message: "Video not found" };
+        }
+
+        const video = existing[0];
+        if (video.filePath) {
+          try {
+            await fs.promises.unlink(video.filePath);
+          } catch (error) {
+            if (!isNodeError(error) || error.code !== "ENOENT") {
+              logger.error("[ytdlp] Failed to remove file", {
+                path: video.filePath,
+                error: String(error),
+              });
+              throw error;
+            }
+          }
+        }
+
+        await db
+          .update(youtubeVideos)
+          .set({
+            downloadStatus: null,
+            downloadProgress: null,
+            downloadFilePath: null,
+            downloadFileSize: null,
+            lastDownloadedAt: null,
+            updatedAt: Date.now(),
+          })
+          .where(eq(youtubeVideos.videoId, input.videoId))
+          .execute();
+
+        logger.info("[ytdlp] Removed downloaded video", {
+          videoId: input.videoId,
+          title: video.title,
+        });
+
+        return { success: true as const };
+      } catch (error) {
+        logger.error("[ytdlp] deleteDownloadedVideo failed", error);
+        return {
+          success: false as const,
+          message: error instanceof Error ? error.message : "Failed to delete video",
+        };
       }
     }),
 

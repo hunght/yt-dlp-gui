@@ -200,6 +200,7 @@ async function createTray(): Promise<void> {
 
 function createWindow(): void {
   const preload = path.join(__dirname, "preload.js");
+  const isDev = !app.isPackaged;
 
   const iconPath = path.join(__dirname, "../resources/icon.ico");
   mainWindow = new BrowserWindow({
@@ -208,8 +209,8 @@ function createWindow(): void {
     icon: iconPath,
     movable: true,
     webPreferences: {
-      webSecurity: false,
-      devTools: true,
+      webSecurity: !isDev, // Enable web security in production mode (like lossless-cut)
+      devTools: isDev, // Only enable dev tools in development
       contextIsolation: true,
       nodeIntegration: true,
       nodeIntegrationInSubFrames: false,
@@ -233,13 +234,18 @@ function createWindow(): void {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     // Open DevTools automatically in development
-    mainWindow.webContents.openDevTools();
+    if (isDev) {
+      mainWindow.webContents.openDevTools();
+    }
   } else {
     const mainPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
     logger.info("Main: Loading main window from:", mainPath);
     logger.info("Main: MAIN_WINDOW_VITE_NAME:", MAIN_WINDOW_VITE_NAME);
     mainWindow.loadFile(mainPath);
-    mainWindow.webContents.openDevTools();
+    // Only open DevTools in development mode
+    if (isDev) {
+      mainWindow.webContents.openDevTools();
+    }
   }
 
   // Set up window references for tRPC window router
@@ -311,6 +317,13 @@ if (!gotTheLock) {
 // Initialize app when ready
 app.whenReady().then(async () => {
   logger.info("[app] App is ready, starting initialization...");
+
+  // Set App User Model ID on Windows (like lossless-cut does)
+  // This is required for proper Windows notifications and window management
+  if (process.platform === "win32") {
+    app.setAppUserModelId(app.getName());
+  }
+
   try {
     logger.clearLogFile();
     logger.info("[app] Initializing database...");
@@ -326,48 +339,8 @@ app.whenReady().then(async () => {
     // Don't quit on error, try to continue
   }
 
-  logger.info("[app] Creating tray...");
-  await createTray();
-  logger.info("[app] Tray created successfully");
-
-  logger.info("[app] Creating main window...");
-  createWindow();
-  logger.info("[app] Main window created successfully");
-
-  // Modify CSP to allow scripts from PostHog and inline scripts
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        "Content-Security-Policy": [
-          "default-src 'self'; " +
-            "script-src 'self' 'unsafe-inline' https://*.posthog.com; " +
-            "connect-src 'self' https://*.posthog.com; " +
-            "img-src 'self' data: file: local-file: https://*.posthog.com https://i.ytimg.com https://*.ytimg.com https://yt3.ggpht.com; " +
-            "media-src 'self' file: local-file:; " +
-            "style-src 'self' 'unsafe-inline'; " +
-            "frame-src 'self';",
-        ],
-      },
-    });
-  });
-
-  // Filter and block specific PostHog requests that are not needed
-  session.defaultSession.webRequest.onBeforeRequest(
-    {
-      urls: [
-        "https://*.posthog.com/static/surveys.js*",
-        "https://*.posthog.com/static/toolbar.js*",
-        "https://*.posthog.com/static/recorder.js*",
-      ],
-    },
-    (details, callback) => {
-      // Block these specific requests
-      callback({ cancel: true });
-    }
-  );
-
   // Register custom protocol that streams local files from main (supports Range)
+  // IMPORTANT: Must register BEFORE creating windows to ensure protocol is available in production mode
   protocol.registerStreamProtocol("local-file", (request, callback) => {
     try {
       const rawUrl = request.url;
@@ -441,6 +414,47 @@ app.whenReady().then(async () => {
       callback({ statusCode: 500, data: Readable.from([]) });
     }
   });
+
+  logger.info("[app] Creating tray...");
+  await createTray();
+  logger.info("[app] Tray created successfully");
+
+  logger.info("[app] Creating main window...");
+  createWindow();
+  logger.info("[app] Main window created successfully");
+
+  // Modify CSP to allow scripts from PostHog and inline scripts
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [
+          "default-src 'self'; " +
+            "script-src 'self' 'unsafe-inline' https://*.posthog.com; " +
+            "connect-src 'self' https://*.posthog.com; " +
+            "img-src 'self' data: file: local-file: https://*.posthog.com https://i.ytimg.com https://*.ytimg.com https://yt3.ggpht.com; " +
+            "media-src 'self' file: local-file:; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "frame-src 'self';",
+        ],
+      },
+    });
+  });
+
+  // Filter and block specific PostHog requests that are not needed
+  session.defaultSession.webRequest.onBeforeRequest(
+    {
+      urls: [
+        "https://*.posthog.com/static/surveys.js*",
+        "https://*.posthog.com/static/toolbar.js*",
+        "https://*.posthog.com/static/recorder.js*",
+      ],
+    },
+    (details, callback) => {
+      // Block these specific requests
+      callback({ cancel: true });
+    }
+  );
 });
 
 // Handle app quit

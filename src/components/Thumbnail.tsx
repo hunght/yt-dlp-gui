@@ -66,27 +66,30 @@ export default function Thumbnail({
 
   // Next: try remote URL if provided
   if (remoteSrc && !isThumbnailLoading) {
-    return (
-      <img
-        src={remoteSrc}
-        alt={alt}
-        className={className}
-        onError={() => {
-          // Attempt one fallback from .webp to .jpg for ytimg URLs
-          if (/\.webp($|\?)/.test(remoteSrc)) {
-            const fallbackUrl = remoteSrc
-              .replace(/\.webp($|\?)/, ".jpg$1")
-              .replace(/vi_webp/, "vi");
-            if (fallbackUrl !== remoteSrc) {
-              setRemoteSrc(fallbackUrl);
-              return;
-            }
-          }
-          // Final fallback: hide image by clearing src
-          setRemoteSrc(null);
-        }}
-      />
-    );
+    const handleRemoteError = (): void => {
+      // Attempt one fallback from .webp to .jpg for ytimg URLs
+      if (/\.webp($|\?)/.test(remoteSrc)) {
+        const fallbackUrl = remoteSrc.replace(/\.webp($|\?)/, ".jpg$1").replace(/vi_webp/, "vi");
+        if (fallbackUrl !== remoteSrc) {
+          setRemoteSrc(fallbackUrl);
+          return;
+        }
+      }
+
+      // Handle YouTube custom thumbnail variants (hqdefault_custom_N)
+      if (/hqdefault_custom_\d+/i.test(remoteSrc)) {
+        const fallbackUrl = remoteSrc.replace(/hqdefault_custom_\d+/i, "hqdefault");
+        if (fallbackUrl !== remoteSrc) {
+          setRemoteSrc(fallbackUrl);
+          return;
+        }
+      }
+
+      // Final fallback: hide image by clearing src
+      setRemoteSrc(null);
+    };
+
+    return <img src={remoteSrc} alt={alt} className={className} onError={handleRemoteError} />;
   }
 
   // Placeholder when nothing to show (or still loading)

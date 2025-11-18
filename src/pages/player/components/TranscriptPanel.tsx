@@ -72,7 +72,7 @@ export function TranscriptPanel({ videoId }: TranscriptPanelProps): React.JSX.El
   const [fontSize] = useAtom(fontSizeAtom);
   const [, setCurrentTranscriptLang] = useAtom(currentTranscriptLangAtom);
   const [, setOpenAnnotationForm] = useAtom(openAnnotationFormAtom);
-  const [isCollapsed, setIsCollapsed] = useAtom(transcriptCollapsedAtom);
+  const [userCollapsed, setUserCollapsed] = useAtom(transcriptCollapsedAtom);
 
   // Local state
   const [showTranscriptSettings, setShowTranscriptSettings] = useState(false);
@@ -219,6 +219,9 @@ export function TranscriptPanel({ videoId }: TranscriptPanelProps): React.JSX.El
 
   const segments = transcriptSegmentsQuery.data?.segments ?? [];
 
+  // Derived collapsed state: force collapsed if no segments, otherwise use user preference
+  const isCollapsed = segments.length === 0 ? true : userCollapsed;
+
   // Download transcript mutation
   const downloadTranscriptMutation = useMutation({
     mutationFn: async () => {
@@ -261,35 +264,6 @@ export function TranscriptPanel({ videoId }: TranscriptPanelProps): React.JSX.El
     },
   });
 
-  // Auto-download transcript when file becomes available
-  const filePath = playbackData?.filePath;
-  useEffect(() => {
-    if (!videoId || !filePath) return;
-    if (downloadTranscriptMutation.isPending) return;
-    if (transcriptQuery.isFetching || transcriptQuery.isLoading) return;
-    if (transcriptData) return; // Already have transcript
-
-    const key = `${videoId}|${selectedLang ?? "__default__"}`;
-    if (attemptedDownloadRef.current.has(key)) return;
-
-    const cooldownCheck = isInCooldown(videoId, selectedLang);
-    if (cooldownCheck.inCooldown) return;
-
-    // Only auto-download if query finished and returned null
-    if (transcriptQuery.isSuccess && transcriptData === null) {
-      attemptedDownloadRef.current.add(key);
-      downloadTranscriptMutation.mutate();
-    }
-  }, [
-    videoId,
-    filePath,
-    transcriptData,
-    transcriptQuery.isFetching,
-    transcriptQuery.isLoading,
-    transcriptQuery.isSuccess,
-    selectedLang,
-    downloadTranscriptMutation,
-  ]);
   const [activeSegIndex, setActiveSegIndex] = useState<number | null>(null);
   const [followPlayback, setFollowPlayback] = useState<boolean>(true);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
@@ -528,13 +502,6 @@ export function TranscriptPanel({ videoId }: TranscriptPanelProps): React.JSX.El
       setHoverTranslation(null);
     }, 100);
   };
-
-  // Auto-collapse when no transcript is available
-  useEffect(() => {
-    if (segments.length === 0 && !isCollapsed) {
-      setIsCollapsed(true);
-    }
-  }, [segments.length, isCollapsed, setIsCollapsed]);
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -915,7 +882,8 @@ export function TranscriptPanel({ videoId }: TranscriptPanelProps): React.JSX.El
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsCollapsed(!isCollapsed)}
+              disabled={segments.length === 0}
+              onClick={() => setUserCollapsed(!userCollapsed)}
               className="h-7"
             >
               {isCollapsed ? (

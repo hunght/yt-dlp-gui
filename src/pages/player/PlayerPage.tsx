@@ -20,6 +20,8 @@ import {
   filePathAtom,
   playbackDataAtom,
   seekIndicatorAtom,
+  thumbnailPathAtom,
+  thumbnailUrlAtom,
 } from "@/context/player";
 import { trpcClient } from "@/utils/trpc";
 import { logger } from "@/helpers/logger";
@@ -41,6 +43,8 @@ export default function PlayerPage(): React.JSX.Element {
   const setFilePathAtom = useSetAtom(filePathAtom);
   const setPlaybackDataAtom = useSetAtom(playbackDataAtom);
   const setSeekIndicatorAtom = useSetAtom(seekIndicatorAtom);
+  const setThumbnailPathAtom = useSetAtom(thumbnailPathAtom);
+  const setThumbnailUrlAtom = useSetAtom(thumbnailUrlAtom);
   const seekIndicator = useAtomValue(seekIndicatorAtom);
 
   // Timeout ref for seek indicator
@@ -187,6 +191,12 @@ export default function PlayerPage(): React.JSX.Element {
   useEffect(() => {
     setPlaybackDataAtom(playback || null);
   }, [playback, setPlaybackDataAtom]);
+
+  // Update thumbnail atoms when playback data changes
+  useEffect(() => {
+    setThumbnailPathAtom(playback?.thumbnailPath ?? null);
+    setThumbnailUrlAtom(playback?.thumbnailUrl ?? null);
+  }, [playback?.thumbnailPath, playback?.thumbnailUrl, setThumbnailPathAtom, setThumbnailUrlAtom]);
 
   // Fetch playlist details if we have a playlistId
   const playlistQuery = useQuery({

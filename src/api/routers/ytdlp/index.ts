@@ -708,6 +708,8 @@ export const ytdlpRouter = t.router({
         progress: v.downloadProgress,
         availableLanguages,
         lastPositionSeconds,
+        thumbnailUrl: v.thumbnailUrl,
+        thumbnailPath: v.thumbnailPath,
       } as const;
     }),
 

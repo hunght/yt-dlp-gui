@@ -10,8 +10,11 @@ import {
   filePathAtom,
   playbackDataAtom,
   isPlayingAtom,
+  thumbnailPathAtom,
+  thumbnailUrlAtom,
 } from "@/context/player";
 import { useWatchProgress } from "@/pages/player/hooks/useWatchProgress";
+import Thumbnail from "@/components/Thumbnail";
 
 export function MinimizedPlayer(): React.JSX.Element | null {
   const matches = useMatches();
@@ -28,6 +31,8 @@ export function MinimizedPlayer(): React.JSX.Element | null {
   const playbackData = useAtomValue(playbackDataAtom);
   const isPlaying = useAtomValue(isPlayingAtom);
   const [, setIsPlaying] = useAtom(isPlayingAtom);
+  const thumbnailPath = useAtomValue(thumbnailPathAtom);
+  const thumbnailUrl = useAtomValue(thumbnailUrlAtom);
   const navigate = useNavigate();
 
   // Check if we have an active video
@@ -160,9 +165,23 @@ export function MinimizedPlayer(): React.JSX.Element | null {
       {!isOnPlayerPage && (
         <div className="border-t border-primary/20 bg-muted/30 dark:border-primary/10 dark:bg-muted/20">
           <div className="flex items-center gap-2 p-2">
-            {/* Thumbnail placeholder */}
+            {/* Thumbnail */}
             <div className="h-12 w-16 flex-shrink-0 overflow-hidden rounded bg-black">
-              {/* You could add a thumbnail here if available */}
+              {thumbnailPath || thumbnailUrl ? (
+                <Thumbnail
+                  thumbnailPath={thumbnailPath ?? undefined}
+                  thumbnailUrl={thumbnailUrl ?? undefined}
+                  alt={videoTitle}
+                  className="h-full w-full object-cover"
+                  fallbackIcon={
+                    <span className="text-[10px] text-muted-foreground">No preview</span>
+                  }
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
+                  No preview
+                </div>
+              )}
             </div>
 
             {/* Video info and controls */}

@@ -1,3 +1,4 @@
+ 
 import { atom } from "jotai";
 
 // Video element reference - shared across components
@@ -18,6 +19,8 @@ type PlaybackData = {
   status?: string | null;
   progress?: number | null;
   lastPositionSeconds?: number;
+  thumbnailPath?: string | null;
+  thumbnailUrl?: string | null;
   availableLanguages?: Array<{
     lang: string;
     hasManual: boolean;
@@ -37,3 +40,7 @@ export const seekIndicatorAtom = atom<{
 
 // Track if video is currently playing (to preserve state when switching between video elements)
 export const isPlayingAtom = atom<boolean>(false);
+
+// Thumbnail info for currently playing video (used by MinimizedPlayer)
+export const thumbnailPathAtom = atom<string | null>(null);
+export const thumbnailUrlAtom = atom<string | null>(null);

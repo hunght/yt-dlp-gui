@@ -248,6 +248,9 @@ function createWindow(): void {
   // Register other IPC listeners (excluding window listeners)
   registerListeners(mainWindow, tray);
 
+  // Disable background throttling to keep video playing when window is hidden
+  mainWindow.webContents.setBackgroundThrottling(false);
+
   mainWindow.on("close", (event) => {
     if (!isQuiting) {
       event.preventDefault();

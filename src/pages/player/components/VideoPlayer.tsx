@@ -113,6 +113,59 @@ export function VideoPlayer({
     };
   }, [videoRef]);
 
+  // Automatically enter Picture-in-Picture when window is hidden/closed
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleVisibilityChange = async (): Promise<void> => {
+      // Only enter PiP if video is playing and not already in PiP
+      if (
+        document.hidden &&
+        !video.paused &&
+        !video.ended &&
+        document.pictureInPictureElement !== video &&
+        document.pictureInPictureEnabled
+      ) {
+        try {
+          await video.requestPictureInPicture();
+          logger.debug("[VideoPlayer] Auto-entered Picture-in-Picture on window hide");
+        } catch (err) {
+          // PiP might fail if user hasn't interacted with the page yet
+          // or if it's not supported - silently handle this
+          logger.debug("[VideoPlayer] Could not auto-enter PiP", err);
+        }
+      }
+    };
+
+    // Listen for visibility changes (window hide/show)
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Also listen for beforeunload to catch window close attempts
+    const handleBeforeUnload = async (): Promise<void> => {
+      if (
+        !video.paused &&
+        !video.ended &&
+        document.pictureInPictureElement !== video &&
+        document.pictureInPictureEnabled
+      ) {
+        try {
+          await video.requestPictureInPicture();
+          logger.debug("[VideoPlayer] Auto-entered Picture-in-Picture on window close");
+        } catch (err) {
+          logger.debug("[VideoPlayer] Could not auto-enter PiP on close", err);
+        }
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [videoRef]);
+
   // Mouse wheel seeking
   useEffect(() => {
     const container = containerRef.current;

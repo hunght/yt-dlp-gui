@@ -64,19 +64,37 @@ export function MinimizedPlayer(): React.JSX.Element | null {
 
     setVideoRefAtom(persistentVideoRef);
 
-    // Restore playback state from atoms
-    if (currentTime > 0 && Math.abs(persistentVideo.currentTime - currentTime) > 1) {
-      persistentVideo.currentTime = currentTime;
+    // Wait for video to be ready before restoring state
+    const handleCanPlay = (): void => {
+      // Restore playback state from atoms
+      if (currentTime > 0 && Math.abs(persistentVideo.currentTime - currentTime) > 1) {
+        persistentVideo.currentTime = currentTime;
+      }
+
+      // Resume playback if it was playing
+      if (isPlaying && persistentVideo.paused) {
+        persistentVideo.play().catch(() => {
+          // Ignore play errors
+        });
+      }
+    };
+
+    // If video is already ready, apply state immediately
+    if (persistentVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      handleCanPlay();
+    } else {
+      // Otherwise wait for canplay event
+      persistentVideo.addEventListener("canplay", handleCanPlay, { once: true });
     }
 
-    // Resume playback if it was playing
-    if (isPlaying && persistentVideo.paused) {
-      persistentVideo.play().catch(() => {
-        // Ignore play errors
-      });
-    } else if (!isPlaying && !persistentVideo.paused) {
+    // Also handle pause state immediately if needed
+    if (!isPlaying && !persistentVideo.paused) {
       persistentVideo.pause();
     }
+
+    return () => {
+      persistentVideo.removeEventListener("canplay", handleCanPlay);
+    };
   }, [isOnPlayerPage, currentTime, isPlaying, setVideoRefAtom, hasVideo]);
 
   // Sync playing state to atom

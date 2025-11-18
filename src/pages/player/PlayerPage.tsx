@@ -109,21 +109,6 @@ export default function PlayerPage(): React.JSX.Element {
     autoStartedRef.current = false;
   }, [videoId, playback?.filePath]);
 
-  useEffect(() => {
-    return () => {
-      const video = videoRef.current;
-      if (!video) return;
-      try {
-        if (document.pictureInPictureElement === video) {
-          void document.exitPictureInPicture();
-        }
-      } catch (error) {
-        logger.warn("[PlayerPage] Failed to exit PiP on cleanup", error);
-      }
-      video.pause();
-    };
-  }, [videoRef]);
-
   // Auto-start download once if file is missing and not already downloading
   const autoStartedRef = useRef(false);
   useEffect(() => {
@@ -137,7 +122,7 @@ export default function PlayerPage(): React.JSX.Element {
       autoStartedRef.current = true;
       startDownloadMutation.mutate();
     }
-  }, [videoId, playback?.filePath, playback?.status, startDownloadMutation]);
+  }, [videoId, playback?.filePath, playback?.status]);
 
   // When status flips to completed but filePath not yet populated, force a refresh once
   const completionRefetchRef = useRef(false);
@@ -148,7 +133,7 @@ export default function PlayerPage(): React.JSX.Element {
       completionRefetchRef.current = true;
       queryClient.invalidateQueries({ queryKey: ["video-playback", videoId] });
     }
-  }, [playback?.status, playback?.filePath, videoId, queryClient]);
+  }, [playback?.status, playback?.filePath, videoId]);
 
   // ============================================================================
   // WATCH PROGRESS (using existing useWatchProgress hook - complex reusable logic)
@@ -310,7 +295,7 @@ export default function PlayerPage(): React.JSX.Element {
         setVideoLoadError(true);
       },
     });
-  }, [filePath, ensureDirectoryAccessMutation, setVideoLoadError]);
+  }, [filePath]);
 
   // Set sidebar to show annotations when on PlayerPage
   useEffect(() => {
@@ -332,15 +317,7 @@ export default function PlayerPage(): React.JSX.Element {
       setRightSidebarContent("queue");
       setAnnotationsSidebarData(null);
     };
-  }, [
-    setRightSidebarContent,
-    setAnnotationsSidebarData,
-    videoId,
-    videoRef,
-    playback?.title,
-    playback?.description,
-    currentTime,
-  ]);
+  }, [videoId, playback?.title, playback?.description, currentTime]);
 
   return (
     <div className="container relative mx-auto space-y-6 p-6">

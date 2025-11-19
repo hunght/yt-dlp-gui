@@ -74,7 +74,13 @@ export function AppSidebar({
       )}
       {...props}
     >
-      <SidebarHeader className="text-sm font-semibold text-primary dark:text-white"></SidebarHeader>
+      <SidebarHeader className="px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-primary dark:text-white">LearnifyTube</span>
+
+          <SidebarThemeToggle variant="icon" />
+        </div>
+      </SidebarHeader>
 
       <SidebarContent className="pt-7">
         <SidebarMenu>
@@ -116,9 +122,6 @@ export function AppSidebar({
       <SidebarFooter>
         {/* Minimized player - always rendered to keep video element mounted, but only shows UI when not on player page */}
         <MinimizedPlayer />
-        <SidebarMenu>
-          <SidebarThemeToggle />
-        </SidebarMenu>
       </SidebarFooter>
 
       <SidebarRail className="border-primary/20 dark:border-primary/10" />

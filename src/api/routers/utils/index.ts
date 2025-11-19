@@ -15,6 +15,7 @@ import { extractZipWithYauzl } from "./service";
 import { getDatabasePath } from "@/utils/paths";
 import { translationCache, translationContexts } from "@/api/db/schema";
 import crypto from "crypto";
+import { buildAppLinks } from "@/config/app-links";
 
 // Zod schemas for dictionary API response
 const dictionaryDefinitionSchema = z.object({
@@ -191,6 +192,53 @@ type GetDatabasePathResult = {
   directory: string;
   exists: boolean;
   size: number;
+};
+
+const GITHUB_RELEASE_LATEST_URL =
+  "https://api.github.com/repos/hunght/LearnifyTube/releases/latest";
+
+type GitHubRelease = {
+  tag_name?: string;
+  body?: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const normalizeVersion = (version: string): string => version.replace(/^v/i, "");
+
+const compareVersions = (a: string, b: string): number => {
+  const aParts = normalizeVersion(a)
+    .split(".")
+    .map((part) => Number.parseInt(part, 10) || 0);
+  const bParts = normalizeVersion(b)
+    .split(".")
+    .map((part) => Number.parseInt(part, 10) || 0);
+  const maxLength = Math.max(aParts.length, bParts.length);
+
+  for (let i = 0; i < maxLength; i += 1) {
+    const diff = (aParts[i] ?? 0) - (bParts[i] ?? 0);
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+
+  return 0;
+};
+
+const getPlatformDownloadUrl = (version: string): string => {
+  const links = buildAppLinks(version);
+
+  switch (process.platform) {
+    case "win32":
+      return links.windowsZip;
+    case "darwin":
+      return process.arch === "arm64" ? links.macosZip : links.macosIntelZip;
+    case "linux":
+      return links.linuxZip;
+    default:
+      return links.releases;
+  }
 };
 
 export const utilsRouter = t.router({
@@ -703,56 +751,82 @@ export const utilsRouter = t.router({
         return { success: false, error: String(error) };
       }
     }),
-
   // Version checking procedure
   checkForUpdates: publicProcedure.query(async (): Promise<CheckForUpdatesResult> => {
-    return { updateAvailable: false, latestVersion: "1.0.001", currentVersion: "1.0.001" };
-    // try {
-    //   logger.info("Checking for updates...");
-    //   const currentVersion = app.getVersion();
-    //   logger.info(`Current app version: ${currentVersion}`);
+    const currentVersionRaw = app.getVersion();
+    const currentVersion = normalizeVersion(currentVersionRaw);
 
-    //   // Fetch the latest release from GitHub
-    //   const response = await fetch(
-    //     "https://api.github.com/repos/your-org/yt-dlp-gui/releases/latest"
-    //   );
+    try {
+      logger.info("[updates] Checking for updates...");
+      const response = await fetch(GITHUB_RELEASE_LATEST_URL, {
+        headers: {
+          "User-Agent": "LearnifyTube-Updater",
+          Accept: "application/vnd.github+json",
+        },
+      });
 
-    //   if (!response.ok) {
-    //     logger.error(`Failed to fetch latest release: ${response.statusText}`);
-    //     return {
-    //       status: "error" as const,
-    //       message: "Failed to check for updates. Please try again later.",
-    //       hasUpdate: false,
-    //     };
-    //   }
+      if (!response.ok) {
+        logger.error("[updates] Failed to fetch latest release:", response.statusText);
+        return {
+          updateAvailable: false,
+          latestVersion: currentVersion,
+          currentVersion,
+        };
+      }
 
-    //   const release = await response.json();
-    //   const latestVersion = release.tag_name.replace("v", "");
-    //   const downloadUrl = getPlatformDownloadUrl(latestVersion);
+      const releaseData: unknown = await response.json();
+      const release: GitHubRelease = {};
 
-    //   logger.info(`Latest version available: ${latestVersion}`);
+      if (isRecord(releaseData)) {
+        if (typeof releaseData.tag_name === "string") {
+          release.tag_name = releaseData.tag_name;
+        }
+        if (typeof releaseData.body === "string") {
+          release.body = releaseData.body;
+        }
+      }
+      const latestVersion = release?.tag_name ? normalizeVersion(release.tag_name) : currentVersion;
 
-    //   // Compare versions (simple string comparison, assuming semver format)
-    //   const hasUpdate = latestVersion > currentVersion;
+      if (!latestVersion) {
+        logger.warn("[updates] Latest version missing from release payload");
+        return {
+          updateAvailable: false,
+          latestVersion: currentVersion,
+          currentVersion,
+        };
+      }
 
-    //   return {
-    //     status: "success" as const,
-    //     message: hasUpdate
-    //       ? `Update available: ${latestVersion}`
-    //       : "You are using the latest version.",
-    //     hasUpdate,
-    //     currentVersion,
-    //     latestVersion,
-    //     downloadUrl,
-    //   };
-    // } catch (error) {
-    //   logger.error("Failed to check for updates", error);
-    //   return {
-    //     status: "error" as const,
-    //     message: "Failed to check for updates. Please try again later.",
-    //     hasUpdate: false,
-    //   };
-    // }
+      const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+
+      if (!hasUpdate) {
+        logger.info("[updates] No updates available");
+        return {
+          updateAvailable: false,
+          latestVersion,
+          currentVersion,
+        };
+      }
+
+      const downloadUrl = getPlatformDownloadUrl(latestVersion);
+      const releaseNotes = typeof release?.body === "string" ? release.body : "";
+
+      logger.info("[updates] Update available:", latestVersion);
+
+      return {
+        updateAvailable: true,
+        latestVersion,
+        currentVersion,
+        downloadUrl,
+        releaseNotes,
+      };
+    } catch (error) {
+      logger.error("[updates] Failed to check for updates", error);
+      return {
+        updateAvailable: false,
+        latestVersion: currentVersion,
+        currentVersion,
+      };
+    }
   }),
 
   // Download update procedure with progress tracking

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollTextIcon } from "lucide-react";
 import { trpcClient } from "@/utils/trpc";
 import { LogViewerModal } from "./LogViewerModal";
+import { VersionChecker, VersionInfo } from "@/components/version-checker";
 
 interface LogFileInfo {
   content: string;
@@ -19,6 +20,7 @@ export function AboutSection(): React.JSX.Element {
     exists: false,
   });
   const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
+  const [versionDetails, setVersionDetails] = useState<VersionInfo | null>(null);
 
   const loadLogFile = async (): Promise<void> => {
     try {
@@ -46,7 +48,20 @@ export function AboutSection(): React.JSX.Element {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            <div className="text-sm">
+              Version:{" "}
+              <span className="font-mono">
+                {versionDetails?.currentVersion ? versionDetails.currentVersion : "…"}
+              </span>
+            </div>
+
             <div className="flex flex-wrap gap-2">
+              <VersionChecker
+                autoCheck={false}
+                showCheckButton={true}
+                onVersionInfo={setVersionDetails}
+              />
+
               <Button variant="outline" onClick={handleOpenLogFile}>
                 <ScrollTextIcon className="mr-2 h-4 w-4" />
                 View Logs

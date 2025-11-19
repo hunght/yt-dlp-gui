@@ -24,10 +24,29 @@ import { initializeQueueManager } from "./services/download-queue/queue-manager"
 import defaultDb from "./api/db";
 
 import { toggleClockWindow } from "./main/windows/clock";
+import { updateElectronApp } from "update-electron-app";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuiting: boolean = false;
+
+/**
+ * Initialize auto-update functionality with safe error handling.
+ * Mirrors the iTracksy setup so production builds receive updates automatically.
+ */
+function initializeAutoUpdate(): void {
+  if (process.env.NODE_ENV === "development" || !app.isPackaged) {
+    logger.info("[auto-update] Skipping auto-update initialization in development mode");
+    return;
+  }
+
+  try {
+    updateElectronApp();
+    logger.info("[auto-update] Auto-update initialized; updates will be checked automatically");
+  } catch (error) {
+    logger.error("[auto-update] Failed to initialize auto-update functionality:", error);
+  }
+}
 
 /**
  * Get the tray instance
@@ -323,6 +342,8 @@ app.whenReady().then(async () => {
   if (process.platform === "win32") {
     app.setAppUserModelId(app.getName());
   }
+
+  initializeAutoUpdate();
 
   try {
     logger.clearLogFile();

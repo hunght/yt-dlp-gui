@@ -60,6 +60,8 @@ export const EXTERNAL_DEPENDENCIES = [
   "@trpc/server",
   // ZIP extraction library for auto-updates (replaced extract-zip with yauzl for better reliability)
   "yauzl",
+  // Auto-update helper to match the iTracksy implementation
+  "update-electron-app",
 ];
 
 // Base packager configuration

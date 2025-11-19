@@ -39,63 +39,61 @@ export function MinimizedPlayer(): React.JSX.Element | null {
   const hasVideo = filePath && playbackData?.videoId;
 
   // Use the same watch progress hook to sync time (must be called before early return)
-  const { currentTime: hookCurrentTime, handleTimeUpdate } = useWatchProgress(
+  const { handleTimeUpdate } = useWatchProgress(
     playbackData?.videoId,
     persistentVideoRef,
-    playbackData?.lastPositionSeconds
+    playbackData?.lastPositionSeconds,
+    {
+      onCurrentTimeChange: setCurrentTimeAtom,
+    }
   );
 
-  // Sync hook's currentTime to atom (similar to PlayerPage)
-  useEffect(() => {
-    if (!isOnPlayerPage && hasVideo) {
-      setCurrentTimeAtom(hookCurrentTime);
-    }
-  }, [hookCurrentTime, isOnPlayerPage, hasVideo, setCurrentTimeAtom]);
-
   // When NOT on player page, use persistent video as the main video element
+  // Restore currentTime and playback only once per filePath change
+  const lastRestoredRef = useRef<{ filePath: string | null; time: number }>({
+    filePath: null,
+    time: 0,
+  });
   useEffect(() => {
     if (isOnPlayerPage || !hasVideo) {
       return; // On player page, VideoPlayer handles the video
     }
 
-    // Not on player page - use persistent video as the main video element
     const persistentVideo = persistentVideoRef.current;
     if (!persistentVideo) return;
 
     setVideoRefAtom(persistentVideoRef);
 
-    // Wait for video to be ready before restoring state
-    const handleCanPlay = (): void => {
-      // Restore playback state from atoms
+    // Only restore if filePath or time changed
+    const shouldRestore =
+      filePath !== lastRestoredRef.current.filePath ||
+      Math.abs(currentTime - lastRestoredRef.current.time) > 1;
+
+    if (!shouldRestore) return;
+
+    const restoreTimeAndPlayback = (): void => {
       if (currentTime > 0 && Math.abs(persistentVideo.currentTime - currentTime) > 1) {
         persistentVideo.currentTime = currentTime;
       }
-
-      // Resume playback if it was playing
+      lastRestoredRef.current = { filePath, time: currentTime };
       if (isPlaying && persistentVideo.paused) {
-        persistentVideo.play().catch(() => {
-          // Ignore play errors
-        });
+        persistentVideo.play().catch(() => {});
+      } else if (!isPlaying && !persistentVideo.paused) {
+        persistentVideo.pause();
       }
     };
 
-    // If video is already ready, apply state immediately
-    if (persistentVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-      handleCanPlay();
+    // Listen for loadedmetadata (guaranteed to fire before canplay)
+    if (persistentVideo.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      restoreTimeAndPlayback();
     } else {
-      // Otherwise wait for canplay event
-      persistentVideo.addEventListener("canplay", handleCanPlay, { once: true });
-    }
-
-    // Also handle pause state immediately if needed
-    if (!isPlaying && !persistentVideo.paused) {
-      persistentVideo.pause();
+      persistentVideo.addEventListener("loadedmetadata", restoreTimeAndPlayback, { once: true });
     }
 
     return () => {
-      persistentVideo.removeEventListener("canplay", handleCanPlay);
+      persistentVideo.removeEventListener("loadedmetadata", restoreTimeAndPlayback);
     };
-  }, [isOnPlayerPage, currentTime, isPlaying, setVideoRefAtom, hasVideo]);
+  }, [isOnPlayerPage, filePath, currentTime, isPlaying, setVideoRefAtom, hasVideo]);
 
   // Sync playing state to atom
   useEffect(() => {

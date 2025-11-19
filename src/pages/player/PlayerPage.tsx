@@ -169,7 +169,10 @@ export default function PlayerPage(): React.JSX.Element {
   const { currentTime, handleTimeUpdate } = useWatchProgress(
     videoId,
     videoRef,
-    playback?.lastPositionSeconds
+    playback?.lastPositionSeconds,
+    {
+      onCurrentTimeChange: setCurrentTimeAtom,
+    }
   );
 
   // Update videoRef atom when ref changes
@@ -178,10 +181,6 @@ export default function PlayerPage(): React.JSX.Element {
   }, [setVideoRefAtom]);
 
   // Update currentTime atom when time changes
-  useEffect(() => {
-    setCurrentTimeAtom(currentTime);
-  }, [currentTime, setCurrentTimeAtom]);
-
   // Update filePath atom when playback data changes
   useEffect(() => {
     setFilePathAtom(playback?.filePath || null);

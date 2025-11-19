@@ -1,10 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { trpcClient } from "@/utils/trpc";
+import { logger } from "@/helpers/logger";
+
+interface UseWatchProgressOptions {
+  onCurrentTimeChange?: (time: number) => void;
+}
 
 export function useWatchProgress(
   videoId: string | undefined,
   videoRef: React.RefObject<HTMLVideoElement>,
-  lastPositionSeconds?: number | undefined
+  lastPositionSeconds?: number | undefined,
+  options?: UseWatchProgressOptions
 ): {
   currentTime: number;
   handleTimeUpdate: (e: React.SyntheticEvent<HTMLVideoElement, Event>) => void;
@@ -15,17 +21,23 @@ export function useWatchProgress(
   const lastTimeRef = useRef<number>(0);
   const accumulatedRef = useRef<number>(0);
   const flushTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const onCurrentTimeChange = options?.onCurrentTimeChange;
 
-  const handleTimeUpdate = useCallback((e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    const el = e.currentTarget;
-    const current = el.currentTime;
-    setCurrentTime(current);
-    const prev = lastTimeRef.current;
-    if (current > prev) {
-      accumulatedRef.current += current - prev;
-    }
-    lastTimeRef.current = current;
-  }, []);
+  const handleTimeUpdate = useCallback(
+    (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+      const el = e.currentTarget;
+      const current = el.currentTime;
+      logger.debug("[useWatchProgress] handleTimeUpdate", { current });
+      setCurrentTime(current);
+      onCurrentTimeChange?.(current);
+      const prev = lastTimeRef.current;
+      if (current > prev) {
+        accumulatedRef.current += current - prev;
+      }
+      lastTimeRef.current = current;
+    },
+    [onCurrentTimeChange]
+  );
 
   const flushProgress = useCallback(async () => {
     if (!videoId) return;
@@ -53,12 +65,23 @@ export function useWatchProgress(
     const restorePosition = (): void => {
       if (positionRestoredRef.current) return;
       try {
+        logger.debug("[useWatchProgress] Restoring position", {
+          videoId,
+          lastPositionSeconds,
+          readyState: video.readyState,
+          currentTime: video.currentTime,
+        });
         video.currentTime = lastPositionSeconds;
         setCurrentTime(lastPositionSeconds);
+        onCurrentTimeChange?.(lastPositionSeconds);
         lastTimeRef.current = lastPositionSeconds;
         positionRestoredRef.current = true;
-      } catch {
-        // Video might not be ready yet
+        logger.debug("[useWatchProgress] Position restored", {
+          videoId,
+          restoredTime: lastPositionSeconds,
+        });
+      } catch (err) {
+        logger.error("[useWatchProgress] Failed to restore position", err);
       }
     };
 
@@ -76,7 +99,7 @@ export function useWatchProgress(
       video.removeEventListener("loadedmetadata", restorePosition);
       video.removeEventListener("canplay", restorePosition);
     };
-  }, [videoId, videoRef, lastPositionSeconds]);
+  }, [videoId, videoRef, lastPositionSeconds, onCurrentTimeChange]);
 
   // Reset position restored flag when video changes
   useEffect(() => {

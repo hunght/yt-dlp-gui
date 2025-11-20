@@ -346,8 +346,8 @@ const config: ForgeConfig = {
         owner: "hunght",
         name: "LearnifyTube",
       },
-      prerelease: false,
-      draft: true,
+      prerelease: process.env.RELEASE_PRERELEASE === "true",
+      draft: process.env.RELEASE_DRAFT === "true",
     }),
   ],
   // Plugins for custom build steps

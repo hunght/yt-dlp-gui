@@ -68,11 +68,11 @@ You should see the checklist output confirming:
 
 ## Release Workflow
 
-1. **Version bump** – `npm version patch|minor|major`.
-2. **Build artifacts** – `npm run make`.
-3. **Publish draft** – `npm run publish` (creates a draft GitHub release via Electron Forge).
-4. **Finalize release** – Edit the GitHub release, attach artifacts (DMG/ZIP/EXE/etc.), publish.
-5. **Auto-delivery** – Users get the update banner next time the packaged app starts and will install it on restart.
+1. Run `npm run release [major|minor|patch|x.y.z] [--draft|--prerelease]`.
+   This bumps the version, records the release intent in the git tag, and pushes `main` + `v*` tag.
+2. GitHub Actions builds notarized macOS, Windows, and Linux artifacts and publishes them to the GitHub release.
+   Pass `--draft` (optionally `--prerelease`) to keep the release unpublished until you review it.
+3. Auto-update clients detect the new published release on the next app start and download it in the background.
 
 ## Troubleshooting
 

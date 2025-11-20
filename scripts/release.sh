@@ -54,6 +54,65 @@ run_type_check() {
     echo "Type check passed. Proceeding with release..."
 }
 
+show_help() {
+    cat <<'EOF'
+Usage: npm run release [version|major|minor|patch] [options]
+
+Options:
+  major|minor|patch    Increment the given segment (default: patch)
+  x.y.z                Release an explicit semantic version
+  --draft              Mark the GitHub release as a draft
+  --no-draft           Publish the GitHub release immediately (default)
+  --prerelease         Mark the GitHub release as a pre-release (implies --draft)
+  --stable             Ensure the release is marked as stable
+  -h, --help           Show this help text
+
+Examples:
+  npm run release                      # bump patch, publish release
+  npm run release minor -- --draft     # minor bump, create draft release
+  npm run release 1.2.3 -- --prerelease
+EOF
+}
+
+RELEASE_DRAFT=${RELEASE_DRAFT:-false}
+RELEASE_PRERELEASE=${RELEASE_PRERELEASE:-false}
+VERSION_ARG=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        major|minor|patch)
+            VERSION_ARG="$1"
+            ;;
+        --draft)
+            RELEASE_DRAFT=true
+            ;;
+        --no-draft|--publish)
+            RELEASE_DRAFT=false
+            ;;
+        --prerelease)
+            RELEASE_PRERELEASE=true
+            RELEASE_DRAFT=true
+            ;;
+        --stable)
+            RELEASE_PRERELEASE=false
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            if [[ -z "$VERSION_ARG" && "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                VERSION_ARG="$1"
+            else
+                echo "Unknown argument: $1"
+                show_help
+                exit 1
+            fi
+            ;;
+    esac
+    shift
+done
+
 # Run type check first
 run_type_check
 
@@ -62,19 +121,21 @@ CURRENT_VERSION=$(get_current_version)
 echo "Current version: $CURRENT_VERSION"
 
 # Determine version increment type
-if [ "$1" = "major" ] || [ "$1" = "minor" ] || [ "$1" = "patch" ]; then
-    NEW_VERSION=$(increment_version $CURRENT_VERSION $1)
-elif [ -n "$1" ]; then
-    NEW_VERSION=$1
-    validate_version $NEW_VERSION
+if [[ "$VERSION_ARG" == "major" || "$VERSION_ARG" == "minor" || "$VERSION_ARG" == "patch" ]]; then
+    NEW_VERSION=$(increment_version "$CURRENT_VERSION" "$VERSION_ARG")
+elif [[ -n "$VERSION_ARG" ]]; then
+    NEW_VERSION="$VERSION_ARG"
+    validate_version "$NEW_VERSION"
 else
-    NEW_VERSION=$(increment_version $CURRENT_VERSION "patch")
+    NEW_VERSION=$(increment_version "$CURRENT_VERSION" "patch")
 fi
 
 echo "New version will be: $NEW_VERSION"
+echo "Draft release: $RELEASE_DRAFT"
+echo "Prerelease: $RELEASE_PRERELEASE"
 
 # Update version in package.json
-npm version $NEW_VERSION --no-git-tag-version
+npm version "$NEW_VERSION" --no-git-tag-version
 
 # Stage changes
 git add package.json
@@ -82,10 +143,15 @@ git add package.json
 # Commit changes
 git commit -m "chore: bump version to $NEW_VERSION"
 
+TAG_MESSAGE=$'draft='${RELEASE_DRAFT}$'\nprerelease='${RELEASE_PRERELEASE}
+
 # Create and push tag
-git tag "v$NEW_VERSION"
+git tag -a "v$NEW_VERSION" -m "$TAG_MESSAGE"
 git push origin main
 git push origin "v$NEW_VERSION"
 
 echo "Version $NEW_VERSION has been tagged and pushed!"
+echo "Release metadata:"
+echo "  draft=$RELEASE_DRAFT"
+echo "  prerelease=$RELEASE_PRERELEASE"
 echo "GitHub Actions will now build and publish the release."

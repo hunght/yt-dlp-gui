@@ -450,7 +450,11 @@ export default function PlayerPage(): React.JSX.Element {
             </Alert>
           ) : (
             <div className="space-y-4">
-              <VideoPlayer onTimeUpdate={handleTimeUpdate} onError={handleVideoLoadError} />
+              <VideoPlayer
+                videoRef={videoRef}
+                onTimeUpdate={handleTimeUpdate}
+                onError={handleVideoLoadError}
+              />
 
               {/* Transcript - Self-contained, owns all its state */}
               <TranscriptPanel videoId={videoId} />

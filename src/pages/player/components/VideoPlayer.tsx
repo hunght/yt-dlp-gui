@@ -4,34 +4,26 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { logger } from "@/helpers/logger";
 import { toLocalFileUrl } from "@/helpers/localFile";
-import { videoRefAtom, filePathAtom, seekIndicatorAtom, isPlayingAtom } from "@/context/player";
+import { filePathAtom, seekIndicatorAtom, isPlayingAtom } from "@/context/player";
 
 interface VideoPlayerProps {
+  videoRef: React.RefObject<HTMLVideoElement>;
   onTimeUpdate: (e: React.SyntheticEvent<HTMLVideoElement, Event>) => void;
   onError?: () => void;
 }
 
-export function VideoPlayer({ onTimeUpdate, onError }: VideoPlayerProps): React.JSX.Element {
+export function VideoPlayer({
+  videoRef,
+  onTimeUpdate,
+  onError,
+}: VideoPlayerProps): React.JSX.Element {
   // Get shared state from atoms
-  const videoRef = useAtomValue(videoRefAtom);
   const filePath = useAtomValue(filePathAtom);
   const setSeekIndicatorAtom = useAtom(seekIndicatorAtom)[1];
   const [, setIsPlaying] = useAtom(isPlayingAtom);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const isSeekingRef = useRef<boolean>(false);
-  const logVideoState = (label: string): void => {
-    if (!videoRef) return;
-    const video = videoRef.current;
-    if (!video) return;
-    logger.debug("[VideoPlayer]", label, {
-      src: video.currentSrc,
-      readyState: video.readyState,
-      networkState: video.networkState,
-      currentTime: video.currentTime,
-      paused: video.paused,
-    });
-  };
 
   // Handle video load error
   const handleVideoError = (): void => {
@@ -50,20 +42,20 @@ export function VideoPlayer({ onTimeUpdate, onError }: VideoPlayerProps): React.
     }
   };
 
-  useEffect(() => {
-    if (filePath) {
-      logVideoState(`filePath changed -> ${filePath}`);
-    }
-  }, [filePath]);
-
   // Sync playing state to atom
   useEffect(() => {
     if (!videoRef) return;
     const video = videoRef.current;
     if (!video) return;
 
-    const updatePlayingState = (): void => {
-      setIsPlaying(!video.paused);
+    const updatePlayingState = (e: Event): void => {
+      const target = e.target;
+      if (!(target instanceof HTMLVideoElement)) {
+        return;
+      }
+      // Ignore events if the element is no longer connected to the DOM (unmounting)
+      if (!target.isConnected) return;
+      setIsPlaying(!target.paused);
     };
 
     video.addEventListener("play", updatePlayingState);
@@ -77,39 +69,6 @@ export function VideoPlayer({ onTimeUpdate, onError }: VideoPlayerProps): React.
       video.removeEventListener("pause", updatePlayingState);
     };
   }, [videoRef, setIsPlaying]);
-
-  useEffect(() => {
-    if (!videoRef) return;
-    const video = videoRef.current;
-    if (!video) return;
-
-    const events: Array<keyof HTMLMediaElementEventMap> = [
-      "loadstart",
-      "loadedmetadata",
-      "loadeddata",
-      "canplay",
-      "canplaythrough",
-      "waiting",
-      "stalled",
-      "suspend",
-      "playing",
-      "pause",
-      "ended",
-      "error",
-    ];
-
-    const listeners = events.map((eventName) => {
-      const handler = (): void => logVideoState(`event:${eventName}`);
-      video.addEventListener(eventName, handler);
-      return { eventName, handler };
-    });
-
-    return () => {
-      listeners.forEach(({ eventName, handler }) => {
-        video.removeEventListener(eventName, handler);
-      });
-    };
-  }, [videoRef]);
 
   useEffect(() => {
     if (!videoRef) return;

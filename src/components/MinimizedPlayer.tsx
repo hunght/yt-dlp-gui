@@ -23,14 +23,11 @@ export function MinimizedPlayer(): React.JSX.Element | null {
 
   // Use a persistent ref that doesn't change
   const persistentVideoRef = useRef<HTMLVideoElement>(null);
-  const [, setVideoRefAtom] = useAtom(videoRefAtom);
-  const [, setCurrentTimeAtom] = useAtom(currentTimeAtom);
-  const videoRef = useAtomValue(videoRefAtom);
-  const currentTime = useAtomValue(currentTimeAtom);
+  const [videoRef, setVideoRefAtom] = useAtom(videoRefAtom);
+  const [currentTime, setCurrentTimeAtom] = useAtom(currentTimeAtom);
   const filePath = useAtomValue(filePathAtom);
   const playbackData = useAtomValue(playbackDataAtom);
-  const isPlaying = useAtomValue(isPlayingAtom);
-  const [, setIsPlaying] = useAtom(isPlayingAtom);
+  const [isPlaying, setIsPlaying] = useAtom(isPlayingAtom);
   const thumbnailPath = useAtomValue(thumbnailPathAtom);
   const thumbnailUrl = useAtomValue(thumbnailUrlAtom);
   const navigate = useNavigate();
@@ -69,7 +66,9 @@ export function MinimizedPlayer(): React.JSX.Element | null {
       filePath !== lastRestoredRef.current.filePath ||
       Math.abs(currentTime - lastRestoredRef.current.time) > 1;
 
-    if (!shouldRestore) return;
+    if (!shouldRestore) {
+      return;
+    }
 
     const restoreTimeAndPlayback = (): void => {
       if (currentTime > 0 && Math.abs(persistentVideo.currentTime - currentTime) > 1) {
@@ -77,7 +76,7 @@ export function MinimizedPlayer(): React.JSX.Element | null {
       }
       lastRestoredRef.current = { filePath, time: currentTime };
       if (isPlaying && persistentVideo.paused) {
-        persistentVideo.play().catch(() => {});
+        persistentVideo.play().catch(() => { });
       } else if (!isPlaying && !persistentVideo.paused) {
         persistentVideo.pause();
       }

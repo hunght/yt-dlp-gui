@@ -166,14 +166,26 @@ export default function PlayerPage(): React.JSX.Element {
   // WATCH PROGRESS (using existing useWatchProgress hook - complex reusable logic)
   // ============================================================================
 
-  const { currentTime, handleTimeUpdate } = useWatchProgress(
-    videoId,
-    videoRef,
-    playback?.lastPositionSeconds,
-    {
-      onCurrentTimeChange: setCurrentTimeAtom,
+  // Determine start time: prefer atom if valid and matches current video, else server data
+  const storedPlaybackData = useAtomValue(playbackDataAtom);
+  const storedCurrentTime = useAtomValue(currentTimeAtom);
+
+  const initialStartTime = React.useMemo(() => {
+    // If we have a stored time for THIS video, use it (client-side state is fresher than server)
+    // If we have a stored time for THIS video, use it (client-side state is fresher than server)
+    if (storedPlaybackData?.videoId === videoId && storedCurrentTime > 0) {
+      logger.info("[PlayerPage] Using stored atom time", { videoId, storedCurrentTime });
+      return storedCurrentTime;
     }
-  );
+    return playback?.lastPositionSeconds;
+  }, [videoId, storedPlaybackData, storedCurrentTime, playback]);
+
+  const { currentTime, handleTimeUpdate } = useWatchProgress(videoId, videoRef, initialStartTime, {
+    onCurrentTimeChange: (time) => {
+      // logger.debug("[PlayerPage] onCurrentTimeChange", { time });
+      setCurrentTimeAtom(time);
+    },
+  });
 
   // Update videoRef atom when ref changes
   useEffect(() => {
@@ -320,6 +332,10 @@ export default function PlayerPage(): React.JSX.Element {
         playbackStatus,
       });
     }
+
+    return () => {
+      logger.info("[PlayerPage] Unmounting/Changing video", { videoId });
+    };
   }, [videoId, filePath, playbackStatus]);
 
   useEffect(() => {

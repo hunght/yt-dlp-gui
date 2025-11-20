@@ -1,14 +1,14 @@
 /*
-	Universal logger powered by electron-log for both main and renderer.
+  Universal logger powered by electron-log for both main and renderer.
 
-	- In main process, uses 'electron-log/main' and initializes IPC bridge.
-	- In renderer, prefers 'electron-log/renderer' (when available) or
-		falls back to the global __electronLog exposed by main.initialize().
+  - In main process, uses 'electron-log/main' and initializes IPC bridge.
+  - In renderer, prefers 'electron-log/renderer' (when available) or
+    falls back to the global __electronLog exposed by main.initialize().
 
-	Provides a stable API matching the prior ServerLogger usage:
-		- debug/info/warn/error/fatal(...args)
-		- clearLogFile(): Promise<void>  (no-op in renderer)
-		- getFileContent(): Promise<string> (empty string in renderer)
+  Provides a stable API matching the prior ServerLogger usage:
+    - debug/info/warn/error/fatal(...args)
+    - clearLogFile(): Promise<void>  (no-op in renderer)
+    - getFileContent(): Promise<string> (empty string in renderer)
 */
 
 import * as fs from "fs";

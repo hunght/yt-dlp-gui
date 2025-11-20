@@ -76,6 +76,13 @@ const getMainLogger = async (): Promise<LogFunctions> => {
       log.initialize();
     }
 
+    // Ensure console transport is enabled so logs appear in terminal
+    // This is especially important for showing renderer logs received via IPC
+    if (log.transports?.console) {
+      const isProd = process.env.NODE_ENV === "production";
+      log.transports.console.level = isProd ? "info" : "debug";
+    }
+
     return log;
   } catch {
     // Fallback to console if something went wrong
@@ -89,10 +96,17 @@ const getRendererLogger = async (): Promise<LogFunctions> => {
     const mod = await import("electron-log/renderer");
     const rlog = mod.default ?? mod;
 
-    // Ensure IPC transport is enabled in production so logs reach the main/file transport
     const isProd = process.env.NODE_ENV === "production";
-    if (rlog.transports?.ipc && isProd) {
-      rlog.transports.ipc.level = "info";
+
+    // In development, enable console transport so logs appear in DevTools
+    if (!isProd && rlog.transports?.console) {
+      rlog.transports.console.level = "debug";
+    }
+
+    // Enable IPC transport in both dev and prod so logs reach the main process
+    // In main process, console transport will show them in terminal
+    if (rlog.transports?.ipc) {
+      rlog.transports.ipc.level = isProd ? "info" : "debug";
     }
 
     return rlog;
@@ -139,6 +153,64 @@ if (!isTest) {
   });
 }
 
+// Type guard to check if an object implements LogFunctions
+function isLogFunctions(obj: unknown): obj is LogFunctions {
+  if (typeof obj !== "object" || obj === null) {
+    return false;
+  }
+
+  // Check properties using 'in' operator and property access with proper narrowing
+  if (!("debug" in obj) || !("info" in obj) || !("warn" in obj) || !("error" in obj)) {
+    return false;
+  }
+
+  // Now we know the properties exist, check their types
+  // Use Record<string, unknown> to safely access properties
+  const record: Record<string, unknown> = obj;
+  const debug = record.debug;
+  const info = record.info;
+  const warn = record.warn;
+  const error = record.error;
+
+  return (
+    typeof debug === "function" &&
+    typeof info === "function" &&
+    typeof warn === "function" &&
+    typeof error === "function"
+  );
+}
+
+// Helper to safely get electronLog from globalThis
+function getElectronLogFromGlobal(): LogFunctions | null {
+  if (!("__electronLog" in globalThis)) {
+    return null;
+  }
+
+  // Access the property safely
+  const record: Record<string, unknown> = globalThis;
+  const electronLog = record.__electronLog;
+  return isLogFunctions(electronLog) ? electronLog : null;
+}
+
+// Helper to get the current logger, trying electron-log first if available
+const getCurrentLogger = (): LogFunctions => {
+  // If electron-log is already initialized, use it
+  if (internal !== console) {
+    return internal;
+  }
+
+  // In renderer, try to use the global electronLog if available (injected by main.initialize())
+  if (!isMain) {
+    const electronLog = getElectronLogFromGlobal();
+    if (electronLog) {
+      return electronLog;
+    }
+  }
+
+  // Fallback to console (or internal if it's already been set)
+  return internal;
+};
+
 const resolveLogFilePath = async (): Promise<string | null> => {
   try {
     const mod = await import("electron-log/main");
@@ -164,11 +236,26 @@ const resolveLogFilePath = async (): Promise<string | null> => {
 
 // Adapter that preserves previous API surface
 export const logger: UniversalLogger = {
-  debug: (...args: unknown[]) => internal.debug?.(...args),
-  info: (...args: unknown[]) => internal.info?.(...args),
-  warn: (...args: unknown[]) => internal.warn?.(...normalizeLogArgs(args)),
-  error: (...args: unknown[]) => internal.error?.(...normalizeLogArgs(args)),
-  fatal: (...args: unknown[]) => internal.error?.("FATAL:", ...normalizeLogArgs(args)),
+  debug: (...args: unknown[]) => {
+    const log = getCurrentLogger();
+    log.debug?.(...args);
+  },
+  info: (...args: unknown[]) => {
+    const log = getCurrentLogger();
+    log.info?.(...args);
+  },
+  warn: (...args: unknown[]) => {
+    const log = getCurrentLogger();
+    log.warn?.(...normalizeLogArgs(args));
+  },
+  error: (...args: unknown[]) => {
+    const log = getCurrentLogger();
+    log.error?.(...normalizeLogArgs(args));
+  },
+  fatal: (...args: unknown[]) => {
+    const log = getCurrentLogger();
+    log.error?.("FATAL:", ...normalizeLogArgs(args));
+  },
   clearLogFile: async () => {
     if (!isMain) return; // no-op in renderer
     try {

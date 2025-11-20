@@ -15,6 +15,7 @@ import {
 } from "@/context/player";
 import { useWatchProgress } from "@/pages/player/hooks/useWatchProgress";
 import Thumbnail from "@/components/Thumbnail";
+import { logger } from "@/helpers/logger";
 
 export function MinimizedPlayer(): React.JSX.Element | null {
   const matches = useMatches();
@@ -76,7 +77,7 @@ export function MinimizedPlayer(): React.JSX.Element | null {
       }
       lastRestoredRef.current = { filePath, time: currentTime };
       if (isPlaying && persistentVideo.paused) {
-        persistentVideo.play().catch(() => { });
+        persistentVideo.play().catch(() => {});
       } else if (!isPlaying && !persistentVideo.paused) {
         persistentVideo.pause();
       }
@@ -121,7 +122,15 @@ export function MinimizedPlayer(): React.JSX.Element | null {
   // Get the active video ref (persistent when not on player page, or VideoPlayer's when on player page)
   const activeVideoRef = isOnPlayerPage ? videoRef : persistentVideoRef;
   const activeIsPlaying = activeVideoRef?.current && !activeVideoRef.current.paused;
-
+  logger.info("[MinimizedPlayer] activeVideoRef", { activeVideoRef });
+  logger.info("[MinimizedPlayer] activeVideoRef.current", { current: activeVideoRef?.current });
+  logger.info("[MinimizedPlayer] activeVideoRef.current.paused", {
+    paused: activeVideoRef?.current?.paused,
+  });
+  logger.info("[MinimizedPlayer] activeIsPlaying", { activeIsPlaying });
+  logger.info("[MinimizedPlayer] isOnPlayerPage", { isOnPlayerPage });
+  logger.info("[MinimizedPlayer] videoRef", { videoRef });
+  logger.info("[MinimizedPlayer] persistentVideoRef", { persistentVideoRef });
   // Format time display
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);

@@ -1,6 +1,6 @@
-# YT-DLP GUI Screenshot Integration Guide for Web Developers
+# LearnifyTube Screenshot Integration Guide for Web Developers
 
-This technical guide explains how to integrate the automatically generated feature screenshots into the YT-DLP GUI landing page website.
+This technical guide explains how to integrate the automatically generated feature screenshots into the LearnifyTube landing page website.
 
 ## Screenshot Generation Technical Details
 
@@ -28,8 +28,10 @@ The screenshots are generated using Playwright testing framework, which:
 The screenshots are automatically copied to:
 
 ```
-../yt-dlp-gui-web/public/screenshots/
+../learnify-tube-web/public/screenshots/
 ```
+
+> Tip: set `LANDING_PAGE_SCREENS_DIR` before running the script if the web project lives elsewhere.
 
 This makes them available via the URL path:
 
@@ -45,14 +47,14 @@ Consider implementing the following optimizations:
 
 ```bash
 # Using sharp or similar tool
-npx sharp --input "../yt-dlp-gui-web/public/screenshots/*.png" --output "../yt-dlp-gui-web/public/screenshots/" --format webp
+npx sharp --input "../learnify-tube-web/public/screenshots/*.png" --output "../learnify-tube-web/public/screenshots/" --format webp
 ```
 
 2. Create responsive image variants:
 
 ```bash
 # Create mobile variants at 480px width
-npx sharp --input "../yt-dlp-gui-web/public/screenshots/*.png" --output "../yt-dlp-gui-web/public/screenshots/mobile/" --resize 480
+npx sharp --input "../learnify-tube-web/public/screenshots/*.png" --output "../learnify-tube-web/public/screenshots/mobile/" --resize 480
 ```
 
 3. Use the HTML `<picture>` element for responsive images:
@@ -117,7 +119,7 @@ const FeatureShowcase = ({
           />
           <img
             src={`/screenshots/${imageName}.png`}
-            alt={`${title} feature in YT-DLP GUI`}
+            alt={`${title} feature in LearnifyTube`}
             loading="lazy"
           />
         </picture>
@@ -219,10 +221,10 @@ const FeaturesSection = () => {
 
 When new features are added or UI changes are made:
 
-1. Run the screenshot script in the YT-DLP GUI app:
+1. Run the screenshot script in the LearnifyTube app:
 
    ```bash
-   ./scripts/generate-screenshots.sh
+   ./scripts/screenshots-scripts/generate-screenshots.sh
    ```
 
 2. The script will:
@@ -245,7 +247,7 @@ If screenshots don't appear or show outdated UI:
 2. Verify the copy process was successful:
 
    ```bash
-   ls -la ../yt-dlp-gui-web/public/screenshots/
+   ls -la ../learnify-tube-web/public/screenshots/
    ```
 
 3. Clear browser cache or use incognito mode to test

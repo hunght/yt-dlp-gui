@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Script to generate comprehensive screenshots of all YT-DLP GUI pages for the landing page
+# Script to generate comprehensive screenshots of all LearnifyTube pages for the landing page
 
-echo "🖼️ Generating comprehensive screenshots for all YT-DLP GUI pages..."
+echo "🖼️ Generating comprehensive screenshots for all LearnifyTube pages..."
 echo ""
 echo "📋 Pages that will be captured:"
 echo "   • Activity Tracking (Focus Sessions)"
@@ -26,18 +26,15 @@ show_help() {
   echo "Options:"
   echo "  -h, --help     Show this help message"
   echo "  -v, --verbose  Show verbose output during build and test"
-  echo "  --skip-build   Skip the build step (use existing build)"
   echo ""
   echo "Examples:"
   echo "  $0                    # Generate all screenshots with default settings"
   echo "  $0 --verbose          # Generate with verbose output"
-  echo "  $0 --skip-build       # Skip build and only run screenshot tests"
   echo ""
 }
 
 # Parse command line arguments
 VERBOSE=false
-SKIP_BUILD=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -50,8 +47,8 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --skip-build)
-      SKIP_BUILD=true
-      shift
+      echo "❌ The --skip-build option is no longer supported. Screenshots must run against the latest packaged build."
+      exit 1
       ;;
     *)
       echo "Unknown option: $1"
@@ -75,21 +72,17 @@ else
   echo "⚠️ No .env file found. Using default environment variables."
 fi
 
-# Build the app first (unless skipped)
-if [ "$SKIP_BUILD" = true ]; then
-  echo "⏭️ Skipping build step as requested..."
+# Always build the app first so screenshots reflect the latest UI
+echo "📦 Building the app..."
+if [ "$VERBOSE" = true ]; then
+  DEBUG=electron-forge:* npm run package
 else
-  echo "📦 Building the app..."
-  if [ "$VERBOSE" = true ]; then
-    DEBUG=electron-forge:* npm run package
+  npm run package > /dev/null 2>&1
+  if [ $? -eq 0 ]; then
+    echo "✅ Build completed successfully!"
   else
-    npm run package > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-      echo "✅ Build completed successfully!"
-    else
-      echo "❌ Build failed. Please check the build output."
-      exit 1
-    fi
+    echo "❌ Build failed. Please check the build output."
+    exit 1
   fi
 fi
 
@@ -110,24 +103,35 @@ if [ -d "./screenshots" ]; then
   echo ""
   echo "📈 Total screenshot count: $(find ./screenshots -name "*.png" | wc -l | tr -d ' ')"
 
-  # Move screenshots to yt-dlp-gui-web/public
-  echo "🚚 Moving screenshots to ../yt-dlp-gui-web/public/screenshots..."
+  # Determine landing page repo path
+  DEFAULT_WEB_PATH="../learnify-tube-web/public/screenshots"
+  FALLBACK_WEB_PATH="../learnifytube-web/public/screenshots"
+  TARGET_WEB_PATH="${LANDING_PAGE_SCREENS_DIR:-$DEFAULT_WEB_PATH}"
 
-  # Create directory if it doesn't exist
-  mkdir -p "../yt-dlp-gui-web/public/screenshots"
+  # If the default path doesn't exist and a fallback does, switch to fallback
+  if [ ! -d "$(dirname "$TARGET_WEB_PATH")" ]; then
+    if [ "$TARGET_WEB_PATH" = "$DEFAULT_WEB_PATH" ] && [ -d "$(dirname "$FALLBACK_WEB_PATH")" ]; then
+      TARGET_WEB_PATH="$FALLBACK_WEB_PATH"
+    fi
+  fi
 
-  # Ensure the directory is empty before copying
-  rm -rf "../yt-dlp-gui-web/public/screenshots/"*
+  if [ -d "$(dirname "$TARGET_WEB_PATH")" ]; then
+    echo "🚚 Moving screenshots to ${TARGET_WEB_PATH}..."
 
-  # Copy all screenshots
-  cp -R ./screenshots/* "../yt-dlp-gui-web/public/screenshots/"
+    mkdir -p "$TARGET_WEB_PATH"
+    rm -rf "${TARGET_WEB_PATH}/"*
+    cp -R ./screenshots/* "$TARGET_WEB_PATH/"
 
-  # Check if copy was successful
-  if [ $? -eq 0 ]; then
-    echo "✅ Screenshots successfully moved to ../yt-dlp-gui-web/public/screenshots/"
-    ls -la "../yt-dlp-gui-web/public/screenshots"
+    if [ $? -eq 0 ]; then
+      echo "✅ Screenshots successfully moved to ${TARGET_WEB_PATH}/"
+      ls -la "$TARGET_WEB_PATH"
+    else
+      echo "❌ Failed to move screenshots. Please check permissions for ${TARGET_WEB_PATH}."
+    fi
   else
-    echo "❌ Failed to move screenshots. Please check if ../yt-dlp-gui-web/public directory exists."
+    echo "⚠️ Could not locate landing page repo automatically."
+    echo "   - Set LANDING_PAGE_SCREENS_DIR to the desired destination (e.g. /path/to/web/public/screenshots)."
+    echo "   - Or ensure ../learnify-tube-web/ (or ../learnifytube-web/) exists relative to this repo."
   fi
 else
   echo "❌ Failed to generate screenshots. Please check the test output for errors."

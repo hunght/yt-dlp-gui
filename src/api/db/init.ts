@@ -105,6 +105,11 @@ function delay(ms: number): Promise<void> {
 const initDb = async (config: DatabaseConfig = DEFAULT_DB_CONFIG): Promise<void> => {
   const dbPath = getDatabasePath().replace("file:", "");
   logger.info("Initializing database at:", dbPath);
+  logger.info("Environment variables:", {
+    PRESERVE_DB: process.env.PRESERVE_DB,
+    LEARNIFYTUBE_FORCE_DEV_DB: process.env.LEARNIFYTUBE_FORCE_DEV_DB,
+    NODE_ENV: process.env.NODE_ENV,
+  });
 
   // Run migrations with backup enabled
   await runMigrations({
@@ -163,7 +168,14 @@ export const initializeDatabase = async (
         continue;
       }
 
-      // Last attempt failed, try to recover
+      // Last attempt failed
+      if (process.env.PRESERVE_DB === "true") {
+        logger.error(
+          "Database initialization failed and PRESERVE_DB is set. Skipping recovery/wipe."
+        );
+        throw lastError;
+      }
+
       logger.warn("All initialization attempts failed, attempting recovery...");
       break;
     }

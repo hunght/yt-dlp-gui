@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   Loader2,
   Video,
   TrendingUp,
+  List as ListIcon,
 } from "lucide-react";
 
 const isValidUrl = (value: string): boolean => {
@@ -24,6 +25,15 @@ const isValidUrl = (value: string): boolean => {
     return ["http:", "https:"].includes(u.protocol);
   } catch {
     return false;
+  }
+};
+
+const extractPlaylistId = (url: string): string | null => {
+  try {
+    const u = new URL(url);
+    return u.searchParams.get("list");
+  } catch {
+    return null;
   }
 };
 
@@ -38,6 +48,7 @@ const formatDuration = (seconds: number | null): string => {
 
 export default function DashboardPage(): React.JSX.Element {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [url, setUrl] = useState("");
   // Type inferred from tRPC ytdlp.fetchVideoInfo mutation (VideoInfoData from backend)
   const [previewInfo, setPreviewInfo] = useState<{
@@ -54,6 +65,14 @@ export default function DashboardPage(): React.JSX.Element {
     tags: string | null;
     raw: string;
   } | null>(null);
+  // Playlist preview state
+  const [playlistPreviewInfo, setPlaylistPreviewInfo] = useState<{
+    playlistId: string;
+    title: string;
+    description: string | null;
+    thumbnailUrl: string | null;
+    itemCount: number | null;
+  } | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailError, setThumbnailError] = useState(false);
@@ -66,18 +85,54 @@ export default function DashboardPage(): React.JSX.Element {
       if (res.success) {
         logger.debug("Dashboard preview loaded", { info: res.info });
         setPreviewInfo(res.info);
+        setPlaylistPreviewInfo(null);
         setThumbnailError(false);
         // Set initial thumbnail URL
         setThumbnailUrl(res.info.thumbnailUrl);
       } else {
         toast.error(res.message ?? "Failed to fetch video info");
         setPreviewInfo(null);
+        setPlaylistPreviewInfo(null);
         setThumbnailUrl(null);
       }
     },
     onError: (e) => {
       setIsLoadingPreview(false);
       toast.error(e?.message ?? "Failed to fetch video info");
+      setPreviewInfo(null);
+      setPlaylistPreviewInfo(null);
+      setThumbnailUrl(null);
+    },
+  });
+
+  // Fetch playlist preview mutation
+  const playlistPreviewMutation = useMutation({
+    mutationFn: (playlistId: string) => trpcClient.playlists.getDetails.query({ playlistId }),
+    onSuccess: (res): void => {
+      setIsLoadingPreview(false);
+      if (res) {
+        logger.debug("Dashboard playlist preview loaded", { playlistId: res.playlistId });
+        setPlaylistPreviewInfo({
+          playlistId: res.playlistId,
+          title: res.title,
+          description: res.description,
+          thumbnailUrl: res.thumbnailUrl,
+          itemCount: res.itemCount,
+        });
+        setPreviewInfo(null);
+        setThumbnailError(false);
+        setThumbnailUrl(res.thumbnailUrl);
+      } else {
+        toast.error("Failed to fetch playlist info");
+        setPlaylistPreviewInfo(null);
+        setPreviewInfo(null);
+        setThumbnailUrl(null);
+      }
+    },
+    onError: (e) => {
+      setIsLoadingPreview(false);
+      toast.error(e?.message ?? "Failed to fetch playlist info");
+      setPlaylistPreviewInfo(null);
       setPreviewInfo(null);
       setThumbnailUrl(null);
     },
@@ -87,6 +142,7 @@ export default function DashboardPage(): React.JSX.Element {
   useEffect(() => {
     if (!isValidUrl(url)) {
       setPreviewInfo(null);
+      setPlaylistPreviewInfo(null);
       setIsLoadingPreview(false);
       setThumbnailUrl(null);
       setThumbnailError(false);
@@ -94,8 +150,15 @@ export default function DashboardPage(): React.JSX.Element {
     }
     setIsLoadingPreview(true);
     const timer = setTimeout(() => {
-      logger.debug("Dashboard fetching preview", { url });
-      previewMutation.mutate(url);
+      // Check if URL contains a playlist
+      const playlistId = extractPlaylistId(url);
+      if (playlistId) {
+        logger.debug("Dashboard fetching playlist preview", { url, playlistId });
+        playlistPreviewMutation.mutate(playlistId);
+      } else {
+        logger.debug("Dashboard fetching video preview", { url });
+        previewMutation.mutate(url);
+      }
     }, 600);
     return () => clearTimeout(timer);
   }, [url]);
@@ -119,12 +182,26 @@ export default function DashboardPage(): React.JSX.Element {
     [url, startMutation.isPending]
   );
 
+  const isPlaylistUrl = useMemo(() => {
+    return isValidUrl(url) && extractPlaylistId(url) !== null;
+  }, [url]);
+
   const onSubmit = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!isValidUrl(url)) {
       toast.error("Please enter a valid URL");
       return;
     }
+
+    // Check if URL contains a playlist
+    const playlistId = extractPlaylistId(url);
+    if (playlistId) {
+      logger.debug("Dashboard navigating to playlist", { url, playlistId });
+      // Navigate to playlist page
+      navigate({ to: "/playlist", search: { playlistId } });
+      return;
+    }
+
     logger.debug("Dashboard start download", { url });
     startMutation.mutate(url);
   };
@@ -187,6 +264,11 @@ export default function DashboardPage(): React.JSX.Element {
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Starting...</span>
+                </>
+              ) : isPlaylistUrl ? (
+                <>
+                  <ListIcon className="h-4 w-4" />
+                  <span>Open Playlist</span>
                 </>
               ) : (
                 <>
@@ -288,6 +370,62 @@ export default function DashboardPage(): React.JSX.Element {
                     <div className="flex items-center gap-1.5">
                       <Eye className="h-3.5 w-3.5" />
                       <span>{previewInfo.viewCount.toLocaleString()} views</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Playlist Preview Info */}
+      {!isLoadingPreview && playlistPreviewInfo && (
+        <Card className="overflow-hidden border-l-4 border-l-purple-500 shadow-md transition-all hover:shadow-lg">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <ListIcon className="h-4 w-4 text-purple-500" />
+              <CardTitle className="text-base sm:text-lg">Playlist Preview</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4 sm:flex-row sm:gap-4">
+              {/* Thumbnail */}
+              {thumbnailUrl && !thumbnailError ? (
+                <div className="relative overflow-hidden rounded-lg sm:w-48 sm:flex-shrink-0">
+                  <img
+                    src={thumbnailUrl}
+                    alt="Playlist Thumbnail"
+                    className="h-auto w-full object-cover sm:h-28"
+                    onError={() => {
+                      logger.warn("Dashboard playlist thumbnail failed to load", {
+                        original: thumbnailUrl,
+                      });
+                      setThumbnailError(true);
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="flex h-32 w-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground sm:h-28 sm:w-48 sm:flex-shrink-0">
+                  <ListIcon className="h-8 w-8 opacity-50" />
+                </div>
+              )}
+
+              {/* Playlist Info */}
+              <div className="min-w-0 flex-1 space-y-2">
+                <h3 className="line-clamp-2 text-base font-semibold leading-tight sm:text-lg">
+                  {playlistPreviewInfo.title}
+                </h3>
+                {playlistPreviewInfo.description && (
+                  <p className="line-clamp-2 text-sm text-muted-foreground">
+                    {playlistPreviewInfo.description}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground sm:text-sm">
+                  {playlistPreviewInfo.itemCount !== null && (
+                    <div className="flex items-center gap-1.5">
+                      <Video className="h-3.5 w-3.5" />
+                      <span>{playlistPreviewInfo.itemCount} videos</span>
                     </div>
                   )}
                 </div>

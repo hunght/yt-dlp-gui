@@ -13,6 +13,7 @@ import { ensureYtDlpBinaryReady } from "@/api/routers/binary";
 import { userPreferences } from "@/api/db/schema";
 import { eq } from "drizzle-orm";
 import {
+  normalizeVideoDownloadQuality,
   type DownloadQuality,
   YT_DLP_COOKIE_BROWSERS,
   type YtDlpCookiesBrowser,
@@ -216,14 +217,30 @@ const getDownloadQuality = async (db: Database): Promise<DownloadQuality> => {
       ) {
         const quality = settings.download.downloadQuality;
         if (quality === "360p" || quality === "480p" || quality === "720p" || quality === "1080p") {
-          return quality;
+          return normalizeVideoDownloadQuality(quality);
         }
       }
     }
   } catch (error) {
     logger.warn("[download-worker] Failed to read download quality preference", { error });
   }
-  return "480p"; // Default for learning apps
+  return "720p"; // Keep video downloads at HD minimum
+};
+
+const resolveDownloadQuality = async (
+  db: Database,
+  qualityOverride?: string | null
+): Promise<DownloadQuality> => {
+  if (
+    qualityOverride === "360p" ||
+    qualityOverride === "480p" ||
+    qualityOverride === "720p" ||
+    qualityOverride === "1080p"
+  ) {
+    return normalizeVideoDownloadQuality(qualityOverride);
+  }
+
+  return getDownloadQuality(db);
 };
 
 const isYtDlpCookiesBrowser = (value: unknown): value is YtDlpCookiesBrowser => {
@@ -265,12 +282,12 @@ const getCookiesFromBrowserPreference = async (db: Database): Promise<YtDlpCooki
  */
 const getOptimizationTargetResolution = (quality: DownloadQuality): TargetResolution => {
   const resolutionMap: Record<DownloadQuality, TargetResolution> = {
-    "360p": "480p", // Keep original if already small
-    "480p": "480p",
+    "360p": "720p",
+    "480p": "720p",
     "720p": "720p",
     "1080p": "720p", // Downscale 1080p to 720p for optimization
   };
-  return resolutionMap[quality];
+  return resolutionMap[normalizeVideoDownloadQuality(quality)];
 };
 
 /**
@@ -349,6 +366,7 @@ export const spawnDownload = async (
   videoId: string | null,
   url: string,
   format: string | null,
+  qualityOverride: string | null,
   outputPath: string,
   fallbackState?: FallbackState
 ): Promise<void> => {
@@ -457,8 +475,8 @@ export const spawnDownload = async (
         format: selectedFormat,
       });
     } else {
-      // Get download quality from user preferences (defaults to 480p for learning apps)
-      const quality = await getDownloadQuality(db);
+      // Keep video downloads at 720p minimum, even for older settings.
+      const quality = await resolveDownloadQuality(db, qualityOverride);
       selectedFormat = getFallbackFormatString(formatStrategy, quality);
       args.push("-f", selectedFormat);
       logger.info(

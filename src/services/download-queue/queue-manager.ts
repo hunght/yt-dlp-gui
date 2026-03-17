@@ -646,6 +646,7 @@ const createQueueManager = (
             item.videoId,
             item.url,
             item.format,
+            item.quality,
             outputPath,
             fallbackState
           );

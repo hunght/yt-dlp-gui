@@ -1,11 +1,16 @@
 import {
   createDefaultFallbackState,
   getFallbackRetryDelayMs,
+  getFormatString,
   getNextFallbackState,
   shouldAutoFallback,
   PLAYER_CLIENTS,
   FORMAT_STRATEGIES,
 } from "./fallback-strategy";
+import {
+  DEFAULT_DOWNLOAD_PREFERENCES,
+  normalizeVideoDownloadQuality,
+} from "@/lib/types/user-preferences";
 
 describe("download fallback strategy", () => {
   test("default fallback state covers all client/format combinations", () => {
@@ -51,5 +56,23 @@ describe("download fallback strategy", () => {
 
   test("spawn/binary availability errors do not auto fallback", () => {
     expect(shouldAutoFallback("yt-dlp binary is not available", "spawn_error")).toBe(false);
+  });
+
+  test("video download quality defaults to 720p", () => {
+    expect(DEFAULT_DOWNLOAD_PREFERENCES.downloadQuality).toBe("720p");
+  });
+
+  test("sub-720p preferences are normalized to 720p", () => {
+    expect(normalizeVideoDownloadQuality("360p")).toBe("720p");
+    expect(normalizeVideoDownloadQuality("480p")).toBe("720p");
+    expect(normalizeVideoDownloadQuality("720p")).toBe("720p");
+    expect(normalizeVideoDownloadQuality("1080p")).toBe("1080p");
+  });
+
+  test("format selection keeps a 720p floor for fallback strategies", () => {
+    expect(getFormatString("quality", "360p")).toContain("height<=720");
+    expect(getFormatString("quality", "480p")).toContain("height<=720");
+    expect(getFormatString("fallback", "360p")).toContain("height<=720");
+    expect(getFormatString("fallback", "480p")).toContain("height<=720");
   });
 });

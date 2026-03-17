@@ -7,6 +7,7 @@ import { logger } from "@/helpers/logger";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Download,
   CheckCircle2,
@@ -228,6 +229,9 @@ export function QuickAddDialog({ open, onOpenChange }: QuickAddDialogProps): Rea
   }, [url]);
 
   const isVideoUrlMemo = useMemo(() => isVideoUrl(url), [url]);
+  const hasPreviewForCurrentUrl = isVideoUrlMemo && preview !== null && lastFetchedUrl === url;
+  const isPreviewLoading =
+    isVideoUrlMemo && fetchPreviewMutation.isPending && lastFetchedUrl !== url;
 
   const canSubmit = useMemo(() => {
     if (!isValidUrl(url)) return false;
@@ -314,49 +318,51 @@ export function QuickAddDialog({ open, onOpenChange }: QuickAddDialogProps): Rea
             </p>
           </div>
 
-          {/* Video Preview - auto-loaded */}
-          {isVideoUrlMemo && (
-            <div className="rounded-lg border bg-muted/30 p-3">
-              {fetchPreviewMutation.isPending && !preview ? (
-                <div className="flex items-center gap-3">
-                  <div className="h-16 w-28 shrink-0 animate-pulse rounded-md bg-muted" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-                    <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
-                  </div>
+          {/* Video Preview slot - always rendered to keep modal height stable */}
+          <div className="rounded-lg border bg-muted/30 p-3">
+            {hasPreviewForCurrentUrl ? (
+              <div className="flex gap-3">
+                <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-md bg-muted">
+                  <Thumbnail
+                    thumbnailUrl={preview.thumbnailUrl}
+                    alt={preview.title}
+                    className="h-full w-full object-cover"
+                  />
+                  {preview.duration && (
+                    <div className="absolute bottom-1 right-1 flex items-center gap-1 rounded bg-black/80 px-1 py-0.5 text-[10px] text-white">
+                      <Clock className="h-2.5 w-2.5" />
+                      {formatDuration(preview.duration)}
+                    </div>
+                  )}
                 </div>
-              ) : preview ? (
-                <div className="flex gap-3">
-                  <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-md bg-muted">
-                    <Thumbnail
-                      thumbnailUrl={preview.thumbnailUrl}
-                      alt={preview.title}
-                      className="h-full w-full object-cover"
-                    />
-                    {preview.duration && (
-                      <div className="absolute bottom-1 right-1 flex items-center gap-1 rounded bg-black/80 px-1 py-0.5 text-[10px] text-white">
-                        <Clock className="h-2.5 w-2.5" />
-                        {formatDuration(preview.duration)}
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <h3
-                      className="line-clamp-2 text-sm font-medium leading-tight"
-                      title={preview.title}
-                    >
-                      {preview.title}
-                    </h3>
-                    {preview.channelTitle && (
-                      <p className="truncate text-xs text-muted-foreground">
-                        {preview.channelTitle}
-                      </p>
-                    )}
-                  </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <h3
+                    className="line-clamp-2 text-sm font-medium leading-tight"
+                    title={preview.title}
+                  >
+                    {preview.title}
+                  </h3>
+                  {preview.channelTitle && (
+                    <p className="truncate text-xs text-muted-foreground">{preview.channelTitle}</p>
+                  )}
                 </div>
-              ) : null}
-            </div>
-          )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Skeleton
+                  className={`h-16 w-28 shrink-0 ${isPreviewLoading ? "" : "animate-none opacity-50"}`}
+                />
+                <div className="flex-1 space-y-2">
+                  <Skeleton
+                    className={`h-4 w-3/4 ${isPreviewLoading ? "" : "animate-none opacity-50"}`}
+                  />
+                  <Skeleton
+                    className={`h-3 w-1/2 ${isPreviewLoading ? "" : "animate-none opacity-40"}`}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

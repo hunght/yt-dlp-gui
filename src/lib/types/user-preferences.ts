@@ -137,9 +137,30 @@ export const DEFAULT_LEARNING_PREFERENCES: LearningPreferences = {
 };
 
 export const DEFAULT_DOWNLOAD_PREFERENCES: DownloadPreferences = {
-  downloadQuality: "480p", // Default to 480p for learning apps (small files, good enough quality)
+  downloadQuality: "720p", // Keep video downloads at HD minimum; use audio conversion for smaller files
   cookiesFromBrowser: "none",
 };
+
+/**
+ * Video downloads should never go below 720p.
+ * Users who want much smaller files should convert to audio instead.
+ */
+export const normalizeVideoDownloadQuality = (
+  quality: DownloadQuality | null | undefined
+): DownloadQuality => {
+  if (quality === "1080p") {
+    return "1080p";
+  }
+
+  return "720p";
+};
+
+export const normalizeDownloadPreferences = (
+  preferences: DownloadPreferences
+): DownloadPreferences => ({
+  ...preferences,
+  downloadQuality: normalizeVideoDownloadQuality(preferences.downloadQuality),
+});
 
 export const DEFAULT_SYNC_PREFERENCES: SyncPreferences = {
   enabled: false,
@@ -151,7 +172,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   appearance: DEFAULT_APPEARANCE_PREFERENCES,
   player: DEFAULT_PLAYER_PREFERENCES,
   learning: DEFAULT_LEARNING_PREFERENCES,
-  download: DEFAULT_DOWNLOAD_PREFERENCES,
+  download: normalizeDownloadPreferences(DEFAULT_DOWNLOAD_PREFERENCES),
   sync: DEFAULT_SYNC_PREFERENCES,
   version: 1,
   lastUpdated: Date.now(),

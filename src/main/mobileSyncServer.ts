@@ -31,6 +31,9 @@ import { downloadImageToCache } from "../api/utils/ytdlp-utils/thumbnail";
  */
 
 const DEFAULT_PORT = 53318;
+// Versioned contract between desktop sync server and mobile app.
+const MOBILE_SYNC_PROTOCOL_VERSION = 1;
+const MIN_SUPPORTED_MOBILE_SYNC_PROTOCOL_VERSION = 1;
 
 type FavoriteEntityType = "video" | "custom_playlist" | "channel_playlist";
 function isFavoriteEntityType(s: string): s is FavoriteEntityType {
@@ -42,6 +45,8 @@ interface ServerInfo {
   name: string;
   version: string;
   videoCount: number;
+  syncProtocolVersion: number;
+  minSupportedMobileSyncProtocolVersion: number;
 }
 
 interface RemoteVideo {
@@ -65,6 +70,7 @@ interface VideoMeta {
   title: string;
   channelTitle: string;
   duration: number;
+  description?: string | null;
   transcript?: {
     language: string;
     segments: TranscriptSegment[];
@@ -130,6 +136,9 @@ interface ServerDownloadStatus {
   error: string | null;
 }
 
+const VIRTUAL_INTERFACE_NAME_PATTERN =
+  /(docker|tailscale|tun|tap|utun|veth|vmnet|vbox|virtual|bridge|br-|ham|zt|wg|hyper-v)/i;
+
 type MobileSyncServer = {
   start: (port?: number) => Promise<number>;
   stop: () => Promise<void>;
@@ -141,17 +150,52 @@ type MobileSyncServer = {
 /**
  * Get the local IP address for LAN access
  */
-export function getLocalIpAddress(): string | null {
+function isPrivateLanAddress(address: string): boolean {
+  return (
+    /^10\./.test(address) ||
+    /^192\.168\./.test(address) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(address)
+  );
+}
+
+function getInterfacePriority(name: string, address: string): number {
+  const normalizedName = name.toLowerCase();
+  const isVirtual = VIRTUAL_INTERFACE_NAME_PATTERN.test(normalizedName);
+  const isWifiLike = /(wifi|wi-fi|wlan|wl|airport|en0)/i.test(normalizedName);
+  const isEthernetLike = /(ethernet|eth|en|lan)/i.test(normalizedName);
+
+  if (isPrivateLanAddress(address) && isWifiLike && !isVirtual) return 0;
+  if (isPrivateLanAddress(address) && isEthernetLike && !isVirtual) return 1;
+  if (isPrivateLanAddress(address) && !isVirtual) return 2;
+  if (isPrivateLanAddress(address)) return 3;
+  if (!isVirtual) return 4;
+  return 5;
+}
+
+function getCandidateLocalIpAddresses(): string[] {
   const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name] || []) {
-      // Skip internal and non-IPv4 addresses
-      if (iface.family === "IPv4" && !iface.internal) {
-        return iface.address;
+  const candidates: Array<{ address: string; priority: number }> = [];
+
+  for (const [name, entries] of Object.entries(interfaces)) {
+    for (const iface of entries || []) {
+      if (iface.family !== "IPv4" || iface.internal) {
+        continue;
       }
+
+      candidates.push({
+        address: iface.address,
+        priority: getInterfacePriority(name, iface.address),
+      });
     }
   }
-  return null;
+
+  candidates.sort((a, b) => a.priority - b.priority || a.address.localeCompare(b.address));
+
+  return Array.from(new Set(candidates.map((candidate) => candidate.address)));
+}
+
+export function getLocalIpAddress(): string | null {
+  return getCandidateLocalIpAddresses()[0] ?? null;
 }
 
 const createMobileSyncServer = (): MobileSyncServer => {
@@ -224,6 +268,8 @@ const createMobileSyncServer = (): MobileSyncServer => {
         name: "LearnifyTube",
         version: app.getVersion(),
         videoCount: availableCount,
+        syncProtocolVersion: MOBILE_SYNC_PROTOCOL_VERSION,
+        minSupportedMobileSyncProtocolVersion: MIN_SUPPORTED_MOBILE_SYNC_PROTOCOL_VERSION,
       };
       sendJson(res, info);
     } catch (error) {
@@ -335,6 +381,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         title: video.title,
         channelTitle: video.channelTitle,
         duration: video.durationSeconds ?? 0,
+        description: video.description ?? null,
         transcript,
       };
 
@@ -2295,14 +2342,35 @@ const createMobileSyncServer = (): MobileSyncServer => {
         });
       });
 
+      let didSettle = false;
+      const cleanupFailedStart = (): void => {
+        if (server) {
+          server.removeAllListeners("error");
+          if (server.listening) {
+            server.close();
+          }
+        }
+        server = null;
+        port = 0;
+      };
+
       server.on("error", (err) => {
         logger.error("[MobileSyncServer] Server error", err);
+        if (didSettle) {
+          return;
+        }
+        didSettle = true;
+        cleanupFailedStart();
         reject(err);
       });
 
       // Listen on all interfaces (0.0.0.0) for LAN access
       logger.info(`[MobileSyncServer] Attempting to start on port ${targetPort}...`);
       server.listen(targetPort, "0.0.0.0", async () => {
+        if (didSettle) {
+          return;
+        }
+        didSettle = true;
         const address = server?.address();
         if (address && typeof address === "object") {
           port = address.port;
@@ -2361,7 +2429,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
 
   const getPort = (): number => port;
 
-  const isRunning = (): boolean => server !== null;
+  const isRunning = (): boolean => server?.listening === true;
 
   const getConnectedDevices = (): ConnectedDevice[] => {
     cleanupStaleDevices();

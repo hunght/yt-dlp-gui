@@ -1,4 +1,4 @@
-import type { DownloadQuality } from "@/lib/types/user-preferences";
+import { normalizeVideoDownloadQuality, type DownloadQuality } from "@/lib/types/user-preferences";
 import { logger } from "@/helpers/logger";
 
 /**
@@ -20,7 +20,7 @@ export type PlayerClient = (typeof PLAYER_CLIENTS)[number];
 export const FORMAT_STRATEGIES = [
   "quality", // User's preferred quality, WebM-first
   "quality_any", // User's preferred quality, any format
-  "fallback", // Lower quality fallback (480p max)
+  "fallback", // Reliability fallback while keeping HD floor
   "best", // Just get the best available
   "hls", // HLS streaming fallback (for SABR-affected formats)
 ] as const;
@@ -54,13 +54,14 @@ export const getPlayerClient = (index: number): PlayerClient => {
  * Get format string based on strategy and quality preference
  */
 export const getFormatString = (strategy: FormatStrategy, quality: DownloadQuality): string => {
+  const normalizedQuality = normalizeVideoDownloadQuality(quality);
   const heightMap: Record<DownloadQuality, number> = {
     "360p": 360,
     "480p": 480,
     "720p": 720,
     "1080p": 1080,
   };
-  const maxHeight = heightMap[quality];
+  const maxHeight = heightMap[normalizedQuality];
 
   switch (strategy) {
     case "quality":
@@ -72,8 +73,8 @@ export const getFormatString = (strategy: FormatStrategy, quality: DownloadQuali
       return `best[height<=${maxHeight}]/bestvideo[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]`;
 
     case "fallback":
-      // Lower quality fallback (always 480p max for reliability)
-      return `best[height<=480]/bestvideo[height<=480]+bestaudio/best[height<=480]`;
+      // Reliability fallback still keeps HD video floor.
+      return `best[height<=720]/bestvideo[height<=720]+bestaudio/best[height<=720]`;
 
     case "best":
       // Just get anything that works

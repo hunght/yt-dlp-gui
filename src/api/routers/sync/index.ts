@@ -61,12 +61,35 @@ const getSyncPreferences = async (db: Database): Promise<SyncPreferences> => {
   }
 };
 
+const ensureSyncPreferencesRowExists = async (db: Database): Promise<void> => {
+  const existing = await db
+    .select({ id: userPreferences.id })
+    .from(userPreferences)
+    .where(eq(userPreferences.id, "default"))
+    .limit(1);
+
+  if (existing.length > 0) {
+    return;
+  }
+
+  const now = Date.now();
+  await db.insert(userPreferences).values({
+    id: "default",
+    preferredLanguages: "[]",
+    customizationSettings: JSON.stringify(DEFAULT_USER_PREFERENCES),
+    createdAt: now,
+    updatedAt: now,
+  });
+};
+
 // Helper to update sync preferences in database
 const updateSyncPreferences = async (
   db: Database,
   updates: Partial<SyncPreferences>
 ): Promise<void> => {
   try {
+    await ensureSyncPreferencesRowExists(db);
+
     const rows = await db
       .select()
       .from(userPreferences)

@@ -8,7 +8,11 @@ import defaultDb, { type Database } from "@/api/db";
 import * as path from "path";
 import * as fs from "fs";
 import type { UserPreferences } from "@/lib/types/user-preferences";
-import { DEFAULT_USER_PREFERENCES, YT_DLP_COOKIE_BROWSERS } from "@/lib/types/user-preferences";
+import {
+  DEFAULT_USER_PREFERENCES,
+  YT_DLP_COOKIE_BROWSERS,
+  normalizeDownloadPreferences,
+} from "@/lib/types/user-preferences";
 
 // Zod schema for preferred languages JSON
 const languagesArraySchema = z.array(z.string());
@@ -72,6 +76,11 @@ type EnsureDirectoryAccessFailure = {
 };
 
 type EnsureDirectoryAccessResult = EnsureDirectoryAccessSuccess | EnsureDirectoryAccessFailure;
+
+const normalizeUserPreferences = (preferences: UserPreferences): UserPreferences => ({
+  ...preferences,
+  download: normalizeDownloadPreferences(preferences.download),
+});
 
 // Get system language from Electron
 const getSystemLanguage = (): string => {
@@ -416,7 +425,7 @@ export const preferencesRouter = t.router({
       const preferences = stored as unknown as UserPreferences;
 
       // Merge with defaults to ensure all fields exist
-      return {
+      return normalizeUserPreferences({
         ...DEFAULT_USER_PREFERENCES,
         ...preferences,
         sidebar: { ...DEFAULT_USER_PREFERENCES.sidebar, ...preferences.sidebar },
@@ -425,7 +434,7 @@ export const preferencesRouter = t.router({
         learning: { ...DEFAULT_USER_PREFERENCES.learning, ...preferences.learning },
         download: { ...DEFAULT_USER_PREFERENCES.download, ...preferences.download },
         sync: { ...DEFAULT_USER_PREFERENCES.sync, ...preferences.sync },
-      };
+      });
     } catch (error) {
       logger.error("[preferences] Error loading customization preferences", { error });
       return DEFAULT_USER_PREFERENCES;
@@ -521,7 +530,7 @@ export const preferencesRouter = t.router({
             (JSON.parse(storedSettings) as unknown as UserPreferences)
           : DEFAULT_USER_PREFERENCES;
 
-        const updated: UserPreferences = {
+        const updated = normalizeUserPreferences({
           ...current,
           ...input,
           sidebar: { ...current.sidebar, ...input.sidebar },
@@ -532,7 +541,7 @@ export const preferencesRouter = t.router({
           sync: { ...current.sync, ...input.sync },
           lastUpdated: Date.now(),
           version: 1,
-        };
+        });
 
         // Save to database
         await db

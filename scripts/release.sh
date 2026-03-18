@@ -137,8 +137,8 @@ echo "Prerelease: $RELEASE_PRERELEASE"
 # Update version in package.json
 npm version "$NEW_VERSION" --no-git-tag-version
 
-# Stage changes
-git add package.json
+# Stage versioned manifests together so the worktree stays clean after release
+git add package.json package-lock.json
 
 # Commit changes
 git commit -m "chore: bump version to $NEW_VERSION"

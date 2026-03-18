@@ -21,6 +21,46 @@ import { PublisherGithub } from "@electron-forge/publisher-github";
 // Track native module dependencies that need to be packaged
 let nativeModuleDependenciesToPackage: string[] = [];
 
+class ResilientMakerDMG extends MakerDMG {
+  async make(options: Parameters<MakerDMG["make"]>[0]): ReturnType<MakerDMG["make"]> {
+    const { makeDir, appName, packageJSON, targetArch } = options;
+    const configuredName = this.config.name || appName;
+    const outPath = path.resolve(makeDir, `${configuredName}.dmg`);
+    const forgeDefaultOutPath = path.resolve(
+      makeDir,
+      `${appName}-${packageJSON.version}-${targetArch}.dmg`
+    );
+
+    try {
+      return await super.make(options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const detachRace =
+        message.includes("hdiutil detach") && message.includes("No such file or directory");
+
+      if (!detachRace || !existsSync(outPath)) {
+        throw error;
+      }
+
+      console.warn(
+        "⚠️  DMG cleanup reported a missing mount during detach, but the image was created successfully."
+      );
+
+      if (!this.config.name) {
+        await this.ensureFile(forgeDefaultOutPath);
+        if (outPath !== forgeDefaultOutPath) {
+          await import("fs-extra").then(({ default: fsExtra }) =>
+            fsExtra.rename(outPath, forgeDefaultOutPath)
+          );
+        }
+        return [forgeDefaultOutPath] as ReturnType<MakerDMG["make"]>;
+      }
+
+      return [outPath] as ReturnType<MakerDMG["make"]>;
+    }
+  }
+}
+
 /**
  * External dependencies that require special handling during Electron packaging.
  *
@@ -324,7 +364,7 @@ const config: ForgeConfig = {
       // Naming pattern: LearnifyTube-{version}.Setup.exe
       name: "LearnifyTube-${version}.Setup.exe",
     }),
-    new MakerDMG({
+    new ResilientMakerDMG({
       icon: path.resolve(__dirname, "resources", "icon.icns"),
       format: "ULFO", // Use a different format that works better with permissions
       overwrite: true,

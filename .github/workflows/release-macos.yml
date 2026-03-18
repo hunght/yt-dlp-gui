@@ -125,6 +125,7 @@ jobs:
           VITE_PUBLIC_POSTHOG_HOST: ${{ secrets.VITE_PUBLIC_POSTHOG_HOST }}
           RELEASE_DRAFT: ${{ steps.release_meta.outputs.draft }}
           RELEASE_PRERELEASE: ${{ steps.release_meta.outputs.prerelease }}
+          CI_SKIP_DMG: "true"
         run: |
           set -euo pipefail
           echo "Setting up notarization environment..."

@@ -1,7 +1,7 @@
 // forge.config.ts - Configuration for Electron Forge build process
 
 import type { ForgeConfig, ForgePackagerOptions } from "@electron-forge/shared-types";
-import { readdirSync, rmdirSync, statSync, copyFileSync, mkdirSync } from "node:fs";
+import { readdirSync, rmdirSync, statSync, copyFileSync, mkdirSync, existsSync } from "node:fs";
 import path, { join, normalize } from "node:path";
 import { MakerDeb } from "@electron-forge/maker-deb";
 import { MakerRpm } from "@electron-forge/maker-rpm";

@@ -172,9 +172,19 @@ function getInterfacePriority(name: string, address: string): number {
   return 5;
 }
 
-function getCandidateLocalIpAddresses(): string[] {
+type LocalIpCandidate = {
+  interfaceName: string;
+  address: string;
+  priority: number;
+  isPrivateLan: boolean;
+  isVirtual: boolean;
+  isWifiLike: boolean;
+  isEthernetLike: boolean;
+};
+
+function getCandidateLocalIpDetails(): LocalIpCandidate[] {
   const interfaces = os.networkInterfaces();
-  const candidates: Array<{ address: string; priority: number }> = [];
+  const candidates: LocalIpCandidate[] = [];
 
   for (const [name, entries] of Object.entries(interfaces)) {
     for (const iface of entries || []) {
@@ -182,16 +192,57 @@ function getCandidateLocalIpAddresses(): string[] {
         continue;
       }
 
+      const normalizedName = name.toLowerCase();
       candidates.push({
+        interfaceName: name,
         address: iface.address,
         priority: getInterfacePriority(name, iface.address),
+        isPrivateLan: isPrivateLanAddress(iface.address),
+        isVirtual: VIRTUAL_INTERFACE_NAME_PATTERN.test(normalizedName),
+        isWifiLike: /(wifi|wi-fi|wlan|wl|airport|en0)/i.test(normalizedName),
+        isEthernetLike: /(ethernet|eth|en|lan)/i.test(normalizedName),
       });
     }
   }
 
-  candidates.sort((a, b) => a.priority - b.priority || a.address.localeCompare(b.address));
+  candidates.sort(
+    (a, b) =>
+      a.priority - b.priority ||
+      a.interfaceName.localeCompare(b.interfaceName) ||
+      a.address.localeCompare(b.address)
+  );
 
-  return Array.from(new Set(candidates.map((candidate) => candidate.address)));
+  return candidates;
+}
+
+function getCandidateLocalIpAddresses(): string[] {
+  return Array.from(new Set(getCandidateLocalIpDetails().map((candidate) => candidate.address)));
+}
+
+function logLocalIpSelectionContext(context: string): void {
+  const interfaces = os.networkInterfaces();
+  const rawInterfaces = Object.entries(interfaces).flatMap(([name, entries]) =>
+    (entries || []).map((entry) => ({
+      interfaceName: name,
+      family: entry.family,
+      address: entry.address,
+      internal: entry.internal,
+      mac: entry.mac,
+      netmask: entry.netmask,
+      cidr: entry.cidr,
+    }))
+  );
+  const candidates = getCandidateLocalIpDetails();
+  const selected = candidates[0] ?? null;
+
+  logger.info("[MobileSyncServer] Local IP selection trace", {
+    context,
+    selectedIp: selected?.address ?? null,
+    selectedInterface: selected?.interfaceName ?? null,
+    candidateCount: candidates.length,
+    candidates,
+    rawInterfaces,
+  });
 }
 
 export function getLocalIpAddress(): string | null {
@@ -2374,6 +2425,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         const address = server?.address();
         if (address && typeof address === "object") {
           port = address.port;
+          logLocalIpSelectionContext("server-start");
           const ip = getLocalIpAddress();
           logger.info(`[MobileSyncServer] ✓ HTTP server started`);
           logger.info(`[MobileSyncServer] URL: http://${ip ?? "0.0.0.0"}:${port}`);

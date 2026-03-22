@@ -2,6 +2,7 @@ import { Bonjour, Service, Browser } from "bonjour-service";
 import { app } from "electron";
 import * as os from "os";
 import { logger } from "../helpers/logger";
+import { logMdnsDiagnosticSnapshot, updateMdnsRuntimeState } from "./mdnsDiagnostics";
 
 /**
  * mDNS service for local network discovery.
@@ -11,6 +12,33 @@ import { logger } from "../helpers/logger";
 
 const SERVICE_TYPE = "learnify";
 const SERVICE_NAME = (): string => `LearnifyTube-${os.hostname()}`;
+
+type MdnsTransportEmitter = {
+  on: (event: string, listener: (...args: unknown[]) => void) => void;
+};
+
+const getTransportEmitter = (instance: Bonjour): MdnsTransportEmitter | null => {
+  const server: unknown = Reflect.get(instance, "server");
+  if (!server || typeof server !== "object") {
+    return null;
+  }
+
+  const mdns: unknown = Reflect.get(server, "mdns");
+  if (!mdns || typeof mdns !== "object") {
+    return null;
+  }
+
+  const onListener: unknown = Reflect.get(mdns, "on");
+  if (typeof onListener !== "function") {
+    return null;
+  }
+
+  return {
+    on: (event, listener) => {
+      Reflect.apply(onListener, mdns, [event, listener]);
+    },
+  };
+};
 
 export interface DiscoveredMobileDevice {
   name: string;
@@ -46,8 +74,68 @@ const createMdnsService = (): MdnsService => {
   let currentPort = 0;
   let _currentVideoCount = 0;
   const discoveredDevices = new Map<string, DiscoveredMobileDevice>();
+  const instrumentedBonjourInstances = new WeakSet<object>();
 
   logger.info("[mDNS] Creating mDNS service instance");
+  updateMdnsRuntimeState({
+    serviceName: SERVICE_NAME(),
+    serviceType: `_${SERVICE_TYPE}._tcp.local.`,
+  });
+
+  const attachBonjourDiagnostics = (instance: Bonjour, source: "publish" | "scan"): void => {
+    if (instrumentedBonjourInstances.has(instance)) {
+      return;
+    }
+    instrumentedBonjourInstances.add(instance);
+
+    const transport = getTransportEmitter(instance);
+    if (!transport) {
+      logger.warn("[mDNS] Low-level transport emitter unavailable for diagnostics", { source });
+      return;
+    }
+
+    transport.on("ready", () => {
+      logger.info("[mDNS] Low-level transport ready", { source });
+    });
+
+    transport.on("networkInterface", () => {
+      logger.info("[mDNS] Multicast interfaces refreshed", { source });
+      logMdnsDiagnosticSnapshot(
+        "transport-network-interface-refresh",
+        { source },
+        { level: "info", throttleKey: `network-interface-${source}`, minIntervalMs: 10_000 }
+      );
+    });
+
+    transport.on("warning", (error: unknown) => {
+      logger.warn("[mDNS] Low-level transport warning", {
+        source,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      logMdnsDiagnosticSnapshot(
+        "transport-warning",
+        {
+          source,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? (error.stack ?? null) : null,
+        },
+        { level: "warn", throttleKey: `transport-warning-${source}` }
+      );
+    });
+
+    transport.on("error", (error: unknown) => {
+      logger.error("[mDNS] Low-level transport error", error);
+      logMdnsDiagnosticSnapshot(
+        "transport-error",
+        {
+          source,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? (error.stack ?? null) : null,
+        },
+        { level: "error", throttleKey: `transport-error-${source}` }
+      );
+    });
+  };
 
   const publish = (port: number, videoCount: number): void => {
     logger.info(`[mDNS] Publishing service request: port=${port}, videoCount=${videoCount}`);
@@ -57,7 +145,19 @@ const createMdnsService = (): MdnsService => {
 
     try {
       logger.info("[mDNS] Creating Bonjour instance");
-      bonjour = new Bonjour();
+      bonjour = new Bonjour({}, (error: unknown) => {
+        logger.error("[mDNS] Bonjour transport callback error", error);
+        logMdnsDiagnosticSnapshot(
+          "bonjour-transport-callback-error",
+          {
+            source: "publish",
+            errorMessage: error instanceof Error ? error.message : String(error),
+            errorStack: error instanceof Error ? (error.stack ?? null) : null,
+          },
+          { level: "error", throttleKey: "bonjour-transport-callback-error" }
+        );
+      });
+      attachBonjourDiagnostics(bonjour, "publish");
       currentPort = port;
       _currentVideoCount = videoCount;
 
@@ -82,8 +182,32 @@ const createMdnsService = (): MdnsService => {
       logger.info(
         `[mDNS] Service details: _${SERVICE_TYPE}._tcp.local. TXT: videoCount=${videoCount}, platform=desktop`
       );
+      updateMdnsRuntimeState({
+        bonjourActive: true,
+        serviceName,
+        serviceType: `_${SERVICE_TYPE}._tcp.local.`,
+        publishedPort: port,
+        publishedVideoCount: videoCount,
+        lastPublishAt: Date.now(),
+      });
+      logMdnsDiagnosticSnapshot(
+        "publish-success",
+        { source: "publish", port, videoCount },
+        { level: "info", throttleKey: "publish-success", minIntervalMs: 5_000 }
+      );
     } catch (error) {
       logger.error("[mDNS] ✗ Failed to publish service", error);
+      logMdnsDiagnosticSnapshot(
+        "publish-failed",
+        {
+          source: "publish",
+          port,
+          videoCount,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? (error.stack ?? null) : null,
+        },
+        { level: "error", throttleKey: "publish-failed" }
+      );
     }
   };
 
@@ -112,6 +236,13 @@ const createMdnsService = (): MdnsService => {
 
     currentPort = 0;
     _currentVideoCount = 0;
+    updateMdnsRuntimeState({
+      bonjourActive: false,
+      publishedPort: null,
+      publishedVideoCount: null,
+      browserRunning: false,
+      discoveredDeviceCount: 0,
+    });
     logger.info("[mDNS] Service unpublished");
   };
 
@@ -139,8 +270,20 @@ const createMdnsService = (): MdnsService => {
 
     try {
       if (!bonjour) {
-        bonjour = new Bonjour();
+        bonjour = new Bonjour({}, (error: unknown) => {
+          logger.error("[mDNS] Bonjour transport callback error", error);
+          logMdnsDiagnosticSnapshot(
+            "bonjour-transport-callback-error",
+            {
+              source: "scan",
+              errorMessage: error instanceof Error ? error.message : String(error),
+              errorStack: error instanceof Error ? (error.stack ?? null) : null,
+            },
+            { level: "error", throttleKey: "bonjour-transport-callback-error" }
+          );
+        });
       }
+      attachBonjourDiagnostics(bonjour, "scan");
 
       logger.info(`[mDNS] Starting scan for _${SERVICE_TYPE}._tcp services`);
 
@@ -183,17 +326,38 @@ const createMdnsService = (): MdnsService => {
 
         logger.info("[mDNS] Mobile device discovered:", device);
         discoveredDevices.set(service.name, device);
+        updateMdnsRuntimeState({ discoveredDeviceCount: discoveredDevices.size });
       });
 
       // Handle service removal
       browser.on("down", (service: Service) => {
         logger.info(`[mDNS] Device went offline: ${service.name}`);
         discoveredDevices.delete(service.name);
+        updateMdnsRuntimeState({ discoveredDeviceCount: discoveredDevices.size });
       });
 
       logger.info("[mDNS] ✓ Scanner started");
+      updateMdnsRuntimeState({
+        bonjourActive: true,
+        browserRunning: true,
+        lastScanStartAt: Date.now(),
+      });
+      logMdnsDiagnosticSnapshot(
+        "scan-started",
+        { source: "scan" },
+        { level: "info", throttleKey: "scan-started", minIntervalMs: 5_000 }
+      );
     } catch (error) {
       logger.error("[mDNS] ✗ Failed to start scanner", error);
+      logMdnsDiagnosticSnapshot(
+        "scan-start-failed",
+        {
+          source: "scan",
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? (error.stack ?? null) : null,
+        },
+        { level: "error", throttleKey: "scan-start-failed" }
+      );
     }
   };
 
@@ -208,6 +372,10 @@ const createMdnsService = (): MdnsService => {
       browser = null;
     }
     discoveredDevices.clear();
+    updateMdnsRuntimeState({
+      browserRunning: false,
+      discoveredDeviceCount: 0,
+    });
   };
 
   const getDiscoveredDevices = (): DiscoveredMobileDevice[] => {

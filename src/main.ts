@@ -24,6 +24,7 @@ import { logger } from "./helpers/logger";
 import { initializeQueueManager } from "./services/download-queue/queue-manager";
 import defaultDb from "./api/db";
 import { userPreferences } from "./api/db/schema";
+import { isLikelyMdnsTransportError, logMdnsDiagnosticSnapshot } from "./main/mdnsDiagnostics";
 
 // Global error handlers to prevent crashes from logging errors
 process.on("uncaughtException", (error) => {
@@ -31,6 +32,18 @@ process.on("uncaughtException", (error) => {
   if (error.message?.includes("EIO") || error.message?.includes("write E")) {
     return;
   }
+
+  if (isLikelyMdnsTransportError(error)) {
+    logMdnsDiagnosticSnapshot(
+      "uncaught-mdns-transport-error",
+      {
+        errorMessage: error.message,
+        errorStack: error.stack ?? null,
+      },
+      { level: "error", throttleKey: "uncaught-mdns-transport-error" }
+    );
+  }
+
   // Log other errors to file only (avoid console to prevent recursive errors)
   try {
     logger.error("[uncaughtException]", error);
@@ -40,6 +53,17 @@ process.on("uncaughtException", (error) => {
 });
 
 process.on("unhandledRejection", (reason) => {
+  if (isLikelyMdnsTransportError(reason)) {
+    logMdnsDiagnosticSnapshot(
+      "unhandled-mdns-transport-error",
+      {
+        errorMessage: reason instanceof Error ? reason.message : String(reason),
+        errorStack: reason instanceof Error ? (reason.stack ?? null) : null,
+      },
+      { level: "error", throttleKey: "unhandled-mdns-transport-error" }
+    );
+  }
+
   try {
     logger.error("[unhandledRejection]", reason);
   } catch {

@@ -6,7 +6,6 @@ import path, { join, normalize } from "node:path";
 import { MakerDeb } from "@electron-forge/maker-deb";
 import { MakerRpm } from "@electron-forge/maker-rpm";
 import { MakerDMG } from "@electron-forge/maker-dmg";
-import { MakerZIP } from "@electron-forge/maker-zip";
 // Use flora-colossus for finding all dependencies of EXTERNAL_DEPENDENCIES
 // flora-colossus is maintained by MarshallOfSound (a top electron-forge contributor)
 // already included as a dependency of electron-packager/galactus (so we do NOT have to add it to package.json)
@@ -369,15 +368,6 @@ const config: ForgeConfig = {
       format: "ULFO", // Use a different format that works better with permissions
       overwrite: true,
       // Default naming pattern: LearnifyTube-{version}-{arch}.dmg
-    }),
-    new MakerZIP({
-      // Generate ZIP files for auto-updates
-      // Default naming pattern: LearnifyTube-{platform}-{arch}-{version}.zip
-      // Examples:
-      // - LearnifyTube-darwin-arm64-1.0.234.zip (macOS ARM)
-      // - LearnifyTube-darwin-x64-1.0.234.zip (macOS Intel)
-      // - LearnifyTube-win32-x64-1.0.234.zip (Windows)
-      // - LearnifyTube-linux-x64-1.0.234.zip (Linux)
     }),
     new MakerRpm({
       options: {

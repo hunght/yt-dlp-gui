@@ -147,3 +147,30 @@ jobs:
       - name: Clean up keychain
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db
+
+  cleanup-release-assets:
+    needs: release-macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Remove unused release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t assets < <(gh release view "$TAG_NAME" --json assets --jq '.assets[].name')
+
+          for asset in "${assets[@]}"; do
+            case "$asset" in
+              *.nupkg|RELEASES)
+                echo "Deleting unused asset: $asset"
+                gh release delete-asset "$TAG_NAME" "$asset" --yes
+                ;;
+              *)
+                echo "Keeping asset: $asset"
+                ;;
+            esac
+          done

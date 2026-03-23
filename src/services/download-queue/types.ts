@@ -49,7 +49,7 @@ export interface QueuedDownload {
   totalSize: string | null; // e.g., "100.0MiB"
   eta: string | null; // e.g., "00:15" or "01:23:45"
   // Fallback strategy state for automatic retries
-  playerClientIndex: number; // Current position in player client chain (0 = android, 1 = ios, etc.)
+  playerClientIndex: number; // Current position in player client chain (0 = default, 1 = android, etc.)
   formatStrategyIndex: number; // Current position in format strategy chain
   fallbackAttempts: number; // Total fallback attempts made
   maxFallbackAttempts: number; // Maximum fallback attempts allowed (default: 10)

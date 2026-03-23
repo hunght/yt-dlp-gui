@@ -10,11 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Database, FolderOpen, Shield } from "lucide-react";
+import { Database, Film, FolderOpen, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LanguagePreferencesSection } from "@/pages/settings-page/components/LanguagePreferencesSection";
 import { SystemDoctorCard } from "./SystemDoctorCard";
-import type { YtDlpCookiesBrowser } from "@/lib/types/user-preferences";
+import type { DownloadQuality, YtDlpCookiesBrowser } from "@/lib/types/user-preferences";
 
 const COOKIE_SOURCE_OPTIONS: Array<{ value: YtDlpCookiesBrowser; label: string }> = [
   { value: "none", label: "Disabled (No browser cookies)" },
@@ -30,6 +30,28 @@ const COOKIE_SOURCE_OPTIONS: Array<{ value: YtDlpCookiesBrowser; label: string }
 ];
 const isCookieSource = (value: string): value is YtDlpCookiesBrowser =>
   COOKIE_SOURCE_OPTIONS.some((option) => option.value === value);
+
+const DOWNLOAD_QUALITY_OPTIONS: Array<{
+  value: Extract<DownloadQuality, "720p" | "1080p">;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "1080p",
+    label: "1080p (Full HD)",
+    description: "Sharper video and now the default choice for new downloads.",
+  },
+  {
+    value: "720p",
+    label: "720p (HD)",
+    description: "Balanced quality, smaller files, and faster downloads.",
+  },
+];
+
+const isDownloadQuality = (
+  value: string
+): value is (typeof DOWNLOAD_QUALITY_OPTIONS)[number]["value"] =>
+  DOWNLOAD_QUALITY_OPTIONS.some((option) => option.value === value);
 
 export function SystemTab(): React.JSX.Element {
   const { toast } = useToast();
@@ -123,6 +145,31 @@ export function SystemTab(): React.JSX.Element {
           cookiesFromBrowser === "none"
             ? "Browser cookie authentication is disabled."
             : `LearnifyTube will use ${cookiesFromBrowser} cookies for YouTube downloads.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Update Failed",
+        description: String(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateDownloadQualityMutation = useMutation({
+    mutationFn: async (downloadQuality: (typeof DOWNLOAD_QUALITY_OPTIONS)[number]["value"]) => {
+      return await trpcClient.preferences.updateCustomizationPreferences.mutate({
+        download: { downloadQuality },
+      });
+    },
+    onSuccess: async (_result, downloadQuality) => {
+      await queryClient.invalidateQueries({ queryKey: ["preferences.customization"] });
+      toast({
+        title: "Download Quality Updated",
+        description:
+          downloadQuality === "1080p"
+            ? "New downloads will use 1080p Full HD by default."
+            : "New downloads will use 720p HD by default.",
       });
     },
     onError: (error) => {
@@ -262,6 +309,59 @@ export function SystemTab(): React.JSX.Element {
             <div className="text-sm text-muted-foreground">
               Loading download folder information...
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Film className="h-5 w-5" />
+            Video Downloads
+          </CardTitle>
+          <CardDescription>
+            Choose the default resolution for newly downloaded videos
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {customizationPreferences ? (
+            <>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Default Resolution</Label>
+                <Select
+                  value={customizationPreferences.download.downloadQuality}
+                  onValueChange={(value) => {
+                    if (isDownloadQuality(value)) {
+                      updateDownloadQualityMutation.mutate(value);
+                    }
+                  }}
+                >
+                  <SelectTrigger disabled={updateDownloadQualityMutation.isPending}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DOWNLOAD_QUALITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {
+                  DOWNLOAD_QUALITY_OPTIONS.find(
+                    (option) => option.value === customizationPreferences.download.downloadQuality
+                  )?.description
+                }
+              </p>
+              <p className="text-xs text-muted-foreground">
+                This applies to new downloads. LearnifyTube keeps a 720p floor, so smaller presets
+                are not offered here.
+              </p>
+            </>
+          ) : (
+            <div className="text-sm text-muted-foreground">Loading download quality...</div>
           )}
         </CardContent>
       </Card>

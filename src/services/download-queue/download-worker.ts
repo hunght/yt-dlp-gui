@@ -24,6 +24,7 @@ import {
   getFormatString as getFallbackFormatString,
   FORMAT_STRATEGIES,
 } from "./fallback-strategy";
+import { getPreferredYtDlpJsRuntime } from "./yt-dlp-runtime";
 
 /**
  * Active download workers
@@ -42,6 +43,7 @@ const determineErrorType = (stderrError: string | undefined): string => {
   if (lowerError.includes("http error 403")) return "http_403_forbidden";
   if (lowerError.includes("http error 429")) return "http_429_rate_limited";
   if (lowerError.includes("http error")) return "http_error";
+  if (lowerError.includes("javascript runtime")) return "js_runtime_missing";
   if (lowerError.includes("ffmpeg")) return "ffmpeg_missing";
   if (
     lowerError.includes("sign in") ||
@@ -224,7 +226,7 @@ const getDownloadQuality = async (db: Database): Promise<DownloadQuality> => {
   } catch (error) {
     logger.warn("[download-worker] Failed to read download quality preference", { error });
   }
-  return "720p"; // Keep video downloads at HD minimum
+  return "1080p"; // Default to Full HD when no saved preference exists
 };
 
 const resolveDownloadQuality = async (
@@ -358,6 +360,290 @@ const getFfmpegPath = (): string | null => {
 };
 
 /**
+ * Determine the minimum acceptable output height for a requested quality.
+ * We enforce the user's explicit 1080p target while keeping the 720p floor for older presets.
+ */
+const getMinimumAcceptedHeight = (quality: DownloadQuality): number => {
+  const normalizedQuality = normalizeVideoDownloadQuality(quality);
+  return normalizedQuality === "1080p" ? 1080 : 720;
+};
+
+/**
+ * Inspect a completed file with ffmpeg and extract its primary video resolution.
+ * ffmpeg returns stream metadata on stderr even without an output target.
+ */
+const getCompletedVideoResolution = async (
+  filePath: string
+): Promise<{ width: number; height: number } | null> => {
+  const ffmpegPath = getFfmpegPath();
+  if (!ffmpegPath || !fs.existsSync(filePath)) {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    const proc = spawn(ffmpegPath, ["-i", filePath]);
+    let stderrOutput = "";
+
+    proc.stderr?.on("data", (data: Buffer) => {
+      stderrOutput += data.toString();
+    });
+
+    const finalize = (): void => {
+      const match = stderrOutput.match(/Video:\s.*?,\s(\d+)x(\d+)(?:[,\s]|$)/);
+      if (!match) {
+        resolve(null);
+        return;
+      }
+
+      resolve({
+        width: parseInt(match[1], 10),
+        height: parseInt(match[2], 10),
+      });
+    };
+
+    proc.on("close", finalize);
+    proc.on("error", () => resolve(null));
+  });
+};
+
+/**
+ * Decide whether a completed download should be accepted or retried because it undershot
+ * the requested resolution.
+ */
+const getQualityShortfallDetails = async ({
+  downloadId,
+  videoId,
+  completedPath,
+  requestedQuality,
+  playerClient,
+  formatStrategy,
+  formatUsed,
+}: {
+  downloadId: string;
+  videoId: string | null;
+  completedPath: string;
+  requestedQuality: DownloadQuality | null;
+  playerClient: string;
+  formatStrategy: string;
+  formatUsed: string;
+}): Promise<{
+  errorMessage: string;
+  errorDetails: string[];
+} | null> => {
+  if (!requestedQuality || !fs.existsSync(completedPath)) {
+    return null;
+  }
+
+  const actualResolution = await getCompletedVideoResolution(completedPath);
+  const minimumAcceptedHeight = getMinimumAcceptedHeight(requestedQuality);
+
+  if (!actualResolution || actualResolution.height >= minimumAcceptedHeight) {
+    return null;
+  }
+
+  logger.warn("[download-worker] Download completed below requested quality target", {
+    downloadId,
+    videoId,
+    requestedQuality,
+    minimumAcceptedHeight,
+    actualResolution,
+    playerClient,
+    formatStrategy,
+    formatUsed,
+    note: "Treating low-resolution result as retryable so fallback can search for HD formats.",
+  });
+
+  try {
+    fs.unlinkSync(completedPath);
+  } catch (unlinkError) {
+    logger.warn("[download-worker] Failed to remove below-target download before retry", {
+      downloadId,
+      videoId,
+      completedPath,
+      error: unlinkError,
+    });
+  }
+
+  return {
+    errorMessage: `Requested ${requestedQuality} but downloaded ${actualResolution.height}p`,
+    errorDetails: [
+      `Requested quality: ${requestedQuality}`,
+      `Downloaded resolution: ${actualResolution.width}x${actualResolution.height}`,
+      `Player client: ${playerClient}`,
+      `Format strategy: ${formatStrategy}`,
+      `Selected format: ${formatUsed}`,
+    ],
+  };
+};
+
+/**
+ * Finalize a successful download, including post-download quality validation and
+ * optional auto-optimization for large files.
+ */
+const handleSuccessfulDownload = async ({
+  db,
+  downloadId,
+  videoId,
+  outputPath,
+  worker,
+  requestedQuality,
+  playerClient,
+  formatStrategy,
+  formatUsed,
+}: {
+  db: Database;
+  downloadId: string;
+  videoId: string | null;
+  outputPath: string;
+  worker: WorkerState;
+  requestedQuality: DownloadQuality | null;
+  playerClient: string;
+  formatStrategy: string;
+  formatUsed: string;
+}): Promise<void> => {
+  const queueManager = requireQueueManager();
+
+  let finalPath: string | null = worker.lastKnownFilePath ?? null;
+  if (!finalPath && worker.videoId && worker.outputDir && fs.existsSync(worker.outputDir)) {
+    try {
+      const files = fs.readdirSync(worker.outputDir);
+      const matches = files.filter((file) => file.includes(`[${worker.videoId}]`));
+
+      if (matches.length > 1) {
+        logger.warn("[download-worker] Multiple files found for video - merge may have failed", {
+          downloadId,
+          videoId,
+          fileCount: matches.length,
+          files: matches,
+          note: "yt-dlp may have downloaded separate video/audio files without merging",
+        });
+      }
+
+      const mergedFile = matches.find((file) => !file.match(/\.f\d+\./));
+      const match = mergedFile || matches[0];
+      if (match) {
+        finalPath = path.join(worker.outputDir, match);
+      }
+    } catch {
+      // Ignore file system errors when searching for video file
+    }
+  }
+
+  const completedPath = finalPath || outputPath;
+  const qualityShortfall = await getQualityShortfallDetails({
+    downloadId,
+    videoId,
+    completedPath,
+    requestedQuality,
+    playerClient,
+    formatStrategy,
+    formatUsed,
+  });
+
+  if (qualityShortfall) {
+    await queueManager.markFailed(
+      downloadId,
+      qualityShortfall.errorMessage,
+      "quality_too_low",
+      qualityShortfall.errorDetails
+    );
+    return;
+  }
+
+  await queueManager.markCompleted(downloadId, completedPath);
+
+  let fileExtension: string | null = null;
+  let fileSize: number | null = null;
+  let fileExists = false;
+
+  if (completedPath && fs.existsSync(completedPath)) {
+    fileExists = true;
+    fileExtension = path.extname(completedPath).toLowerCase();
+    try {
+      const stats = fs.statSync(completedPath);
+      fileSize = stats.size;
+    } catch {
+      // Ignore stat errors
+    }
+  }
+
+  const hasFormatCode = completedPath && /\.f\d+\./.test(completedPath);
+
+  let codecWarning: string | undefined;
+  if (fileExtension === ".mp4") {
+    codecWarning =
+      "⚠️ MP4 file - verify codec is H.264/AVC1 (supported) not H.265/HEVC (not supported). Check logs for codec detection.";
+  } else if (hasFormatCode) {
+    codecWarning =
+      "⚠️ File has format code (.fXXX.) - this is likely an unmerged file from separate video+audio streams. Check if ffmpeg is installed and merging succeeded.";
+  } else if (fileExtension === ".webm" && fileSize && fileSize < 10 * 1024 * 1024) {
+    codecWarning = "Small WebM file - may be audio-only";
+  }
+
+  logger.info("[download-worker] Download completed successfully", {
+    downloadId,
+    videoId,
+    finalPath: completedPath,
+    fileExtension,
+    fileSize: fileSize ? `${(fileSize / 1024 / 1024).toFixed(2)} MB` : null,
+    fileExists,
+    formatUsed,
+    codecCompatibility:
+      fileExtension === ".webm"
+        ? "✅ WebM - fully supported in Chromium"
+        : fileExtension === ".mp4"
+          ? "⚠️ MP4 - check codec (H.264=supported, H.265=not supported)"
+          : "❓ Unknown format",
+    note: codecWarning,
+  });
+
+  if (hasFormatCode) {
+    logger.error("[download-worker] CRITICAL: Unmerged file detected - merge failed", {
+      downloadId,
+      videoId,
+      finalPath: completedPath,
+      fileSize: fileSize ? `${(fileSize / 1024 / 1024).toFixed(2)} MB` : null,
+      note: "File has format code (.fXXX.) indicating it's an unmerged stream. Only one file (video OR audio) was saved. The other stream was lost. This usually means ffmpeg is not installed. Check stderr logs for 'ffmpeg is not installed' warning.",
+      impact:
+        "Download is incomplete - only one stream was saved. Video playback will fail if only audio was saved, or audio will be missing if only video was saved.",
+    });
+  }
+
+  if (fileExtension === ".mp4") {
+    logger.info("[download-worker] MP4 file downloaded - codec check reminder", {
+      downloadId,
+      videoId,
+      finalPath: completedPath,
+      note: "If playback fails, check format selection logs above for actual codec (H.264/AVC1 vs H.265/HEVC). H.265 will not play in Chromium.",
+    });
+  }
+
+  if (fileSize && fileSize > AUTO_OPTIMIZATION_THRESHOLD && videoId && !hasFormatCode) {
+    try {
+      const downloadQuality = await getDownloadQuality(db);
+      const targetResolution = getOptimizationTargetResolution(downloadQuality);
+
+      logger.info("[download-worker] Large file detected, queueing auto-optimization", {
+        downloadId,
+        videoId,
+        fileSizeMB: (fileSize / 1024 / 1024).toFixed(2),
+        thresholdMB: (AUTO_OPTIMIZATION_THRESHOLD / 1024 / 1024).toFixed(0),
+        targetResolution,
+      });
+
+      const optimizationManager = requireOptimizationQueueManager();
+      await optimizationManager.addToQueue(db, [videoId], targetResolution);
+    } catch (optError) {
+      logger.warn("[download-worker] Failed to queue auto-optimization", {
+        downloadId,
+        videoId,
+        error: optError instanceof Error ? optError.message : "Unknown error",
+      });
+    }
+  }
+};
+
+/**
  * Spawn a download worker for a queued item
  */
 export const spawnDownload = async (
@@ -406,6 +692,7 @@ export const spawnDownload = async (
     const useCookies = configuredCookiesFromBrowser !== "none" && fallbackAttempt === 0;
     const cookiesFromBrowser = useCookies ? configuredCookiesFromBrowser : "none";
     const playerClient = getPlayerClient(playerClientIndex);
+    const ytDlpJsRuntime = getPreferredYtDlpJsRuntime();
 
     if (configuredCookiesFromBrowser !== "none" && !useCookies) {
       logger.info("[download-worker] Disabling browser cookies for fallback attempt", {
@@ -429,11 +716,20 @@ export const spawnDownload = async (
       // Note: Since we now prefer single-file formats, merging should be rare
       "--no-mtime", // Don't set file modification time (avoids merge issues)
       // Use dynamic player client based on fallback state
-      // Default is 'android' to avoid SABR streaming issues
-      // See: https://github.com/yt-dlp/yt-dlp/issues/12482
+      // Default client allows yt-dlp to choose the richest extraction path when JS challenges
+      // can be solved; dedicated clients remain as fallbacks for restricted videos.
       "--extractor-args",
       `youtube:player_client=${playerClient}`,
     ];
+
+    if (ytDlpJsRuntime) {
+      args.push("--js-runtimes", ytDlpJsRuntime);
+      logger.info("[download-worker] Using yt-dlp JavaScript runtime", {
+        downloadId,
+        videoId,
+        jsRuntime: ytDlpJsRuntime,
+      });
+    }
 
     if (cookiesFromBrowser !== "none") {
       args.push("--cookies-from-browser", cookiesFromBrowser);
@@ -466,6 +762,7 @@ export const spawnDownload = async (
 
     // Add format if specified, otherwise use quality preference from settings with fallback strategy
     let selectedFormat: string;
+    let requestedQuality: DownloadQuality | null = null;
     if (format) {
       selectedFormat = format;
       args.push("-f", format);
@@ -476,21 +773,22 @@ export const spawnDownload = async (
       });
     } else {
       // Keep video downloads at 720p minimum, even for older settings.
-      const quality = await resolveDownloadQuality(db, qualityOverride);
-      selectedFormat = getFallbackFormatString(formatStrategy, quality);
+      requestedQuality = await resolveDownloadQuality(db, qualityOverride);
+      selectedFormat = getFallbackFormatString(formatStrategy, requestedQuality);
       args.push("-f", selectedFormat);
       logger.info(
         "[download-worker] Using quality preference from settings with fallback strategy",
         {
           downloadId,
           videoId,
-          quality,
+          quality: requestedQuality,
           formatStrategy,
           playerClient,
+          jsRuntime: ytDlpJsRuntime ?? "none",
           cookiesFromBrowser,
           preferredFormat: selectedFormat,
           fallbackAttempt: fallbackState?.fallbackAttempts ?? 0,
-          note: `${formatStrategy} strategy at ${quality} with ${playerClient} client`,
+          note: `${formatStrategy} strategy at ${requestedQuality} with ${playerClient} client`,
         }
       );
     }
@@ -504,6 +802,7 @@ export const spawnDownload = async (
       outputPath,
       format: selectedFormat,
       playerClient,
+      jsRuntime: ytDlpJsRuntime ?? "none",
       configuredCookiesFromBrowser,
       cookiesFromBrowser,
       useCookies,
@@ -740,6 +1039,22 @@ export const spawnDownload = async (
         }
       }
 
+      if (
+        errorOutput.toLowerCase().includes("no supported javascript runtime") &&
+        currentWorker &&
+        !currentWorker.lastStderrError
+      ) {
+        currentWorker.lastStderrError =
+          "No supported JavaScript runtime available for yt-dlp YouTube extraction";
+        logger.warn("[download-worker] yt-dlp JavaScript runtime unavailable", {
+          downloadId,
+          videoId,
+          message: trimmedOutput,
+          recommendation:
+            "Install Node.js or keep using dedicated fallback clients such as android/ios",
+        });
+      }
+
       // CRITICAL: Check for missing ffmpeg (prevents merging, results in incomplete downloads)
       if (
         errorOutput.toLowerCase().includes("ffmpeg is not installed") ||
@@ -806,142 +1121,17 @@ export const spawnDownload = async (
       activeWorkers.delete(downloadId);
 
       if (code === 0) {
-        // Success
-        const queueManager = requireQueueManager();
-        // Determine final path: prefer parsed, else search by [videoId]
-        const w = worker;
-        let finalPath: string | null = w.lastKnownFilePath ?? null;
-        if (!finalPath && w.videoId && w.outputDir && fs.existsSync(w.outputDir)) {
-          try {
-            const files = fs.readdirSync(w.outputDir);
-            const matches = files.filter((f) => f.includes(`[${w.videoId}]`));
-
-            // Check for multiple files (indicates failed merge)
-            if (matches.length > 1) {
-              logger.warn(
-                "[download-worker] Multiple files found for video - merge may have failed",
-                {
-                  downloadId,
-                  videoId,
-                  fileCount: matches.length,
-                  files: matches,
-                  note: "yt-dlp may have downloaded separate video/audio files without merging",
-                }
-              );
-            }
-
-            // Prefer files without format codes (merged files) over format-specific files
-            const mergedFile = matches.find((f) => !f.match(/\.f\d+\./));
-            const match = mergedFile || matches[0];
-            if (match) finalPath = path.join(w.outputDir, match);
-          } catch {
-            // Ignore file system errors when searching for video file
-          }
-        }
-        const completedPath = finalPath || outputPath;
-        await queueManager.markCompleted(downloadId, completedPath);
-
-        // Log file details for debugging format issues
-        let fileExtension: string | null = null;
-        let fileSize: number | null = null;
-        let fileExists = false;
-
-        if (completedPath && fs.existsSync(completedPath)) {
-          fileExists = true;
-          fileExtension = path.extname(completedPath).toLowerCase();
-          try {
-            const stats = fs.statSync(completedPath);
-            fileSize = stats.size;
-          } catch {
-            // Ignore stat errors
-          }
-        }
-
-        // Detect if file has format code (indicates unmerged file from separate streams)
-        const hasFormatCode = completedPath && /\.f\d+\./.test(completedPath);
-
-        // Determine codec compatibility warning
-        let codecWarning: string | undefined;
-        if (fileExtension === ".mp4") {
-          codecWarning =
-            "⚠️ MP4 file - verify codec is H.264/AVC1 (supported) not H.265/HEVC (not supported). Check logs for codec detection.";
-        } else if (hasFormatCode) {
-          codecWarning =
-            "⚠️ File has format code (.fXXX.) - this is likely an unmerged file from separate video+audio streams. Check if ffmpeg is installed and merging succeeded.";
-        } else if (fileExtension === ".webm" && fileSize && fileSize < 10 * 1024 * 1024) {
-          codecWarning = "Small WebM file - may be audio-only";
-        }
-
-        logger.info("[download-worker] Download completed successfully", {
+        await handleSuccessfulDownload({
+          db,
           downloadId,
           videoId,
-          finalPath: completedPath,
-          fileExtension,
-          fileSize: fileSize ? `${(fileSize / 1024 / 1024).toFixed(2)} MB` : null,
-          fileExists,
+          outputPath,
+          worker,
+          requestedQuality,
+          playerClient,
+          formatStrategy,
           formatUsed,
-          codecCompatibility:
-            fileExtension === ".webm"
-              ? "✅ WebM - fully supported in Chromium"
-              : fileExtension === ".mp4"
-                ? "⚠️ MP4 - check codec (H.264=supported, H.265=not supported)"
-                : "❓ Unknown format",
-          note: codecWarning,
         });
-
-        // If format code detected, this is a critical issue - merge failed
-        if (hasFormatCode) {
-          logger.error("[download-worker] CRITICAL: Unmerged file detected - merge failed", {
-            downloadId,
-            videoId,
-            finalPath: completedPath,
-            fileSize: fileSize ? `${(fileSize / 1024 / 1024).toFixed(2)} MB` : null,
-            note: "File has format code (.fXXX.) indicating it's an unmerged stream. Only one file (video OR audio) was saved. The other stream was lost. This usually means ffmpeg is not installed. Check stderr logs for 'ffmpeg is not installed' warning.",
-            impact:
-              "Download is incomplete - only one stream was saved. Video playback will fail if only audio was saved, or audio will be missing if only video was saved.",
-          });
-        }
-
-        // If MP4, log a reminder to check codec
-        if (fileExtension === ".mp4") {
-          logger.info("[download-worker] MP4 file downloaded - codec check reminder", {
-            downloadId,
-            videoId,
-            finalPath: completedPath,
-            note: "If playback fails, check format selection logs above for actual codec (H.264/AVC1 vs H.265/HEVC). H.265 will not play in Chromium.",
-          });
-        }
-
-        // Auto-optimization for large files (>100MB)
-        if (
-          fileSize &&
-          fileSize > AUTO_OPTIMIZATION_THRESHOLD &&
-          videoId &&
-          !hasFormatCode // Skip if unmerged file (optimization won't help)
-        ) {
-          try {
-            const downloadQuality = await getDownloadQuality(db);
-            const targetResolution = getOptimizationTargetResolution(downloadQuality);
-
-            logger.info("[download-worker] Large file detected, queueing auto-optimization", {
-              downloadId,
-              videoId,
-              fileSizeMB: (fileSize / 1024 / 1024).toFixed(2),
-              thresholdMB: (AUTO_OPTIMIZATION_THRESHOLD / 1024 / 1024).toFixed(0),
-              targetResolution,
-            });
-
-            const optimizationManager = requireOptimizationQueueManager();
-            await optimizationManager.addToQueue(db, [videoId], targetResolution);
-          } catch (optError) {
-            // Don't fail the download if optimization queueing fails
-            logger.warn("[download-worker] Failed to queue auto-optimization", {
-              downloadId,
-              videoId,
-              error: optError instanceof Error ? optError.message : "Unknown error",
-            });
-          }
-        }
       } else {
         // Failed - get captured error or use generic message
         const failedWorker = activeWorkers.get(downloadId) || worker;

@@ -3,14 +3,23 @@ import { logger } from "@/helpers/logger";
 
 /**
  * Player clients in fallback order (most reliable first based on testing)
- * - android: Default, avoids SABR streaming issues
+ * - default: Lets yt-dlp choose the best extraction path (best quality when JS challenges can be solved)
+ * - android: Reliable fallback when default/web extraction is degraded
  * - ios: Good alternative for restricted content
  * - tv: Simple client, often works when others fail
  * - mweb: Mobile web client
  * - web_safari: Safari web client (avoids some restrictions)
  * - web: Standard web client (last resort, may hit SABR issues)
  */
-export const PLAYER_CLIENTS = ["android", "ios", "tv", "mweb", "web_safari", "web"] as const;
+export const PLAYER_CLIENTS = [
+  "default",
+  "android",
+  "ios",
+  "tv",
+  "mweb",
+  "web_safari",
+  "web",
+] as const;
 
 export type PlayerClient = (typeof PLAYER_CLIENTS)[number];
 
@@ -125,6 +134,16 @@ const determineFallbackAction = (errorMessage: string, errorType: string): Fallb
   // If ffmpeg is missing, prefer switching format strategy to avoid merge requirements.
   if (lowerType === "ffmpeg_missing" || lowerMessage.includes("ffmpeg")) {
     return "next_format";
+  }
+
+  // If yt-dlp cannot solve YouTube's JS challenges for the default client, fall back.
+  if (lowerType === "js_runtime_missing" || lowerMessage.includes("javascript runtime")) {
+    return "next_client";
+  }
+
+  // Download succeeded but did not meet the requested quality target.
+  if (lowerType === "quality_too_low") {
+    return "next_client";
   }
 
   // Transient network failures should retry same config after delay.

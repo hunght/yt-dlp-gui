@@ -137,18 +137,18 @@ export const DEFAULT_LEARNING_PREFERENCES: LearningPreferences = {
 };
 
 export const DEFAULT_DOWNLOAD_PREFERENCES: DownloadPreferences = {
-  downloadQuality: "720p", // Keep video downloads at HD minimum; use audio conversion for smaller files
+  downloadQuality: "1080p", // Prefer Full HD by default; keep a 720p floor for smaller legacy presets
   cookiesFromBrowser: "none",
 };
 
 /**
- * Video downloads should never go below 720p.
+ * Video downloads default to 1080p, but never go below 720p.
  * Users who want much smaller files should convert to audio instead.
  */
 export const normalizeVideoDownloadQuality = (
   quality: DownloadQuality | null | undefined
 ): DownloadQuality => {
-  if (quality === "1080p") {
+  if (quality === "1080p" || quality === null || quality === undefined) {
     return "1080p";
   }
 

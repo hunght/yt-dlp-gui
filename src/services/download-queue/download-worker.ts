@@ -513,6 +513,19 @@ export const spawnDownload = async (
       fullCommand: `${ytDlpPath} ${args.join(" ")}`,
     });
 
+    const outputDir = path.dirname(outputPath);
+    try {
+      fs.mkdirSync(outputDir, { recursive: true });
+    } catch (error) {
+      logger.error("[download-worker] Failed to create download directory", {
+        downloadId,
+        videoId,
+        outputDir,
+        error,
+      });
+      throw new Error(`Unable to create download directory: ${outputDir}`);
+    }
+
     // Spawn yt-dlp process
     const process = spawn(ytDlpPath, args);
 
@@ -523,7 +536,7 @@ export const spawnDownload = async (
       startTime: Date.now(),
       lastProgressUpdate: Date.now(),
       lastKnownFilePath: undefined,
-      outputDir: path.dirname(outputPath),
+      outputDir,
       videoId,
       lastStderrError: undefined,
       stderrBuffer: [],

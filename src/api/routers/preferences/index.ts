@@ -122,12 +122,52 @@ const hasReadAccess = async (targetPath: string): Promise<boolean> => {
       return false;
     }
 
+    if (errorCode === "ENOENT") {
+      const parentPath = path.dirname(targetPath);
+
+      if (parentPath !== targetPath) {
+        try {
+          await fs.promises.access(parentPath, fs.constants.R_OK);
+          logger.info(
+            "[preferences] Directory does not exist yet, but parent directory is readable",
+            {
+              targetPath,
+              parentPath,
+            }
+          );
+          return true;
+        } catch (parentError) {
+          const parentErrorCode =
+            typeof parentError === "object" && parentError !== null && "code" in parentError
+              ? String(parentError.code)
+              : "UNKNOWN";
+
+          logger.warn("[preferences] Directory and parent directory are not accessible", {
+            targetPath,
+            parentPath,
+            errorCode,
+            message,
+            parentErrorCode,
+            parentMessage: parentError instanceof Error ? parentError.message : String(parentError),
+          });
+          return false;
+        }
+      }
+
+      logger.warn("[preferences] Directory does not exist", {
+        targetPath,
+        errorCode,
+        message,
+      });
+      return false;
+    }
+
     logger.error("[preferences] Unexpected error when checking directory access", {
       targetPath,
       errorCode,
       message,
     });
-    return true;
+    return false;
   }
 };
 

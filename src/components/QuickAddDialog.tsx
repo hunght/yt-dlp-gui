@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { toast } from "sonner";
 import { logger } from "@/helpers/logger";
+import { extractYoutubePlaylistReference } from "@/lib/youtube-url";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,15 +31,6 @@ const isValidUrl = (value: string): boolean => {
     return ["http:", "https:"].includes(u.protocol);
   } catch {
     return false;
-  }
-};
-
-const extractPlaylistId = (url: string): string | null => {
-  try {
-    const u = new URL(url);
-    return u.searchParams.get("list");
-  } catch {
-    return null;
   }
 };
 
@@ -221,7 +213,7 @@ export function QuickAddDialog({ open, onOpenChange }: QuickAddDialogProps): Rea
   }, [url, lastFetchedUrl]);
 
   const isPlaylistUrl = useMemo(() => {
-    return isValidUrl(url) && extractPlaylistId(url) !== null;
+    return isValidUrl(url) && extractYoutubePlaylistReference(url) !== null;
   }, [url]);
 
   const isChannelUrlMemo = useMemo(() => {
@@ -257,11 +249,22 @@ export function QuickAddDialog({ open, onOpenChange }: QuickAddDialogProps): Rea
     }
 
     // Handle playlist URLs - navigate to playlist page
-    const playlistId = extractPlaylistId(url);
-    if (playlistId) {
-      logger.debug("QuickAdd navigating to playlist", { url, playlistId });
+    const playlistRef = extractYoutubePlaylistReference(url);
+    if (playlistRef) {
+      logger.debug("QuickAdd navigating to playlist", {
+        url,
+        playlistId: playlistRef.playlistId,
+        playlistUrl: playlistRef.playlistUrl,
+      });
       onOpenChange(false);
-      navigate({ to: "/playlist", search: { playlistId, type: undefined } });
+      navigate({
+        to: "/playlist",
+        search: {
+          playlistId: playlistRef.playlistId,
+          playlistUrl: playlistRef.playlistUrl,
+          type: undefined,
+        },
+      });
       return;
     }
 

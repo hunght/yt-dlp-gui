@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PageContainer } from "@/components/ui/page-container";
 import { toast } from "sonner";
 import { logger } from "@/helpers/logger";
+import { extractYoutubePlaylistReference } from "@/lib/youtube-url";
 import {
   Download,
   Clock,
@@ -26,15 +27,6 @@ const isValidUrl = (value: string): boolean => {
     return ["http:", "https:"].includes(u.protocol);
   } catch {
     return false;
-  }
-};
-
-const extractPlaylistId = (url: string): string | null => {
-  try {
-    const u = new URL(url);
-    return u.searchParams.get("list");
-  } catch {
-    return null;
   }
 };
 
@@ -205,7 +197,8 @@ export default function DashboardPage(): React.JSX.Element {
 
   // Fetch playlist preview mutation
   const playlistPreviewMutation = useMutation({
-    mutationFn: (playlistId: string) => trpcClient.playlists.getDetails.query({ playlistId }),
+    mutationFn: ({ playlistId, playlistUrl }: { playlistId: string; playlistUrl?: string }) =>
+      trpcClient.playlists.getDetails.query({ playlistId, playlistUrl }),
     onSuccess: (res): void => {
       setIsLoadingPreview(false);
       if (res) {
@@ -292,10 +285,14 @@ export default function DashboardPage(): React.JSX.Element {
         channelPreviewMutation.mutate(normalizedUrl);
       } else {
         // Check if URL contains a playlist
-        const playlistId = extractPlaylistId(url);
-        if (playlistId) {
-          logger.debug("Dashboard fetching playlist preview", { url, playlistId });
-          playlistPreviewMutation.mutate(playlistId);
+        const playlistRef = extractYoutubePlaylistReference(url);
+        if (playlistRef) {
+          logger.debug("Dashboard fetching playlist preview", {
+            url,
+            playlistId: playlistRef.playlistId,
+            playlistUrl: playlistRef.playlistUrl,
+          });
+          playlistPreviewMutation.mutate(playlistRef);
         } else {
           logger.debug("Dashboard fetching video preview", { url });
           previewMutation.mutate(url);
@@ -340,7 +337,7 @@ export default function DashboardPage(): React.JSX.Element {
   );
 
   const isPlaylistUrl = useMemo(() => {
-    return isValidUrl(url) && extractPlaylistId(url) !== null;
+    return isValidUrl(url) && extractYoutubePlaylistReference(url) !== null;
   }, [url]);
 
   const isChannelUrlMemo = useMemo(() => {
@@ -363,11 +360,22 @@ export default function DashboardPage(): React.JSX.Element {
     }
 
     // Check if URL contains a playlist
-    const playlistId = extractPlaylistId(url);
-    if (playlistId) {
-      logger.debug("Dashboard navigating to playlist", { url, playlistId });
+    const playlistRef = extractYoutubePlaylistReference(url);
+    if (playlistRef) {
+      logger.debug("Dashboard navigating to playlist", {
+        url,
+        playlistId: playlistRef.playlistId,
+        playlistUrl: playlistRef.playlistUrl,
+      });
       // Navigate to playlist page
-      navigate({ to: "/playlist", search: { playlistId, type: undefined } });
+      navigate({
+        to: "/playlist",
+        search: {
+          playlistId: playlistRef.playlistId,
+          playlistUrl: playlistRef.playlistUrl,
+          type: undefined,
+        },
+      });
       return;
     }
 

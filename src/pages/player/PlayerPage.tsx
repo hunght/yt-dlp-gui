@@ -37,6 +37,7 @@ export default function PlayerPage(): React.JSX.Element {
   const search = useSearch({ from: "/player" });
   const videoId = search.videoId;
   const playlistId = search.playlistId;
+  const playlistUrl = search.playlistUrl;
   const playlistIndex = search.playlistIndex;
 
   // Video reference for playback control
@@ -295,10 +296,10 @@ export default function PlayerPage(): React.JSX.Element {
 
   // Fetch playlist details if we have a playlistId
   const playlistQuery = useQuery({
-    queryKey: ["playlist-details", playlistId],
+    queryKey: ["playlist-details", playlistId, playlistUrl],
     queryFn: async () => {
       if (!playlistId) return null;
-      return await trpcClient.playlists.getDetails.query({ playlistId });
+      return await trpcClient.playlists.getDetails.query({ playlistId, playlistUrl });
     },
     enabled: !!playlistId,
     staleTime: Infinity,
@@ -343,6 +344,7 @@ export default function PlayerPage(): React.JSX.Element {
         search: {
           videoId: nextVideo.videoId,
           playlistId,
+          playlistUrl: playlistData?.url ?? playlistUrl,
           playlistIndex: nextIndex,
         },
       });
@@ -350,6 +352,8 @@ export default function PlayerPage(): React.JSX.Element {
   }, [
     playlistHasNext,
     playlistId,
+    playlistData?.url,
+    playlistUrl,
     playlistCurrentIndex,
     playlistVideos,
     updatePlaybackMutation,
@@ -370,6 +374,7 @@ export default function PlayerPage(): React.JSX.Element {
         search: {
           videoId: previousVideo.videoId,
           playlistId,
+          playlistUrl: playlistData?.url ?? playlistUrl,
           playlistIndex: previousIndex,
         },
       });
@@ -377,6 +382,8 @@ export default function PlayerPage(): React.JSX.Element {
   }, [
     playlistHasPrevious,
     playlistId,
+    playlistData?.url,
+    playlistUrl,
     playlistCurrentIndex,
     playlistVideos,
     updatePlaybackMutation,

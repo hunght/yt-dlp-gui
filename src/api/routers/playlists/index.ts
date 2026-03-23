@@ -58,6 +58,7 @@ export const playlistsRouter = t.router({
     .input(
       z.object({
         playlistId: z.string(),
+        playlistUrl: z.string().url().optional(),
         forceRefresh: z.boolean().optional(),
         limit: z.number().min(1).max(500).optional(),
       })
@@ -175,7 +176,10 @@ export const playlistsRouter = t.router({
       });
       jobManager.startJob(job.id);
 
-      const url = `https://www.youtube.com/playlist?list=${input.playlistId}`;
+      const url =
+        input.playlistUrl ??
+        playlistMeta?.url ??
+        `https://www.youtube.com/playlist?list=${input.playlistId}`;
 
       let data;
       try {

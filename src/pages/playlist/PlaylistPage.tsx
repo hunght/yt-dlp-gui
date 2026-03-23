@@ -45,6 +45,7 @@ export default function PlaylistPage(): React.JSX.Element {
   const navigate = useNavigate();
   const search = useSearch({ from: "/playlist" });
   const playlistId = search.playlistId;
+  const playlistUrl = search.playlistUrl;
   const isCustomPlaylist = search.type === "custom";
   const queryClient = useQueryClient();
 
@@ -57,11 +58,11 @@ export default function PlaylistPage(): React.JSX.Element {
 
   // YouTube playlist query
   const youtubeQuery = useQuery({
-    queryKey: ["playlist-details", playlistId, "youtube"],
+    queryKey: ["playlist-details", playlistId, playlistUrl, "youtube"],
     queryFn: async () => {
       // Double-check this is not a custom playlist (guard against race conditions)
       if (!playlistId || isCustomPlaylist) return null;
-      return await trpcClient.playlists.getDetails.query({ playlistId });
+      return await trpcClient.playlists.getDetails.query({ playlistId, playlistUrl });
     },
     enabled: !!playlistId && !isCustomPlaylist,
     staleTime: Infinity,
@@ -130,6 +131,7 @@ export default function PlaylistPage(): React.JSX.Element {
         thumbnailPath: customQuery.data.thumbnailPath,
         itemCount: customQuery.data.itemCount,
         currentVideoIndex: customQuery.data.currentVideoIndex ?? 0,
+        url: null,
         videos: customQuery.data.videos ?? [],
       };
     } else if (!isCustomPlaylist && youtubeQuery.data) {
@@ -176,7 +178,11 @@ export default function PlaylistPage(): React.JSX.Element {
       if (isCustomPlaylist) {
         await customQuery.refetch();
       } else {
-        await trpcClient.playlists.getDetails.query({ playlistId, forceRefresh: true });
+        await trpcClient.playlists.getDetails.query({
+          playlistId,
+          playlistUrl: data?.url ?? playlistUrl,
+          forceRefresh: true,
+        });
         await youtubeQuery.refetch();
       }
     } finally {
@@ -197,6 +203,7 @@ export default function PlaylistPage(): React.JSX.Element {
         search: {
           videoId: video.videoId,
           playlistId: isCustomPlaylist ? playlistId : playlistId,
+          playlistUrl: isCustomPlaylist ? undefined : (data?.url ?? playlistUrl),
           playlistIndex: startIndex,
         },
       });
@@ -211,6 +218,7 @@ export default function PlaylistPage(): React.JSX.Element {
         search: {
           videoId: video.videoId,
           playlistId,
+          playlistUrl: isCustomPlaylist ? undefined : (data?.url ?? playlistUrl),
           playlistIndex: index,
         },
       });

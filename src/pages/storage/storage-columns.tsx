@@ -24,6 +24,8 @@ export type StorageVideo = {
   thumbnailUrl: string | null;
   filePath: string | null;
   fileSizeBytes: number | null;
+  videoWidth: number | null;
+  videoHeight: number | null;
   durationSeconds: number | null;
   lastWatchedAt: number | null;
   fileExists: boolean;
@@ -45,6 +47,17 @@ export const formatDuration = (seconds: number | null | undefined): string => {
   const mins = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${mins}m ${remainingSeconds}s`;
+};
+
+export const formatResolution = (
+  width: number | null | undefined,
+  height: number | null | undefined
+): string => {
+  if (!height || height <= 0) return "–";
+  if (width && width > 0) {
+    return `${height}p`;
+  }
+  return `${height}p`;
 };
 
 export const formatRelativeDate = (timestamp: number | null | undefined): string => {
@@ -260,6 +273,25 @@ export function createStorageColumns(options: ColumnOptions): ColumnDef<StorageV
       cell: ({ row }) => (
         <span className="whitespace-nowrap text-sm tabular-nums">
           {formatDuration(row.original.durationSeconds)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "videoHeight",
+      size: 95,
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="-ml-4"
+        >
+          Resolution
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap text-sm tabular-nums">
+          {formatResolution(row.original.videoWidth, row.original.videoHeight)}
         </span>
       ),
     },

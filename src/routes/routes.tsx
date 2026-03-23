@@ -66,6 +66,7 @@ const PlayerRoute = createRoute({
     return {
       videoId: typeof search.videoId === "string" ? search.videoId : undefined,
       playlistId: typeof search.playlistId === "string" ? search.playlistId : undefined,
+      ...(typeof search.playlistUrl === "string" ? { playlistUrl: search.playlistUrl } : {}),
       playlistIndex: typeof search.playlistIndex === "number" ? search.playlistIndex : undefined,
     };
   },
@@ -95,6 +96,7 @@ const PlaylistRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => {
     return {
       playlistId: typeof search.playlistId === "string" ? search.playlistId : undefined,
+      ...(typeof search.playlistUrl === "string" ? { playlistUrl: search.playlistUrl } : {}),
       type: search.type === "custom" ? ("custom" as const) : undefined,
     };
   },

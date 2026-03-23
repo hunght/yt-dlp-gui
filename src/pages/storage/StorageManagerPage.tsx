@@ -247,6 +247,8 @@ export default function StorageManagerPage(): React.JSX.Element {
       thumbnailUrl: row.thumbnailUrl,
       filePath: row.filePath,
       fileSizeBytes: row.fileSizeBytes,
+      videoWidth: row.videoWidth,
+      videoHeight: row.videoHeight,
       durationSeconds: row.durationSeconds,
       lastWatchedAt: row.lastWatchedAt,
       fileExists: row.fileExists,

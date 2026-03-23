@@ -15,6 +15,7 @@ import { spawnYtDlpWithLogging, extractVideoId, runYtDlpJson } from "@/api/utils
 import { downloadImageToCache } from "@/api/utils/ytdlp-utils/cache";
 import { eq, desc, inArray, sql } from "drizzle-orm";
 import { getBackgroundJobsManager } from "@/services/background-jobs/job-manager";
+import { getVideoResolution } from "@/services/optimization-queue/optimization-worker";
 import {
   youtubeVideos,
   channels,
@@ -33,6 +34,31 @@ const getBinaryFilePath = (): string => path.join(getBinDir(), getYtDlpAssetName
 
 const isNodeError = (value: unknown): value is NodeJS.ErrnoException => {
   return typeof value === "object" && value !== null && "code" in value;
+};
+
+const mapWithConcurrency = async <T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>
+): Promise<R[]> => {
+  const results: Array<R | undefined> = [];
+  let nextIndex = 0;
+
+  const worker = async (): Promise<void> => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex++;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  };
+
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results.map((result, index) => {
+    if (result === undefined) {
+      throw new Error(`mapWithConcurrency missing result at index ${index}`);
+    }
+    return result;
+  });
 };
 
 // Helper type for video update fields to avoid repetition
@@ -529,9 +555,10 @@ export const ytdlpRouter = t.router({
         .orderBy(desc(youtubeVideos.lastDownloadedAt))
         .limit(limit);
 
-      return rows.map((row) => {
+      return await mapWithConcurrency(rows, 4, async (row) => {
         const fileExists = row.filePath ? fs.existsSync(row.filePath) : false;
         let fileSizeBytes = row.downloadFileSize ?? null;
+        let resolution: { width: number; height: number } | null = null;
 
         if (!fileSizeBytes && row.filePath && fileExists) {
           try {
@@ -545,6 +572,10 @@ export const ytdlpRouter = t.router({
           }
         }
 
+        if (row.filePath && fileExists) {
+          resolution = await getVideoResolution(row.filePath);
+        }
+
         return {
           videoId: row.videoId,
           title: row.title,
@@ -554,6 +585,8 @@ export const ytdlpRouter = t.router({
           filePath: row.filePath,
           fileExists,
           fileSizeBytes,
+          videoWidth: resolution?.width ?? null,
+          videoHeight: resolution?.height ?? null,
           downloadStatus: row.downloadStatus,
           downloadProgress: row.downloadProgress,
           durationSeconds: row.durationSeconds,

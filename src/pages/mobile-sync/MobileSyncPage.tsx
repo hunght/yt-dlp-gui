@@ -153,7 +153,8 @@ export default function MobileSyncPage(): React.JSX.Element {
           <div>
             <h1 className="text-2xl font-bold">Mobile Sync</h1>
             <p className="text-muted-foreground">
-              Share your videos with the LearnifyTube mobile app
+              Share your videos with the LearnifyTube mobile app. Closing the window keeps
+              LearnifyTube running in the tray.
             </p>
           </div>
           <Badge
@@ -188,7 +189,10 @@ export default function MobileSyncPage(): React.JSX.Element {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-base font-medium">Enable Server</Label>
-                  <p className="text-sm text-muted-foreground">Allow mobile devices to connect</p>
+                  <p className="text-sm text-muted-foreground">
+                    Allow mobile devices to connect. Sync stays on until you disable it or quit the
+                    app.
+                  </p>
                 </div>
                 <Switch
                   checked={syncStatus?.enabled ?? false}
@@ -238,6 +242,13 @@ export default function MobileSyncPage(): React.JSX.Element {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {syncStatus?.enabled && (
+                <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  LearnifyTube stays running in the tray and asks the desktop to stay awake while
+                  Mobile Sync is enabled to reduce disconnects.
+                </p>
               )}
 
               {/* Stats */}

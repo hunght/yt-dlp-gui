@@ -72,7 +72,8 @@ export function SyncTab(): React.JSX.Element {
             Mobile Sync
           </CardTitle>
           <CardDescription>
-            Sync and stream your downloaded videos to the LearnifyTube mobile app over WiFi
+            Sync and stream your downloaded videos to the LearnifyTube mobile app over WiFi. Closing
+            the window keeps LearnifyTube running in the tray.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -82,7 +83,8 @@ export function SyncTab(): React.JSX.Element {
                 Enable Mobile Sync
               </Label>
               <p className="text-sm text-muted-foreground">
-                Allow mobile devices on your network to access videos
+                Allow mobile devices on your network to access videos. Sync stays on until you
+                disable it or quit the app.
               </p>
             </div>
             <Switch
@@ -131,6 +133,11 @@ export function SyncTab(): React.JSX.Element {
                   </div>
                 </div>
               </div>
+
+              <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                LearnifyTube stays running in the tray and asks the desktop to stay awake while
+                Mobile Sync is enabled to reduce disconnects.
+              </p>
             </div>
           )}
         </CardContent>

@@ -19,11 +19,12 @@ import {
   translationCache,
   translationContexts,
 } from "../api/db/schema";
-import { app } from "electron";
+import { app, powerMonitor, powerSaveBlocker } from "electron";
 import { getMdnsService } from "./mdnsService";
 import { getQueueManager } from "../services/download-queue/queue-manager";
 import { parseVttToSegments, downloadTranscript } from "../api/routers/transcripts";
 import { downloadImageToCache } from "../api/utils/ytdlp-utils/thumbnail";
+import { getPlaylistDetailsForServer } from "../api/routers/playlists";
 
 /**
  * HTTP server for mobile sync - allows the mobile companion app
@@ -34,6 +35,8 @@ const DEFAULT_PORT = 53318;
 // Versioned contract between desktop sync server and mobile app.
 const MOBILE_SYNC_PROTOCOL_VERSION = 1;
 const MIN_SUPPORTED_MOBILE_SYNC_PROTOCOL_VERSION = 1;
+const MOBILE_SYNC_RESUME_REANNOUNCE_DELAY_MS = 1500;
+const MOBILE_SYNC_POWER_BLOCKER_TYPE = "prevent-app-suspension";
 
 type FavoriteEntityType = "video" | "custom_playlist" | "channel_playlist";
 function isFavoriteEntityType(s: string): s is FavoriteEntityType {
@@ -202,6 +205,10 @@ const createMobileSyncServer = (): MobileSyncServer => {
   let server: http.Server | null = null;
   let port = 0;
   const connectedDevices = new Map<string, ConnectedDevice>();
+  const playlistHydrationRequests = new Map<string, Promise<void>>();
+  let keepAwakeBlockerId: number | null = null;
+  let resumeReannounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let powerMonitorListenersRegistered = false;
 
   // Clean up stale devices (not seen in last 5 minutes)
   const cleanupStaleDevices = (): void => {
@@ -249,6 +256,106 @@ const createMobileSyncServer = (): MobileSyncServer => {
 
   const sendError = (res: http.ServerResponse, message: string, statusCode = 500): void => {
     sendJson(res, { error: message }, statusCode);
+  };
+
+  const clearResumeReannounceTimer = (): void => {
+    if (!resumeReannounceTimer) {
+      return;
+    }
+
+    clearTimeout(resumeReannounceTimer);
+    resumeReannounceTimer = null;
+  };
+
+  const ensureKeepAwakeBlocker = (): void => {
+    if (keepAwakeBlockerId !== null && powerSaveBlocker.isStarted(keepAwakeBlockerId)) {
+      return;
+    }
+
+    keepAwakeBlockerId = powerSaveBlocker.start(MOBILE_SYNC_POWER_BLOCKER_TYPE);
+    logger.info("[MobileSyncServer] Enabled power save blocker", {
+      blockerId: keepAwakeBlockerId,
+      blockerType: MOBILE_SYNC_POWER_BLOCKER_TYPE,
+    });
+  };
+
+  const releaseKeepAwakeBlocker = (): void => {
+    if (keepAwakeBlockerId === null) {
+      return;
+    }
+
+    if (powerSaveBlocker.isStarted(keepAwakeBlockerId)) {
+      powerSaveBlocker.stop(keepAwakeBlockerId);
+      logger.info("[MobileSyncServer] Released power save blocker", {
+        blockerId: keepAwakeBlockerId,
+      });
+    }
+
+    keepAwakeBlockerId = null;
+  };
+
+  const getCompletedVideoCount = async (): Promise<number> => {
+    const videos = await defaultDb
+      .select()
+      .from(youtubeVideos)
+      .where(eq(youtubeVideos.downloadStatus, "completed"));
+
+    return videos.length;
+  };
+
+  const refreshMdnsAdvertisement = async (reason: string): Promise<void> => {
+    if (!server?.listening || port <= 0) {
+      return;
+    }
+
+    try {
+      const videoCount = await getCompletedVideoCount();
+      const ip = getLocalIpAddress();
+
+      logger.info("[MobileSyncServer] Refreshing mDNS advertisement", {
+        reason,
+        ip,
+        port,
+        videoCount,
+      });
+
+      getMdnsService().publish(port, videoCount);
+      getMdnsService().startScanning();
+    } catch (error) {
+      logger.error("[MobileSyncServer] Failed to refresh mDNS advertisement", {
+        reason,
+        error,
+      });
+    }
+  };
+
+  const registerPowerMonitorListeners = (): void => {
+    if (powerMonitorListenersRegistered) {
+      return;
+    }
+
+    powerMonitor.on("suspend", () => {
+      if (!server?.listening) {
+        return;
+      }
+
+      logger.warn("[MobileSyncServer] System is suspending while Mobile Sync is running");
+    });
+
+    powerMonitor.on("resume", () => {
+      if (!server?.listening) {
+        return;
+      }
+
+      logger.info("[MobileSyncServer] System resumed, re-announcing Mobile Sync service");
+      clearResumeReannounceTimer();
+      resumeReannounceTimer = setTimeout(() => {
+        resumeReannounceTimer = null;
+        void refreshMdnsAdvertisement("system-resume");
+      }, MOBILE_SYNC_RESUME_REANNOUNCE_DELAY_MS);
+    });
+
+    powerMonitorListenersRegistered = true;
   };
 
   const handleApiInfo = async (res: http.ServerResponse): Promise<void> => {
@@ -1094,6 +1201,52 @@ const createMobileSyncServer = (): MobileSyncServer => {
     }
   };
 
+  const getChannelPlaylistItems = async (
+    playlistId: string
+  ): Promise<Array<typeof playlistItems.$inferSelect>> =>
+    defaultDb
+      .select()
+      .from(playlistItems)
+      .where(eq(playlistItems.playlistId, playlistId))
+      .orderBy(playlistItems.position);
+
+  const hydrateChannelPlaylistIfNeeded = async (
+    playlist: typeof channelPlaylists.$inferSelect
+  ): Promise<void> => {
+    const existingRequest = playlistHydrationRequests.get(playlist.playlistId);
+    if (existingRequest) {
+      await existingRequest;
+      return;
+    }
+
+    const hydrationRequest = (async () => {
+      const limit =
+        typeof playlist.itemCount === "number" && playlist.itemCount > 0
+          ? Math.min(playlist.itemCount, 500)
+          : 500;
+
+      logger.info("[MobileSyncServer] Hydrating channel playlist on demand", {
+        playlistId: playlist.playlistId,
+        playlistUrl: playlist.url,
+        limit,
+      });
+
+      await getPlaylistDetailsForServer({
+        playlistId: playlist.playlistId,
+        playlistUrl: playlist.url ?? undefined,
+        limit,
+      });
+    })();
+
+    playlistHydrationRequests.set(playlist.playlistId, hydrationRequest);
+
+    try {
+      await hydrationRequest;
+    } finally {
+      playlistHydrationRequests.delete(playlist.playlistId);
+    }
+  };
+
   // GET /api/playlist/:id/videos - Videos in a playlist with download status
   const handlePlaylistVideos = async (
     res: http.ServerResponse,
@@ -1109,11 +1262,19 @@ const createMobileSyncServer = (): MobileSyncServer => {
 
       if (channelPlaylist.length > 0) {
         // Get videos from channel playlist
-        const items = await defaultDb
-          .select()
-          .from(playlistItems)
-          .where(eq(playlistItems.playlistId, playlistId))
-          .orderBy(playlistItems.position);
+        let items = await getChannelPlaylistItems(playlistId);
+
+        if (items.length === 0) {
+          try {
+            await hydrateChannelPlaylistIfNeeded(channelPlaylist[0]);
+            items = await getChannelPlaylistItems(playlistId);
+          } catch (error) {
+            logger.error("[MobileSyncServer] Failed to hydrate playlist details on demand", {
+              playlistId,
+              error,
+            });
+          }
+        }
 
         const videoIds = items.map((i) => i.videoId);
         if (videoIds.length === 0) {
@@ -2379,16 +2540,15 @@ const createMobileSyncServer = (): MobileSyncServer => {
           logger.info(`[MobileSyncServer] URL: http://${ip ?? "0.0.0.0"}:${port}`);
           logger.info(`[MobileSyncServer] Local IP: ${ip}`);
           logger.info(`[MobileSyncServer] Port: ${port}`);
+          registerPowerMonitorListeners();
+          ensureKeepAwakeBlocker();
 
           // Publish mDNS service for discovery
           logger.info("[MobileSyncServer] Publishing mDNS service for discovery...");
           try {
-            const videos = await defaultDb
-              .select()
-              .from(youtubeVideos)
-              .where(eq(youtubeVideos.downloadStatus, "completed"));
-            logger.info(`[MobileSyncServer] Found ${videos.length} completed videos to share`);
-            getMdnsService().publish(port, videos.length);
+            const videoCount = await getCompletedVideoCount();
+            logger.info(`[MobileSyncServer] Found ${videoCount} completed videos to share`);
+            getMdnsService().publish(port, videoCount);
             logger.info("[MobileSyncServer] ✓ mDNS service published");
 
             // Start scanning for mobile devices
@@ -2412,6 +2572,8 @@ const createMobileSyncServer = (): MobileSyncServer => {
     // Stop mDNS scanner and unpublish service
     getMdnsService().stopScanning();
     getMdnsService().unpublish();
+    clearResumeReannounceTimer();
+    releaseKeepAwakeBlocker();
 
     if (!server) {
       return;

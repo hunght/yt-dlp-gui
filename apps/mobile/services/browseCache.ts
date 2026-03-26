@@ -318,5 +318,8 @@ export function getCachedMyLists(): RemoteMyList[] {
       name: playlist.title,
       itemCount: playlist.totalCount,
       thumbnailUrl: playlist.thumbnailUrl ?? null,
+      sourceType: "custom_playlist",
+      sourceId: playlist.sourceId ?? stripCachedPlaylistPrefix("mylist", playlist.id),
+      isFavorite: false,
     }));
 }

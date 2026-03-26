@@ -38,6 +38,7 @@ import {
   type ViewMode,
 } from "./components/PlaylistFilters";
 import { EditPlaylistDialog } from "@/components/playlists/EditPlaylistDialog";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { cn } from "@/lib/utils";
 import { FolderHeart, MoreVertical, Pencil, Trash2 } from "lucide-react";
 
@@ -315,35 +316,48 @@ export default function PlaylistPage(): React.JSX.Element {
   return (
     <PageContainer className="space-y-6">
       {/* Custom playlist badge and actions */}
-      {isCustomPlaylist && (
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
+        {isCustomPlaylist ? (
           <Badge variant="secondary" className="flex items-center gap-1.5">
             <FolderHeart className="h-3.5 w-3.5" />
             My Playlist
           </Badge>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <MoreVertical className="h-4 w-4" />
-                Actions
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit Playlist
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setShowDeleteDialog(true)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Playlist
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        ) : (
+          <div />
+        )}
+        <div className="flex items-center gap-2">
+          <FavoriteButton
+            entityType={isCustomPlaylist ? "custom_playlist" : "channel_playlist"}
+            entityId={playlistId}
+            variant="outline"
+            size="sm"
+            showLabel
+          />
+          {isCustomPlaylist && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <MoreVertical className="h-4 w-4" />
+                  Actions
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit Playlist
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Playlist
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
-      )}
+      </div>
 
       <PlaylistHeader
         title={title}

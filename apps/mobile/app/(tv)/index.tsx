@@ -800,7 +800,9 @@ export default function TVHomeScreen() {
       return myLists.map((item) => ({
         id: item.id,
         title: item.name,
-        subtitle: `${item.itemCount} videos`,
+        subtitle: item.isFavorite
+          ? `Favorite · ${item.itemCount} videos`
+          : `${item.itemCount} videos`,
         thumbnailUrl: resolveThumbnailUrl(serverUrl, item.thumbnailUrl),
         type: "mylist",
       }));

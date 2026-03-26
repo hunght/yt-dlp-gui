@@ -138,6 +138,9 @@ export interface RemoteMyList {
   name: string;
   itemCount: number;
   thumbnailUrl: string | null;
+  sourceType: "custom_playlist" | "channel_playlist";
+  sourceId: string;
+  isFavorite: boolean;
 }
 
 // Browse tabs for the home screen

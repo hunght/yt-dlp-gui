@@ -4,6 +4,7 @@ import { trpcClient } from "@/utils/trpc";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { ExternalLink as ExternalLinkIcon, Loader2 } from "lucide-react";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import Thumbnail from "@/components/Thumbnail";
 
 interface PlaylistsTabProps {
@@ -77,7 +78,12 @@ export const PlaylistsTab: React.FC<PlaylistsTabProps> = ({ channelId, isActive:
               playlist.thumbnailUrl.includes("no_thumbnail");
 
             return (
-              <div key={playlist.id} className="space-y-3 rounded-lg border p-4">
+              <div key={playlist.id} className="group relative space-y-3 rounded-lg border p-4">
+                <FavoriteButton
+                  entityType="channel_playlist"
+                  entityId={playlist.playlistId || playlist.id}
+                  className="absolute right-3 top-3 z-10 h-8 w-8 bg-background/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
+                />
                 {/* Playlist Thumbnail */}
                 {hideNoThumb ? (
                   <div className="aspect-video w-full rounded bg-muted" />

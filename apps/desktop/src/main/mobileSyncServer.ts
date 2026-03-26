@@ -110,6 +110,9 @@ interface RemoteMyList {
   name: string;
   itemCount: number;
   thumbnailUrl: string | null;
+  sourceType: "custom_playlist" | "channel_playlist";
+  sourceId: string;
+  isFavorite: boolean;
 }
 
 interface RemoteVideoWithStatus {
@@ -1179,20 +1182,73 @@ const createMobileSyncServer = (): MobileSyncServer => {
   // GET /api/mylists - List all custom lists
   const handleApiMyLists = async (res: http.ServerResponse): Promise<void> => {
     try {
+      const favoriteList = await defaultDb
+        .select()
+        .from(favorites)
+        .where(
+          inArray(favorites.entityType, [
+            "custom_playlist",
+            "channel_playlist",
+          ] as FavoriteEntityType[])
+        );
+      const favoriteCustomIds = new Set(
+        favoriteList
+          .filter((fav) => fav.entityType === "custom_playlist")
+          .map((fav) => fav.entityId)
+      );
+      const favoriteChannelIds = new Set(
+        favoriteList
+          .filter((fav) => fav.entityType === "channel_playlist")
+          .map((fav) => fav.entityId)
+      );
+
       const customPlaylistList = await defaultDb.select().from(customPlaylists);
+      const channelPlaylistList = await defaultDb.select().from(channelPlaylists);
 
       const customPlaylistItemList = await defaultDb.select().from(customPlaylistItems);
+      const channelPlaylistItemList = await defaultDb.select().from(playlistItems);
       const itemCountMap = new Map<string, number>();
       for (const item of customPlaylistItemList) {
         itemCountMap.set(item.playlistId, (itemCountMap.get(item.playlistId) ?? 0) + 1);
       }
+      const channelItemCountMap = new Map<string, number>();
+      for (const item of channelPlaylistItemList) {
+        channelItemCountMap.set(item.playlistId, (channelItemCountMap.get(item.playlistId) ?? 0) + 1);
+      }
 
-      const remoteMyLists: RemoteMyList[] = customPlaylistList.map((p) => ({
-        id: p.id,
-        name: p.name,
-        itemCount: itemCountMap.get(p.id) ?? p.itemCount ?? 0,
-        thumbnailUrl: null,
-      }));
+      const remoteMyLists: RemoteMyList[] = [];
+
+      for (const p of customPlaylistList) {
+        remoteMyLists.push({
+          id: p.id,
+          name: p.name,
+          itemCount: itemCountMap.get(p.id) ?? p.itemCount ?? 0,
+          thumbnailUrl: null,
+          sourceType: "custom_playlist",
+          sourceId: p.id,
+          isFavorite: favoriteCustomIds.has(p.id),
+        });
+      }
+
+      for (const p of channelPlaylistList) {
+        if (!favoriteChannelIds.has(p.playlistId)) {
+          continue;
+        }
+        const hasThumbnailSource = p.thumbnailPath || p.thumbnailUrl;
+        remoteMyLists.push({
+          id: `fav_channel_playlist:${p.playlistId}`,
+          name: p.title,
+          itemCount: channelItemCountMap.get(p.playlistId) ?? p.itemCount ?? 0,
+          thumbnailUrl: hasThumbnailSource
+            ? `http://${getLocalIpAddress()}:${port}/api/playlist/${p.playlistId}/thumbnail`
+            : null,
+          sourceType: "channel_playlist",
+          sourceId: p.playlistId,
+          isFavorite: true,
+        });
+      }
+
+      remoteMyLists.sort((a, b) => Number(b.isFavorite) - Number(a.isFavorite));
 
       sendJson(res, { mylists: remoteMyLists });
     } catch (error) {
@@ -1347,6 +1403,36 @@ const createMobileSyncServer = (): MobileSyncServer => {
   // GET /api/mylist/:id/videos - Videos in a custom list with download status
   const handleMyListVideos = async (res: http.ServerResponse, listId: string): Promise<void> => {
     try {
+      const channelFavoritePrefix = "fav_channel_playlist:";
+      if (listId.startsWith(channelFavoritePrefix)) {
+        const channelPlaylistId = listId.slice(channelFavoritePrefix.length);
+        const items = await defaultDb
+          .select()
+          .from(playlistItems)
+          .where(eq(playlistItems.playlistId, channelPlaylistId))
+          .orderBy(playlistItems.position);
+
+        const videoIds = items.map((i) => i.videoId);
+        if (videoIds.length === 0) {
+          sendJson(res, { videos: [] });
+          return;
+        }
+
+        const videoList = await defaultDb
+          .select()
+          .from(youtubeVideos)
+          .where(inArray(youtubeVideos.videoId, videoIds));
+
+        const videoMap = new Map(videoList.map((v) => [v.videoId, v]));
+        const videos: RemoteVideoWithStatus[] = videoIds
+          .map((id) => videoMap.get(id))
+          .filter((v): v is typeof youtubeVideos.$inferSelect => v !== undefined)
+          .map(videoToRemoteVideoWithStatus);
+
+        sendJson(res, { videos });
+        return;
+      }
+
       const customPlaylist = await defaultDb
         .select()
         .from(customPlaylists)
@@ -2402,7 +2488,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
     // GET /api/mylist/:id/videos
     const myListVideosMatch = url.match(/^(?:\/api)?\/mylist\/([^/]+)\/videos$/);
     if (myListVideosMatch) {
-      await handleMyListVideos(res, myListVideosMatch[1]);
+      await handleMyListVideos(res, decodeURIComponent(myListVideosMatch[1]));
       return;
     }
 

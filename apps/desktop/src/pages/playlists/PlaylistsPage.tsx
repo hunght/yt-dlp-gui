@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageContainer } from "@/components/ui/page-container";
 import { RefreshCw, Search, Clock, TrendingUp } from "lucide-react";
 import Thumbnail from "@/components/Thumbnail";
+import { FavoriteButton } from "@/components/FavoriteButton";
 
 type TabType = "latest" | "popular";
 
@@ -168,8 +169,13 @@ export default function PlaylistsPage(): React.JSX.Element {
                     to="/playlist"
                     search={{ playlistId: playlist.playlistId, type: undefined }}
                     onClick={() => handlePlaylistClick(playlist.playlistId)}
-                    className="group cursor-pointer space-y-2 rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                    className="group relative cursor-pointer space-y-2 rounded-lg border p-3 transition-colors hover:bg-muted/50"
                   >
+                    <FavoriteButton
+                      entityType="channel_playlist"
+                      entityId={playlist.playlistId}
+                      className="absolute right-3 top-3 z-10 h-8 w-8 bg-background/80 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100"
+                    />
                     {/* Thumbnail */}
                     <div className="relative">
                       <Thumbnail

@@ -588,84 +588,107 @@ export default function TVPlayerScreen() {
 
   return (
     <View style={styles.fullscreenContainer}>
-      {isRemoteNavVisible ? (
-        <SafeAreaView style={styles.chromeSafeArea} edges={["top", "left", "right"]}>
-          <View style={styles.overlayTopRow}>
-            <View style={styles.titleChip}>
-              <Text style={styles.titleChipText} numberOfLines={1}>
-                {video?.title ?? "Now Playing"}
-              </Text>
-              <Text style={styles.titleChipMeta} numberOfLines={1}>
-                {nextVideo && prefetchState === "loading"
-                  ? `Loading next: ${nextVideo.title}`
-                  : nextVideo
-                    ? `Up next: ${nextVideo.title}`
-                    : playbackModeLabel}
-              </Text>
-            </View>
-
-            <View style={styles.navFabRow}>
-              <TVFocusPressable
-                ref={backNavRef}
-                style={styles.navFabButton}
-                onPress={() => {
-                  showRemoteNav(false);
-                  router.back();
-                }}
-                onFocus={handleRemoteNavFocus}
-                onBlur={handleRemoteNavBlur}
-                nextFocusRight={hasPrevious ? navNodeHandles.prev : navNodeHandles.playPause}
-              >
-                <Text style={styles.navFabText}>Back</Text>
-              </TVFocusPressable>
-
-              <TVFocusPressable
-                ref={prevNavRef}
-                style={[styles.navFabButton, !hasPrevious && styles.navButtonDisabled]}
-                onPress={() => {
-                  showRemoteNav(false);
-                  goToIndex(playlistIndex - 1);
-                }}
-                onFocus={handleRemoteNavFocus}
-                onBlur={handleRemoteNavBlur}
-                disabled={!hasPrevious}
-                nextFocusLeft={navNodeHandles.back}
-                nextFocusRight={navNodeHandles.playPause}
-              >
-                <Text style={styles.navFabText}>Prev</Text>
-              </TVFocusPressable>
-
-              <TVFocusPressable
-                ref={playPauseNavRef}
-                style={styles.navFabButton}
-                onPress={togglePlayPause}
-                onFocus={handleRemoteNavFocus}
-                onBlur={handleRemoteNavBlur}
-                hasTVPreferredFocus={shouldPreferRemoteNavFocus}
-                nextFocusLeft={hasPrevious ? navNodeHandles.prev : navNodeHandles.back}
-                nextFocusRight={hasNext ? navNodeHandles.next : undefined}
-              >
-                <Text style={styles.navFabText}>{isPlaying ? "Pause" : "Play"}</Text>
-              </TVFocusPressable>
-
-              <TVFocusPressable
-                ref={nextNavRef}
-                style={[styles.navFabButton, !hasNext && styles.navButtonDisabled]}
-                onPress={() => {
-                  showRemoteNav(false);
-                  goToIndex(playlistIndex + 1);
-                }}
-                onFocus={handleRemoteNavFocus}
-                onBlur={handleRemoteNavBlur}
-                disabled={!hasNext}
-                nextFocusLeft={navNodeHandles.playPause}
-              >
-                <Text style={styles.navFabText}>Next</Text>
-              </TVFocusPressable>
-            </View>
+      <SafeAreaView
+        style={[
+          styles.chromeSafeArea,
+          !isRemoteNavVisible && styles.overlayHidden,
+        ]}
+        edges={["top", "left", "right"]}
+        pointerEvents={isRemoteNavVisible ? "auto" : "none"}
+      >
+        <View style={styles.overlayTopRow}>
+          <View style={styles.titleChip}>
+            <Text style={styles.titleChipText} numberOfLines={1}>
+              {video?.title ?? "Now Playing"}
+            </Text>
+            <Text style={styles.titleChipMeta} numberOfLines={1}>
+              {nextVideo && prefetchState === "loading"
+                ? `Loading next: ${nextVideo.title}`
+                : nextVideo
+                  ? `Up next: ${nextVideo.title}`
+                  : playbackModeLabel}
+            </Text>
           </View>
-        </SafeAreaView>
-      ) : null}
+
+          <View style={styles.navFabRow}>
+            <TVFocusPressable
+              ref={backNavRef}
+              style={styles.navFabButton}
+              onPress={() => {
+                if (!isRemoteNavVisible) {
+                  showRemoteNav(true);
+                  return;
+                }
+                showRemoteNav(false);
+                router.back();
+              }}
+              onFocus={handleRemoteNavFocus}
+              onBlur={handleRemoteNavBlur}
+              nextFocusRight={hasPrevious ? navNodeHandles.prev : navNodeHandles.playPause}
+            >
+              <Text style={styles.navFabText}>Back</Text>
+            </TVFocusPressable>
+
+            <TVFocusPressable
+              ref={prevNavRef}
+              style={[styles.navFabButton, !hasPrevious && styles.navButtonDisabled]}
+              onPress={() => {
+                if (!isRemoteNavVisible) {
+                  showRemoteNav(true);
+                  return;
+                }
+                showRemoteNav(false);
+                goToIndex(playlistIndex - 1);
+              }}
+              onFocus={handleRemoteNavFocus}
+              onBlur={handleRemoteNavBlur}
+              disabled={!hasPrevious}
+              nextFocusLeft={navNodeHandles.back}
+              nextFocusRight={navNodeHandles.playPause}
+            >
+              <Text style={styles.navFabText}>Prev</Text>
+            </TVFocusPressable>
+
+            <TVFocusPressable
+              ref={playPauseNavRef}
+              style={styles.navFabButton}
+              onPress={() => {
+                if (!isRemoteNavVisible) {
+                  showRemoteNav(true);
+                  return;
+                }
+                togglePlayPause();
+              }}
+              onFocus={handleRemoteNavFocus}
+              onBlur={handleRemoteNavBlur}
+              hasTVPreferredFocus={shouldPreferRemoteNavFocus}
+              nextFocusLeft={hasPrevious ? navNodeHandles.prev : navNodeHandles.back}
+              nextFocusRight={hasNext ? navNodeHandles.next : undefined}
+            >
+              <Text style={styles.navFabText}>{isPlaying ? "Pause" : "Play"}</Text>
+            </TVFocusPressable>
+
+            <TVFocusPressable
+              ref={nextNavRef}
+              style={[styles.navFabButton, !hasNext && styles.navButtonDisabled]}
+              onPress={() => {
+                if (!isRemoteNavVisible) {
+                  showRemoteNav(true);
+                  return;
+                }
+                showRemoteNav(false);
+                goToIndex(playlistIndex + 1);
+              }}
+              onFocus={handleRemoteNavFocus}
+              onBlur={handleRemoteNavBlur}
+              disabled={!hasNext}
+              nextFocusLeft={navNodeHandles.playPause}
+            >
+              <Text style={styles.navFabText}>Next</Text>
+            </TVFocusPressable>
+          </View>
+        </View>
+      </SafeAreaView>
 
       <View style={styles.videoFrame}>
         <VideoView
@@ -678,6 +701,7 @@ export default function TVPlayerScreen() {
           importantForAccessibility="no-hide-descendants"
         />
       </View>
+
     </View>
   );
 }
@@ -731,6 +755,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.82)",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.12)",
+  },
+  overlayHidden: {
+    opacity: 0,
   },
   overlayTopRow: {
     flexDirection: "row",

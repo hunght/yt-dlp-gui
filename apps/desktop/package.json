@@ -27,7 +27,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hunght/learnify-monorepo.git"
+    "url": "https://github.com/learnifytube/LearnifyTube.git"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.8.3",

@@ -358,7 +358,7 @@ const config: ForgeConfig = {
   makers: [
     new MakerSquirrel({
       setupIcon: path.resolve(__dirname, "resources", "icon.ico"),
-      iconUrl: "https://raw.githubusercontent.com/hunght/learnify-monorepo/main/apps/desktop/resources/icon.ico",
+      iconUrl: "https://raw.githubusercontent.com/learnifytube/LearnifyTube/main/apps/desktop/resources/icon.ico",
       loadingGif: path.resolve(__dirname, "resources", "icon_64x64.png"),
       // Naming pattern: LearnifyTube-{version}.Setup.exe
       name: "LearnifyTube-${version}.Setup.exe",
@@ -387,8 +387,8 @@ const config: ForgeConfig = {
   publishers: [
     new PublisherGithub({
       repository: {
-        owner: "hunght",
-        name: "learnify-monorepo",
+        owner: "learnifytube",
+        name: "LearnifyTube",
       },
       prerelease: process.env.RELEASE_PRERELEASE === "true",
       draft: process.env.RELEASE_DRAFT === "true",

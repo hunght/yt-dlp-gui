@@ -13,7 +13,7 @@ import {
   findNodeHandle,
   useWindowDimensions,
 } from "react-native";
-import { Settings, Wifi, WifiOff } from "lucide-react-native";
+import { RefreshCw, Settings } from "lucide-react-native";
 import { router, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useConnectionStore } from "../../stores/connection";
@@ -1122,21 +1122,15 @@ export default function TVHomeScreen() {
 
         <View style={styles.iconActions}>
           <TVFocusPressable
-            style={[
-              styles.iconButton,
-              connectionStage === "offline" && styles.iconButtonOffline,
-              connectionStage === "connecting" && styles.iconButtonConnecting,
-            ]}
-            onPress={() => startAutoConnect(true)}
+            style={styles.iconButton}
+            onPress={() => void loadRemoteCollections()}
             onFocus={() => setIsGridFocused(false)}
-            disabled={connectionStage === "connecting"}
+            disabled={isLoadingCatalog}
           >
-            {connectionStage === "connecting" ? (
+            {isLoadingCatalog ? (
               <ActivityIndicator size="small" color="#fffef2" />
-            ) : connectionStage === "offline" ? (
-              <WifiOff size={24} color="#fffef2" />
             ) : (
-              <Wifi size={24} color="#fffef2" />
+              <RefreshCw size={24} color="#fffef2" />
             )}
           </TVFocusPressable>
           <TVFocusPressable
@@ -1266,14 +1260,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconButtonConnecting: {
-    backgroundColor: "#2d7ff9",
-    borderColor: "#8ec5ff",
-  },
-  iconButtonOffline: {
-    backgroundColor: "#ef4444",
-    borderColor: "#fecaca",
-  },
+
   loaderWrap: {
     marginTop: 48,
     alignItems: "center",

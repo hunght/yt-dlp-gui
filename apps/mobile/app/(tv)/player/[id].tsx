@@ -27,6 +27,7 @@ type SourcePrepareState = "idle" | "preparing" | "ready" | "failed";
 const SERVER_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 const SERVER_DOWNLOAD_POLL_MS = 2000;
 const REMOTE_NAV_TIMEOUT_MS = 4500;
+const REMOTE_NAV_AUTO_HIDE_MS = 5000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -199,20 +200,27 @@ export default function TVPlayerScreen() {
     }
   }, []);
 
+  const scheduleRemoteNavAutoHide = useCallback(() => {
+    clearRemoteNavTimeout();
+    remoteNavTimeoutRef.current = setTimeout(() => {
+      setIsRemoteNavVisible(false);
+    }, REMOTE_NAV_AUTO_HIDE_MS);
+  }, [clearRemoteNavTimeout]);
+
   const showRemoteNav = useCallback(() => {
     setIsRemoteNavVisible(true);
     setShouldPreferRemoteNavFocus(true);
-    clearRemoteNavTimeout();
-  }, [clearRemoteNavTimeout]);
+    scheduleRemoteNavAutoHide();
+  }, [scheduleRemoteNavAutoHide]);
 
   const handleRemoteNavFocus = useCallback(() => {
     setShouldPreferRemoteNavFocus(false);
-    showRemoteNav();
-  }, [showRemoteNav]);
+    scheduleRemoteNavAutoHide();
+  }, [scheduleRemoteNavAutoHide]);
 
   const handleRemoteNavBlur = useCallback(() => {
-    showRemoteNav();
-  }, [showRemoteNav]);
+    scheduleRemoteNavAutoHide();
+  }, [scheduleRemoteNavAutoHide]);
 
   const playlistIndex = useMemo(() => {
     if (!id) return -1;

@@ -1131,7 +1131,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         customPlaylistItemMap.set(item.playlistId, existing);
       }
 
-      const remotePlaylists: RemotePlaylist[] = [];
+      const playlistRows: Array<{ createdAt: number; playlist: RemotePlaylist }> = [];
 
       // Add channel playlists
       for (const p of channelPlaylistList) {
@@ -1140,16 +1140,19 @@ const createMobileSyncServer = (): MobileSyncServer => {
 
         // Always use local URL - thumbnails will be downloaded on-demand if missing
         const hasThumbnailSource = p.thumbnailPath || p.thumbnailUrl;
-        remotePlaylists.push({
-          playlistId: p.playlistId,
-          title: p.title,
-          thumbnailUrl: hasThumbnailSource
-            ? `http://${getLocalIpAddress()}:${port}/api/playlist/${p.playlistId}/thumbnail`
-            : null,
-          itemCount: p.itemCount,
-          channelId: p.channelId,
-          type: "channel",
-          downloadedCount,
+        playlistRows.push({
+          createdAt: p.createdAt ?? 0,
+          playlist: {
+            playlistId: p.playlistId,
+            title: p.title,
+            thumbnailUrl: hasThumbnailSource
+              ? `http://${getLocalIpAddress()}:${port}/api/playlist/${p.playlistId}/thumbnail`
+              : null,
+            itemCount: p.itemCount,
+            channelId: p.channelId,
+            type: "channel",
+            downloadedCount,
+          },
         });
       }
 
@@ -1158,19 +1161,24 @@ const createMobileSyncServer = (): MobileSyncServer => {
         const videoIds = customPlaylistItemMap.get(p.id) ?? [];
         const downloadedCount = videoIds.filter((id) => downloadedSet.has(id)).length;
 
-        remotePlaylists.push({
-          playlistId: p.id,
-          title: p.name,
-          thumbnailUrl: null, // Custom playlists don't have thumbnails
-          itemCount: p.itemCount,
-          channelId: null,
-          type: "custom",
-          downloadedCount,
+        playlistRows.push({
+          createdAt: p.createdAt ?? 0,
+          playlist: {
+            playlistId: p.id,
+            title: p.name,
+            thumbnailUrl: null, // Custom playlists don't have thumbnails
+            itemCount: p.itemCount,
+            channelId: null,
+            type: "custom",
+            downloadedCount,
+          },
         });
       }
 
-      // Sort by downloaded count descending
-      remotePlaylists.sort((a, b) => b.downloadedCount - a.downloadedCount);
+      // Sort by newest playlist first (latest created in desktop DB).
+      const remotePlaylists = playlistRows
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .map((row) => row.playlist);
 
       sendJson(res, { playlists: remotePlaylists });
     } catch (error) {

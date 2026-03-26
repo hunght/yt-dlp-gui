@@ -207,9 +207,11 @@ export default function TVPlayerScreen() {
     }, REMOTE_NAV_AUTO_HIDE_MS);
   }, [clearRemoteNavTimeout]);
 
-  const showRemoteNav = useCallback(() => {
+  const showRemoteNav = useCallback((preferRemoteNavFocus = false) => {
     setIsRemoteNavVisible(true);
-    setShouldPreferRemoteNavFocus(true);
+    if (preferRemoteNavFocus) {
+      setShouldPreferRemoteNavFocus(true);
+    }
     scheduleRemoteNavAutoHide();
   }, [scheduleRemoteNavAutoHide]);
 
@@ -377,8 +379,51 @@ export default function TVPlayerScreen() {
         if (!eventType || eventType === "focus" || eventType === "blur") {
           return;
         }
-        // Android sends ACTION_DOWN = 0 and ACTION_UP = 1. Handle only once per key press.
-        if (typeof event.eventKeyAction === "number" && event.eventKeyAction !== 0) {
+        const normalizedEventType = eventType.toLowerCase();
+        const isDirectionalKey =
+          normalizedEventType === "up" ||
+          normalizedEventType === "down" ||
+          normalizedEventType === "left" ||
+          normalizedEventType === "right" ||
+          normalizedEventType === "arrowup" ||
+          normalizedEventType === "arrowdown" ||
+          normalizedEventType === "arrowleft" ||
+          normalizedEventType === "arrowright" ||
+          normalizedEventType === "keycode_dpad_up" ||
+          normalizedEventType === "keycode_dpad_down" ||
+          normalizedEventType === "keycode_dpad_left" ||
+          normalizedEventType === "keycode_dpad_right" ||
+          normalizedEventType.includes("dpad_up") ||
+          normalizedEventType.includes("dpad_down") ||
+          normalizedEventType.includes("dpad_left") ||
+          normalizedEventType.includes("dpad_right");
+        // Some TV remotes only emit ACTION_UP for D-pad events.
+        // Let directional keys wake the overlay on either action.
+        if (
+          typeof event.eventKeyAction === "number" &&
+          event.eventKeyAction !== 0 &&
+          !isDirectionalKey
+        ) {
+          return;
+        }
+
+        if (isDirectionalKey) {
+          if (!isRemoteNavVisible) {
+            showRemoteNav(true);
+            return;
+          }
+          // Explicit hide toggle when pressing DOWN while header is visible.
+          if (
+            normalizedEventType === "down" ||
+            normalizedEventType === "arrowdown" ||
+            normalizedEventType === "keycode_dpad_down" ||
+            normalizedEventType.includes("dpad_down")
+          ) {
+            clearRemoteNavTimeout();
+            setIsRemoteNavVisible(false);
+            return;
+          }
+          showRemoteNav(false);
           return;
         }
 
@@ -388,33 +433,33 @@ export default function TVPlayerScreen() {
           } else {
             player.play();
           }
-          showRemoteNav();
+          showRemoteNav(false);
           return;
         }
 
         if (eventType === "KEYCODE_MEDIA_PLAY") {
           player.play();
-          showRemoteNav();
+          showRemoteNav(false);
           return;
         }
 
         if (eventType === "KEYCODE_MEDIA_PAUSE") {
           player.pause();
-          showRemoteNav();
+          showRemoteNav(false);
           return;
         }
 
-        showRemoteNav();
+        showRemoteNav(!isRemoteNavVisible);
       }
     );
 
     return () => {
       subscription.remove();
     };
-  }, [player, showRemoteNav]);
+  }, [clearRemoteNavTimeout, isRemoteNavVisible, player, showRemoteNav]);
 
   useEffect(() => {
-    showRemoteNav();
+    showRemoteNav(true);
     return () => {
       clearRemoteNavTimeout();
     };
@@ -564,7 +609,7 @@ export default function TVPlayerScreen() {
                 ref={backNavRef}
                 style={styles.navFabButton}
                 onPress={() => {
-                  showRemoteNav();
+                  showRemoteNav(false);
                   router.back();
                 }}
                 onFocus={handleRemoteNavFocus}
@@ -578,7 +623,7 @@ export default function TVPlayerScreen() {
                 ref={prevNavRef}
                 style={[styles.navFabButton, !hasPrevious && styles.navButtonDisabled]}
                 onPress={() => {
-                  showRemoteNav();
+                  showRemoteNav(false);
                   goToIndex(playlistIndex - 1);
                 }}
                 onFocus={handleRemoteNavFocus}
@@ -607,7 +652,7 @@ export default function TVPlayerScreen() {
                 ref={nextNavRef}
                 style={[styles.navFabButton, !hasNext && styles.navButtonDisabled]}
                 onPress={() => {
-                  showRemoteNav();
+                  showRemoteNav(false);
                   goToIndex(playlistIndex + 1);
                 }}
                 onFocus={handleRemoteNavFocus}

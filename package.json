@@ -12,6 +12,7 @@
     "mobile:start:mobile": "npm run start:mobile --prefix apps/mobile",
     "mobile:start:tv": "npm run start:tv --prefix apps/mobile",
     "mobile:type-check": "npm run type-check --prefix apps/mobile",
-    "mobile:android": "npm run android --prefix apps/mobile"
+    "mobile:android": "npm run android --prefix apps/mobile",
+    "mobile:android:tv": "npm run android:tv --prefix apps/mobile"
   }
 }

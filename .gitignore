@@ -44,3 +44,4 @@ local.db*
 .vscode/
 .DS_Store
 Thumbs.db
+.claude/

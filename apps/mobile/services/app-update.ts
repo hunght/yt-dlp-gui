@@ -78,7 +78,8 @@ const parsePositiveInt = (value: unknown): number | null => {
 };
 
 const normalizeVersionName = (value: string): string => {
-  return value.trim().replace(/^v/i, "");
+  // Strip prefixes like "mobile-v", "desktop-v", or plain "v" before the semver digits.
+  return value.trim().replace(/^(?:[a-z][\w]*-)?v?/i, "");
 };
 
 const parseSemver = (version: string): [number, number, number] | null => {

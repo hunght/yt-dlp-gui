@@ -279,6 +279,7 @@ export default function TVHomeScreen() {
 
   const autoConnectRunIdRef = useRef(0);
   const autoConnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const catalogFailedRef = useRef(false);
 
   const localPathByVideoId = useMemo(() => {
     const map = new Map<string, string>();
@@ -396,6 +397,7 @@ export default function TVHomeScreen() {
 
   const startAutoConnect = useCallback(
     (hardReset = true) => {
+      catalogFailedRef.current = false;
       autoConnectRunIdRef.current += 1;
       const runId = autoConnectRunIdRef.current;
 
@@ -422,7 +424,6 @@ export default function TVHomeScreen() {
       return;
     }
 
-    setConnectionStage("connecting");
     setIsLoadingCatalog(true);
 
     try {
@@ -471,26 +472,27 @@ export default function TVHomeScreen() {
       setCatalogError(errorMessages[0] ?? null);
 
       if (successCount > 0) {
+        catalogFailedRef.current = false;
         setConnectionStage("connected");
         return;
       }
 
+      catalogFailedRef.current = true;
       disconnect();
       setConnectionStage("offline");
-      startAutoConnect(false);
     } catch (error) {
       setPlaylists(getCachedPlaylists());
       setMyLists(getCachedMyLists());
       setChannels(getCachedChannels());
       refreshOfflineCatalog();
+      catalogFailedRef.current = true;
       disconnect();
       setConnectionStage("offline");
       setCatalogError(getErrorMessage(error));
-      startAutoConnect(false);
     } finally {
       setIsLoadingCatalog(false);
     }
-  }, [disconnect, refreshOfflineCatalog, serverUrl, startAutoConnect]);
+  }, [disconnect, refreshOfflineCatalog, serverUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -541,6 +543,13 @@ export default function TVHomeScreen() {
 
   useEffect(() => {
     if (!serverUrl) {
+      if (catalogFailedRef.current) {
+        // Catalog load failed — stay offline instead of immediately reconnecting.
+        // The user must press the WiFi button to retry.
+        catalogFailedRef.current = false;
+        setConnectionStage("offline");
+        return;
+      }
       startAutoConnect(false);
       return;
     }

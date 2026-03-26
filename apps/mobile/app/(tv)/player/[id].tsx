@@ -164,15 +164,18 @@ export default function TVPlayerScreen() {
   const [prepareRetryVersion, setPrepareRetryVersion] = useState(0);
   const [isRemoteNavVisible, setIsRemoteNavVisible] = useState(true);
   const [shouldPreferRemoteNavFocus, setShouldPreferRemoteNavFocus] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(true);
   const navigationLockVideoIdRef = useRef<string | null>(null);
   const prefetchedNextVideoIdRef = useRef<string | null>(null);
   const remoteNavTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backNavRef = useRef<TVFocusPressableHandle | null>(null);
   const prevNavRef = useRef<TVFocusPressableHandle | null>(null);
+  const playPauseNavRef = useRef<TVFocusPressableHandle | null>(null);
   const nextNavRef = useRef<TVFocusPressableHandle | null>(null);
   const [navNodeHandles, setNavNodeHandles] = useState<{
     back?: number;
     prev?: number;
+    playPause?: number;
     next?: number;
   }>({});
 
@@ -337,9 +340,26 @@ export default function TVPlayerScreen() {
     setNavNodeHandles({
       back: backNavRef.current ? findNodeHandle(backNavRef.current) ?? undefined : undefined,
       prev: prevNavRef.current ? findNodeHandle(prevNavRef.current) ?? undefined : undefined,
+      playPause: playPauseNavRef.current ? findNodeHandle(playPauseNavRef.current) ?? undefined : undefined,
       next: nextNavRef.current ? findNodeHandle(nextNavRef.current) ?? undefined : undefined,
     });
   }, [hasNext, hasPrevious, playlistIndex]);
+
+  useEffect(() => {
+    const sub = player.addListener("playingChange", (event) => {
+      setIsPlaying(event.isPlaying);
+    });
+    return () => sub.remove();
+  }, [player]);
+
+  const togglePlayPause = useCallback(() => {
+    if (player.playing) {
+      player.pause();
+    } else {
+      player.play();
+    }
+    showRemoteNav();
+  }, [player, showRemoteNav]);
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(
@@ -349,10 +369,33 @@ export default function TVPlayerScreen() {
         if (!eventType || eventType === "focus" || eventType === "blur") {
           return;
         }
-        // Android sends ACTION_DOWN = 0 and ACTION_UP = 1. Show overlay only once per key press.
+        // Android sends ACTION_DOWN = 0 and ACTION_UP = 1. Handle only once per key press.
         if (typeof event.eventKeyAction === "number" && event.eventKeyAction !== 0) {
           return;
         }
+
+        if (eventType === "KEYCODE_MEDIA_PLAY_PAUSE") {
+          if (player.playing) {
+            player.pause();
+          } else {
+            player.play();
+          }
+          showRemoteNav();
+          return;
+        }
+
+        if (eventType === "KEYCODE_MEDIA_PLAY") {
+          player.play();
+          showRemoteNav();
+          return;
+        }
+
+        if (eventType === "KEYCODE_MEDIA_PAUSE") {
+          player.pause();
+          showRemoteNav();
+          return;
+        }
+
         showRemoteNav();
       }
     );
@@ -360,7 +403,7 @@ export default function TVPlayerScreen() {
     return () => {
       subscription.remove();
     };
-  }, [showRemoteNav]);
+  }, [player, showRemoteNav]);
 
   useEffect(() => {
     showRemoteNav();
@@ -518,8 +561,7 @@ export default function TVPlayerScreen() {
                 }}
                 onFocus={handleRemoteNavFocus}
                 onBlur={handleRemoteNavBlur}
-                hasTVPreferredFocus={shouldPreferRemoteNavFocus}
-                nextFocusRight={hasPrevious ? navNodeHandles.prev : navNodeHandles.next}
+                nextFocusRight={hasPrevious ? navNodeHandles.prev : navNodeHandles.playPause}
               >
                 <Text style={styles.navFabText}>Back</Text>
               </TVFocusPressable>
@@ -535,9 +577,22 @@ export default function TVPlayerScreen() {
                 onBlur={handleRemoteNavBlur}
                 disabled={!hasPrevious}
                 nextFocusLeft={navNodeHandles.back}
-                nextFocusRight={navNodeHandles.next}
+                nextFocusRight={navNodeHandles.playPause}
               >
                 <Text style={styles.navFabText}>Prev</Text>
+              </TVFocusPressable>
+
+              <TVFocusPressable
+                ref={playPauseNavRef}
+                style={styles.navFabButton}
+                onPress={togglePlayPause}
+                onFocus={handleRemoteNavFocus}
+                onBlur={handleRemoteNavBlur}
+                hasTVPreferredFocus={shouldPreferRemoteNavFocus}
+                nextFocusLeft={hasPrevious ? navNodeHandles.prev : navNodeHandles.back}
+                nextFocusRight={hasNext ? navNodeHandles.next : undefined}
+              >
+                <Text style={styles.navFabText}>{isPlaying ? "Pause" : "Play"}</Text>
               </TVFocusPressable>
 
               <TVFocusPressable
@@ -550,7 +605,7 @@ export default function TVPlayerScreen() {
                 onFocus={handleRemoteNavFocus}
                 onBlur={handleRemoteNavBlur}
                 disabled={!hasNext}
-                nextFocusLeft={hasPrevious ? navNodeHandles.prev : navNodeHandles.back}
+                nextFocusLeft={navNodeHandles.playPause}
               >
                 <Text style={styles.navFabText}>Next</Text>
               </TVFocusPressable>

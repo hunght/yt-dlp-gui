@@ -732,6 +732,23 @@ export default function TVPlayerScreen() {
 
   return (
     <View style={styles.fullscreenContainer}>
+      <View style={styles.videoFrame}>
+        {isVideoViewReady ? (
+          <VideoView
+            key={`${id}:${source}`}
+            player={player}
+            style={styles.video}
+            contentFit="contain"
+            nativeControls={false}
+            focusable={false}
+            importantForAccessibility="no-hide-descendants"
+            surfaceType="textureView"
+          />
+        ) : (
+          <View style={[styles.video, styles.videoPlaceholder]} />
+        )}
+      </View>
+
       <SafeAreaView
         style={[
           styles.chromeSafeArea,
@@ -833,23 +850,6 @@ export default function TVPlayerScreen() {
           </View>
         </View>
       </SafeAreaView>
-
-      <View style={styles.videoFrame}>
-        {isVideoViewReady ? (
-          <VideoView
-            key={`${id}:${source}`}
-            player={player}
-            style={styles.video}
-            contentFit="contain"
-            nativeControls={false}
-            focusable={false}
-            importantForAccessibility="no-hide-descendants"
-          />
-        ) : (
-          <View style={[styles.video, styles.videoPlaceholder]} />
-        )}
-      </View>
-
     </View>
   );
 }
@@ -864,6 +864,7 @@ const styles = StyleSheet.create({
   fullscreenContainer: {
     flex: 1,
     backgroundColor: "#000",
+    position: "relative",
   },
   videoFrame: {
     flex: 1,
@@ -900,6 +901,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   chromeSafeArea: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
     paddingHorizontal: 28,
     paddingTop: 24,
     paddingBottom: 18,

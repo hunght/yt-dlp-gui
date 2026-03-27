@@ -3,6 +3,7 @@ import { trpcClient } from "@/utils/trpc";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { ToastAction } from "@/components/ui/toast";
 import {
   Select,
   SelectContent,
@@ -77,6 +78,56 @@ export function SystemTab(): React.JSX.Element {
     const latest = await trpcClient.preferences.getDownloadPath.query();
     await ensureDirectoryAccessMutation.mutateAsync(latest.downloadPath);
   };
+
+  const handleRestartApp = async (): Promise<void> => {
+    const result = await trpcClient.utils.restartApp.mutate();
+
+    if (!result.success) {
+      toast({
+        title: "Restart Failed",
+        description: result.error,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateDatabasePathMutation = useMutation({
+    mutationFn: async (filePath: string | null) => {
+      const result = await trpcClient.utils.updateDatabasePath.mutate({ filePath });
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      return result;
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["database", "path"] });
+
+      toast({
+        title: "Database Path Updated",
+        description: result.requiresRestart
+          ? result.copiedExistingData
+            ? "Your current data was copied to the new database file. Restart LearnifyTube to start using it."
+            : "Restart LearnifyTube to start using the new database location."
+          : result.isDefault
+            ? "LearnifyTube is already using the default database location."
+            : "LearnifyTube is already using this database location.",
+        action: result.requiresRestart ? (
+          <ToastAction altText="Restart app" onClick={() => void handleRestartApp()}>
+            Restart
+          </ToastAction>
+        ) : undefined,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Update Failed",
+        description: String(error),
+        variant: "destructive",
+      });
+    },
+  });
 
   // Mutation to update download path
   const updateDownloadPathMutation = useMutation({
@@ -187,6 +238,28 @@ export function SystemTab(): React.JSX.Element {
     }
   };
 
+  const handleChangeDatabasePath = async (): Promise<void> => {
+    const result = await trpcClient.utils.selectDatabaseFile.mutate({
+      defaultPath: dbInfo?.path ?? dbInfo?.defaultPath,
+    });
+
+    if (result.success && "filePath" in result) {
+      await updateDatabasePathMutation.mutateAsync(result.filePath);
+    } else if (result.success === false && "cancelled" in result && result.cancelled) {
+      // User cancelled, do nothing
+    } else if (result.success === false && "error" in result) {
+      toast({
+        title: "Error",
+        description: result.error,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleResetDatabasePath = async (): Promise<void> => {
+    await updateDatabasePathMutation.mutateAsync(null);
+  };
+
   const handleOpenDownloadFolder = async (): Promise<void> => {
     if (downloadPathInfo?.downloadPath) {
       await trpcClient.utils.openFolder.mutate({ folderPath: downloadPathInfo.downloadPath });
@@ -225,13 +298,18 @@ export function SystemTab(): React.JSX.Element {
             <Database className="h-5 w-5" />
             Database
           </CardTitle>
-          <CardDescription>View database location and information</CardDescription>
+          <CardDescription>Manage where LearnifyTube stores its database file</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {dbInfo ? (
             <div className="space-y-3">
               <div>
-                <Label className="text-sm font-medium">Database Path</Label>
+                <Label className="text-sm font-medium">
+                  Current Database File
+                  {dbInfo.isDefault && (
+                    <span className="ml-2 text-xs text-muted-foreground">(Default)</span>
+                  )}
+                </Label>
                 <div className="mt-1 flex items-center gap-2">
                   <code className="flex-1 break-all rounded bg-muted px-3 py-2 font-mono text-xs">
                     {dbInfo.path}
@@ -242,7 +320,7 @@ export function SystemTab(): React.JSX.Element {
                     onClick={handleRevealDatabase}
                     disabled={!dbInfo.exists}
                   >
-                    Open in Finder
+                    Open Folder
                   </Button>
                 </div>
               </div>
@@ -258,6 +336,31 @@ export function SystemTab(): React.JSX.Element {
                   <span className="text-muted-foreground">Size:</span>{" "}
                   <span>{(dbInfo.size / 1024 / 1024).toFixed(2)} MB</span>
                 </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Changing the database path copies your current data into a new database file and
+                takes effect after a restart.
+              </p>
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleChangeDatabasePath}
+                  disabled={updateDatabasePathMutation.isPending}
+                >
+                  Change Path
+                </Button>
+                {!dbInfo.isDefault && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleResetDatabasePath}
+                    disabled={updateDatabasePathMutation.isPending}
+                  >
+                    Reset to Default
+                  </Button>
+                )}
               </div>
             </div>
           ) : (

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { shell, net, app, dialog } from "electron";
+import { sql } from "drizzle-orm";
 import {
   createNotificationWindow,
   closeNotificationWindow as closeWindow,
@@ -12,7 +13,15 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { extractZipWithYauzl } from "./service";
-import { getDatabasePath } from "@/utils/paths";
+import defaultDb from "@/api/db";
+import {
+  clearConfiguredDatabaseFilePath,
+  getActiveDatabaseFilePath,
+  getDatabasePath,
+  getDefaultDatabaseFilePath,
+  isUsingDefaultDatabasePath,
+  setConfiguredDatabaseFilePath,
+} from "@/utils/paths";
 import { translationCache, translationContexts } from "@/api/db/schema";
 import crypto from "crypto";
 import { buildAppLinks } from "@/config/app-links";
@@ -120,9 +129,31 @@ type SelectFolderCancelled = { success: false; cancelled: true };
 type SelectFolderFailure = { success: false; cancelled: false; error: string };
 type SelectFolderResult = SelectFolderSuccess | SelectFolderCancelled | SelectFolderFailure;
 
+type SelectDatabaseFileSuccess = { success: true; filePath: string };
+type SelectDatabaseFileCancelled = { success: false; cancelled: true };
+type SelectDatabaseFileFailure = { success: false; cancelled: false; error: string };
+type SelectDatabaseFileResult =
+  | SelectDatabaseFileSuccess
+  | SelectDatabaseFileCancelled
+  | SelectDatabaseFileFailure;
+
+type UpdateDatabasePathSuccess = {
+  success: true;
+  path: string;
+  copiedExistingData: boolean;
+  isDefault: boolean;
+  requiresRestart: boolean;
+};
+type UpdateDatabasePathFailure = { success: false; error: string };
+type UpdateDatabasePathResult = UpdateDatabasePathSuccess | UpdateDatabasePathFailure;
+
 type QuitAppSuccess = { success: true };
 type QuitAppFailure = { success: false; error: string };
 type QuitAppResult = QuitAppSuccess | QuitAppFailure;
+
+type RestartAppSuccess = { success: true };
+type RestartAppFailure = { success: false; error: string };
+type RestartAppResult = RestartAppSuccess | RestartAppFailure;
 
 type GetAppVersionResult = { version: string };
 type GetLogFileContentResult = {
@@ -193,6 +224,8 @@ type GetDatabasePathResult = {
   directory: string;
   exists: boolean;
   size: number;
+  defaultPath: string;
+  isDefault: boolean;
 };
 
 const GITHUB_RELEASE_LATEST_URL =
@@ -207,6 +240,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 const normalizeVersion = (version: string): string => version.replace(/^v/i, "");
+
+const SQLITE_DATABASE_ARTIFACT_SUFFIXES = ["", "-shm", "-wal", "-journal"] as const;
+
+type DatabaseArtifactBackup = {
+  originalPath: string;
+  backupPath: string;
+};
 
 const compareVersions = (a: string, b: string): number => {
   const aParts = normalizeVersion(a)
@@ -225,6 +265,54 @@ const compareVersions = (a: string, b: string): number => {
   }
 
   return 0;
+};
+
+const escapeSqliteString = (value: string): string => value.replace(/'/g, "''");
+
+const moveExistingDatabaseArtifactsOutOfTheWay = (targetPath: string): DatabaseArtifactBackup[] => {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backups: DatabaseArtifactBackup[] = [];
+
+  for (const suffix of SQLITE_DATABASE_ARTIFACT_SUFFIXES) {
+    const originalPath = `${targetPath}${suffix}`;
+    if (!fs.existsSync(originalPath)) {
+      continue;
+    }
+
+    const backupPath = `${originalPath}.${timestamp}.before-db-path-change`;
+    fs.renameSync(originalPath, backupPath);
+    backups.push({ originalPath, backupPath });
+  }
+
+  return backups;
+};
+
+const restoreDatabaseArtifactBackups = (backups: DatabaseArtifactBackup[]): void => {
+  for (const backup of [...backups].reverse()) {
+    if (fs.existsSync(backup.backupPath) && !fs.existsSync(backup.originalPath)) {
+      fs.renameSync(backup.backupPath, backup.originalPath);
+    }
+  }
+};
+
+const copyActiveDatabaseToPath = async (targetPath: string): Promise<boolean> => {
+  const sourcePath = getActiveDatabaseFilePath();
+
+  if (sourcePath === targetPath || !fs.existsSync(sourcePath)) {
+    return false;
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  const backups = moveExistingDatabaseArtifactsOutOfTheWay(targetPath);
+
+  try {
+    await defaultDb.run(sql`PRAGMA wal_checkpoint(TRUNCATE)`);
+    await defaultDb.run(sql.raw(`VACUUM INTO '${escapeSqliteString(targetPath)}'`));
+    return true;
+  } catch (error) {
+    restoreDatabaseArtifactBackups(backups);
+    throw error;
+  }
 };
 
 const getPlatformDownloadUrl = (version: string): string => {
@@ -680,6 +768,83 @@ export const utilsRouter = t.router({
       }
     }),
 
+  selectDatabaseFile: publicProcedure
+    .input(
+      z.object({
+        defaultPath: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }): Promise<SelectDatabaseFileResult> => {
+      try {
+        const result = await dialog.showSaveDialog({
+          defaultPath: input.defaultPath,
+          title: "Choose Database File",
+          message: "Choose where LearnifyTube should store its database",
+          nameFieldLabel: "Database file",
+          filters: [
+            {
+              name: "SQLite Database",
+              extensions: ["db", "sqlite", "sqlite3"],
+            },
+          ],
+        });
+
+        if (result.canceled || !result.filePath) {
+          return { success: false, cancelled: true };
+        }
+
+        return { success: true, filePath: path.resolve(result.filePath) };
+      } catch (error) {
+        logger.error("Failed to select database file:", error);
+        return { success: false, cancelled: false, error: String(error) };
+      }
+    }),
+
+  updateDatabasePath: publicProcedure
+    .input(
+      z.object({
+        filePath: z.string().nullable(),
+      })
+    )
+    .mutation(async ({ input }): Promise<UpdateDatabasePathResult> => {
+      try {
+        const defaultPath = getDefaultDatabaseFilePath();
+        const requestedPath = path.resolve(input.filePath ?? defaultPath);
+        const currentPath = getActiveDatabaseFilePath();
+        const willUseDefaultPath = requestedPath === defaultPath;
+
+        let copiedExistingData = false;
+
+        if (requestedPath !== currentPath) {
+          copiedExistingData = await copyActiveDatabaseToPath(requestedPath);
+        }
+
+        if (willUseDefaultPath) {
+          clearConfiguredDatabaseFilePath();
+        } else {
+          setConfiguredDatabaseFilePath(requestedPath);
+        }
+
+        logger.info("[utils] Updated database path", {
+          currentPath,
+          requestedPath,
+          copiedExistingData,
+          willUseDefaultPath,
+        });
+
+        return {
+          success: true,
+          path: requestedPath,
+          copiedExistingData,
+          isDefault: willUseDefaultPath,
+          requiresRestart: requestedPath !== currentPath,
+        };
+      } catch (error) {
+        logger.error("Failed to update database path:", error);
+        return { success: false, error: String(error) };
+      }
+    }),
+
   quitApp: publicProcedure.mutation(async (): Promise<QuitAppResult> => {
     try {
       logger.info("Quitting application...");
@@ -687,6 +852,22 @@ export const utilsRouter = t.router({
       return { success: true };
     } catch (error) {
       logger.error("Failed to quit app:", error);
+      return { success: false, error: String(error) };
+    }
+  }),
+
+  restartApp: publicProcedure.mutation(async (): Promise<RestartAppResult> => {
+    try {
+      logger.info("Restarting application...");
+
+      setTimeout(() => {
+        app.relaunch();
+        app.quit();
+      }, 150);
+
+      return { success: true };
+    } catch (error) {
+      logger.error("Failed to restart app:", error);
       return { success: false, error: String(error) };
     }
   }),
@@ -1069,6 +1250,8 @@ export const utilsRouter = t.router({
       directory: path.dirname(absolutePath),
       exists: fs.existsSync(absolutePath),
       size: fs.existsSync(absolutePath) ? fs.statSync(absolutePath).size : 0,
+      defaultPath: getDefaultDatabaseFilePath(),
+      isDefault: isUsingDefaultDatabasePath(),
     };
   }),
 

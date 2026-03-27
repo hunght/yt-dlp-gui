@@ -1,28 +1,16 @@
 import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { trpcClient } from "@/utils/trpc";
-import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Thumbnail from "@/components/Thumbnail";
 import { EditPlaylistDialog } from "./EditPlaylistDialog";
+import { DeleteCustomPlaylistDialog } from "./DeleteCustomPlaylistDialog";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { MoreVertical, Pencil, Trash2, FolderHeart } from "lucide-react";
 
@@ -47,29 +35,8 @@ export function CustomPlaylistCard({
   playlist,
   onPlaylistClick,
 }: CustomPlaylistCardProps): React.JSX.Element {
-  const queryClient = useQueryClient();
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-
-  const deleteMutation = useMutation({
-    mutationFn: () => trpcClient.customPlaylists.delete.mutate({ playlistId: playlist.id }),
-    onSuccess: (res) => {
-      if (res.success) {
-        queryClient.invalidateQueries({ queryKey: ["customPlaylists"] });
-        toast.success(`Playlist "${playlist.name}" deleted`);
-      } else if ("message" in res) {
-        toast.error(res.message ?? "Failed to delete playlist");
-      } else {
-        toast.error("Failed to delete playlist");
-      }
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to delete playlist"),
-  });
-
-  const handleDelete = (): void => {
-    deleteMutation.mutate();
-    setShowDeleteDialog(false);
-  };
 
   const handleClick = (): void => {
     onPlaylistClick?.(playlist.id);
@@ -189,26 +156,13 @@ export function CustomPlaylistCard({
         initialDescription={playlist.description}
       />
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Playlist?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{playlist.name}"? This action cannot be undone. The
-              videos will not be deleted, only removed from this playlist.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteCustomPlaylistDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        playlistId={playlist.id}
+        playlistName={playlist.name}
+        videoCount={playlist.itemCount}
+      />
     </>
   );
 }

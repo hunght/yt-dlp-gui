@@ -12,16 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { PlaylistHeader, PlaylistHeaderSkeleton } from "./components/PlaylistHeader";
 import {
@@ -38,6 +28,7 @@ import {
   type ViewMode,
 } from "./components/PlaylistFilters";
 import { EditPlaylistDialog } from "@/components/playlists/EditPlaylistDialog";
+import { DeleteCustomPlaylistDialog } from "@/components/playlists/DeleteCustomPlaylistDialog";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { cn } from "@/lib/utils";
 import { FolderHeart, MoreVertical, Pencil, Trash2 } from "lucide-react";
@@ -103,22 +94,6 @@ export default function PlaylistPage(): React.JSX.Element {
       }
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add to queue"),
-  });
-
-  const deletePlaylistMutation = useMutation({
-    mutationFn: () => trpcClient.customPlaylists.delete.mutate({ playlistId: playlistId! }),
-    onSuccess: (res) => {
-      if (res.success) {
-        queryClient.invalidateQueries({ queryKey: ["customPlaylists"] });
-        toast.success("Playlist deleted");
-        navigate({ to: "/playlists" });
-      } else if ("message" in res) {
-        toast.error(res.message ?? "Failed to delete playlist");
-      } else {
-        toast.error("Failed to delete playlist");
-      }
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to delete playlist"),
   });
 
   // Normalize data from both query types
@@ -259,11 +234,6 @@ export default function PlaylistPage(): React.JSX.Element {
       (videoId) => `https://www.youtube.com/watch?v=${videoId}`
     );
     downloadMutation.mutate(urls);
-  };
-
-  const handleDeletePlaylist = (): void => {
-    deletePlaylistMutation.mutate();
-    setShowDeleteDialog(false);
   };
 
   // Loading state
@@ -453,26 +423,14 @@ export default function PlaylistPage(): React.JSX.Element {
       )}
 
       {/* Delete confirmation dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Playlist?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{title}"? This action cannot be undone. The videos
-              will not be deleted, only removed from this playlist.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeletePlaylist}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteCustomPlaylistDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        playlistId={playlistId}
+        playlistName={title}
+        videoCount={stats.total}
+        onDeleted={() => navigate({ to: "/playlists" })}
+      />
     </PageContainer>
   );
 }

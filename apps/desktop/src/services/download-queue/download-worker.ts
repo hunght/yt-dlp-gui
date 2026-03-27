@@ -2,8 +2,6 @@ import { spawn } from "child_process";
 import { app } from "electron";
 import path from "path";
 import { requireQueueManager } from "./queue-manager";
-import { requireOptimizationQueueManager } from "@/services/optimization-queue/queue-manager";
-import type { TargetResolution } from "@/services/optimization-queue/types";
 import type { Database } from "@/api/db";
 import type { WorkerState } from "./types";
 import fs from "fs";
@@ -280,24 +278,6 @@ const getCookiesFromBrowserPreference = async (db: Database): Promise<YtDlpCooki
 };
 
 /**
- * Map download quality preference to optimization target resolution
- */
-const getOptimizationTargetResolution = (quality: DownloadQuality): TargetResolution => {
-  const resolutionMap: Record<DownloadQuality, TargetResolution> = {
-    "360p": "720p",
-    "480p": "720p",
-    "720p": "720p",
-    "1080p": "720p", // Downscale 1080p to 720p for optimization
-  };
-  return resolutionMap[normalizeVideoDownloadQuality(quality)];
-};
-
-/**
- * Auto-optimization threshold in bytes (100 MB)
- */
-const AUTO_OPTIMIZATION_THRESHOLD = 100 * 1024 * 1024;
-
-/**
  * Get ffmpeg binary path (bundled, from ffmpeg-static, or downloaded)
  * Priority: 1. Bundled with app, 2. ffmpeg-static npm package, 3. Downloaded to userData/bin
  */
@@ -477,11 +457,9 @@ const getQualityShortfallDetails = async ({
 };
 
 /**
- * Finalize a successful download, including post-download quality validation and
- * optional auto-optimization for large files.
+ * Finalize a successful download, including post-download quality validation.
  */
 const handleSuccessfulDownload = async ({
-  db,
   downloadId,
   videoId,
   outputPath,
@@ -491,7 +469,6 @@ const handleSuccessfulDownload = async ({
   formatStrategy,
   formatUsed,
 }: {
-  db: Database;
   downloadId: string;
   videoId: string | null;
   outputPath: string;
@@ -616,30 +593,6 @@ const handleSuccessfulDownload = async ({
       finalPath: completedPath,
       note: "If playback fails, check format selection logs above for actual codec (H.264/AVC1 vs H.265/HEVC). H.265 will not play in Chromium.",
     });
-  }
-
-  if (fileSize && fileSize > AUTO_OPTIMIZATION_THRESHOLD && videoId && !hasFormatCode) {
-    try {
-      const downloadQuality = await getDownloadQuality(db);
-      const targetResolution = getOptimizationTargetResolution(downloadQuality);
-
-      logger.info("[download-worker] Large file detected, queueing auto-optimization", {
-        downloadId,
-        videoId,
-        fileSizeMB: (fileSize / 1024 / 1024).toFixed(2),
-        thresholdMB: (AUTO_OPTIMIZATION_THRESHOLD / 1024 / 1024).toFixed(0),
-        targetResolution,
-      });
-
-      const optimizationManager = requireOptimizationQueueManager();
-      await optimizationManager.addToQueue(db, [videoId], targetResolution);
-    } catch (optError) {
-      logger.warn("[download-worker] Failed to queue auto-optimization", {
-        downloadId,
-        videoId,
-        error: optError instanceof Error ? optError.message : "Unknown error",
-      });
-    }
   }
 };
 
@@ -1122,7 +1075,6 @@ export const spawnDownload = async (
 
       if (code === 0) {
         await handleSuccessfulDownload({
-          db,
           downloadId,
           videoId,
           outputPath,

@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
-import { toast } from "sonner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,16 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   RefreshCw,
   Search,
@@ -42,6 +31,7 @@ import Thumbnail from "@/components/Thumbnail";
 import { CustomPlaylistCard } from "@/components/playlists/CustomPlaylistCard";
 import { CreatePlaylistDialog } from "@/components/playlists/CreatePlaylistDialog";
 import { EditPlaylistDialog } from "@/components/playlists/EditPlaylistDialog";
+import { DeleteCustomPlaylistDialog } from "@/components/playlists/DeleteCustomPlaylistDialog";
 import { FavoritesSection } from "./components/FavoritesSection";
 
 type ViewMode = "list" | "grid";
@@ -250,27 +240,8 @@ type PlaylistListItemProps = {
 };
 
 function PlaylistListItem({ playlist }: PlaylistListItemProps): React.JSX.Element {
-  const queryClient = useQueryClient();
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-
-  const deleteMutation = useMutation({
-    mutationFn: () => trpcClient.customPlaylists.delete.mutate({ playlistId: playlist.id }),
-    onSuccess: (res) => {
-      if (res.success) {
-        queryClient.invalidateQueries({ queryKey: ["customPlaylists"] });
-        toast.success(`List "${playlist.name}" deleted`);
-      } else if ("message" in res) {
-        toast.error(res.message ?? "Failed to delete list");
-      }
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to delete list"),
-  });
-
-  const handleDelete = (): void => {
-    deleteMutation.mutate();
-    setShowDeleteDialog(false);
-  };
 
   const progress =
     playlist.itemCount && playlist.currentVideoIndex
@@ -381,26 +352,13 @@ function PlaylistListItem({ playlist }: PlaylistListItemProps): React.JSX.Elemen
         initialDescription={playlist.description}
       />
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete List?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{playlist.name}"? This action cannot be undone. The
-              videos will not be deleted, only removed from this list.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteCustomPlaylistDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        playlistId={playlist.id}
+        playlistName={playlist.name}
+        videoCount={playlist.itemCount}
+      />
     </>
   );
 }

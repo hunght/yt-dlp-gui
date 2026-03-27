@@ -5,11 +5,18 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import {
   customPlaylists,
   customPlaylistItems,
+  favorites,
   youtubeVideos,
   type CustomPlaylist,
   type YoutubeVideo,
 } from "@/api/db/schema";
 import defaultDb from "@/api/db";
+import {
+  deleteVideoLibraryData,
+  findReferencedVideoIds,
+} from "@/api/utils/video-library-cleanup";
+import { getQueueManager } from "@/services/download-queue/queue-manager";
+import { getOptimizationQueueManager } from "@/services/optimization-queue/queue-manager";
 
 export const customPlaylistsRouter = t.router({
   // Create a new custom playlist
@@ -224,23 +231,134 @@ export const customPlaylistsRouter = t.router({
 
   // Delete a playlist
   delete: publicProcedure
-    .input(z.object({ playlistId: z.string() }))
+    .input(
+      z.object({
+        playlistId: z.string(),
+        deleteVideosData: z.boolean().optional().default(false),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       const db = ctx.db ?? defaultDb;
 
       try {
-        // Items will be cascade deleted due to foreign key constraint
+        const [playlist] = await db
+          .select({
+            id: customPlaylists.id,
+            name: customPlaylists.name,
+          })
+          .from(customPlaylists)
+          .where(eq(customPlaylists.id, input.playlistId))
+          .limit(1);
+
+        if (!playlist) {
+          return { success: false as const, message: "Playlist not found" };
+        }
+
+        const playlistItemsToDelete = await db
+          .select({ videoId: customPlaylistItems.videoId })
+          .from(customPlaylistItems)
+          .where(eq(customPlaylistItems.playlistId, input.playlistId));
+
+        const playlistVideoIds = [...new Set(playlistItemsToDelete.map((item) => item.videoId))];
+        let removableVideoIds: string[] = [];
+        let deletedVideosCount = 0;
+        let retainedVideosCount = 0;
+
+        if (input.deleteVideosData && playlistVideoIds.length > 0) {
+          const referencedVideoIds = await findReferencedVideoIds(db, playlistVideoIds, {
+            excludeCustomPlaylistId: input.playlistId,
+          });
+          removableVideoIds = playlistVideoIds.filter((videoId) => !referencedVideoIds.has(videoId));
+
+          retainedVideosCount = playlistVideoIds.length - removableVideoIds.length;
+
+          if (removableVideoIds.length > 0) {
+            const queueManager = getQueueManager(defaultDb);
+            const queueStatus = await queueManager.getQueueStatus();
+            const activeQueueItems = [
+              ...queueStatus.queued,
+              ...queueStatus.downloading,
+              ...queueStatus.paused,
+            ].filter(
+              (item): item is typeof item & { videoId: string } =>
+                typeof item.videoId === "string" && removableVideoIds.includes(item.videoId)
+            );
+
+            if (activeQueueItems.length > 0) {
+              const queueResults = await Promise.allSettled(
+                activeQueueItems.map((item) => queueManager.cancelDownload(item.id))
+              );
+
+              queueResults.forEach((result, index) => {
+                if (result.status === "rejected") {
+                  logger.warn("[customPlaylists] Failed to cancel queued download before delete", {
+                    playlistId: input.playlistId,
+                    videoId: activeQueueItems[index]?.videoId,
+                    error: String(result.reason),
+                  });
+                }
+              });
+            }
+
+            const optimizationQueueManager = getOptimizationQueueManager();
+            const optimizationStatus = optimizationQueueManager.getQueueStatus();
+            const activeOptimizations = [
+              ...optimizationStatus.queued,
+              ...optimizationStatus.optimizing,
+            ].filter((job) => removableVideoIds.includes(job.videoId));
+
+            if (activeOptimizations.length > 0) {
+              const optimizationResults = await Promise.allSettled(
+                activeOptimizations.map((job) => optimizationQueueManager.cancelOptimization(job.id))
+              );
+
+              optimizationResults.forEach((result, index) => {
+                if (result.status === "rejected") {
+                  logger.warn("[customPlaylists] Failed to cancel optimization before delete", {
+                    playlistId: input.playlistId,
+                    videoId: activeOptimizations[index]?.videoId,
+                    error: String(result.reason),
+                  });
+                }
+              });
+            }
+          }
+        }
+
+        await db
+          .delete(favorites)
+          .where(
+            and(eq(favorites.entityType, "custom_playlist"), eq(favorites.entityId, input.playlistId))
+          );
+
         await db.delete(customPlaylists).where(eq(customPlaylists.id, input.playlistId));
 
-        logger.info("[customPlaylists] Deleted playlist", { playlistId: input.playlistId });
+        if (input.deleteVideosData && removableVideoIds.length > 0) {
+          const cleanupResult = await deleteVideoLibraryData(db, removableVideoIds);
+          deletedVideosCount = cleanupResult.deletedVideoIds.length;
 
-        return { success: true };
+          retainedVideosCount = playlistVideoIds.length - deletedVideosCount;
+        }
+
+        logger.info("[customPlaylists] Deleted playlist", {
+          playlistId: input.playlistId,
+          deleteVideosData: input.deleteVideosData,
+          deletedVideosCount,
+          retainedVideosCount,
+          playlistName: playlist.name,
+        });
+
+        return {
+          success: true as const,
+          deletedVideosCount,
+          retainedVideosCount,
+        };
       } catch (e) {
         logger.error("[customPlaylists] delete failed", {
           playlistId: input.playlistId,
           error: String(e),
         });
-        return { success: false, message: "Failed to delete playlist" };
+        return { success: false as const, message: "Failed to delete playlist" };
       }
     }),
 

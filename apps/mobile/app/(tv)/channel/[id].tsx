@@ -23,6 +23,7 @@ import {
   resolveRemoteAssetUrl,
 } from "../../../services/browseCache";
 import { getVideoFileUri, getVideoLocalPath } from "../../../services/downloader";
+import { logger } from "../../../services/logger";
 import {
   buildCachedPlaylistId,
   getAllSavedPlaylistsWithProgress,
@@ -444,6 +445,14 @@ export default function TVChannelDetailScreen() {
         playlistTitle,
         true
       );
+      logger.info("[TV Offline Debug] Open cached playlist", {
+        cachedPlaylistId,
+        playlistId,
+        playlistTitle,
+        cachedItemCount: savedPlaylist.items.length,
+        localPlayableCount: savedPlaylist.items.filter((item) => item.isDownloaded)
+          .length,
+      });
       return true;
     },
     [localPathByVideoId, showPlaylistVideos]
@@ -521,6 +530,14 @@ export default function TVChannelDetailScreen() {
       const playableVideos = canStream
         ? streamingVideos
         : streamingVideos.filter((item) => !!item.localPath);
+      logger.info("[TV Playback Debug] Channel playlist prepared", {
+        videoId,
+        playbackPlaylistId: activePlaylist?.id ?? channelId ?? channelTitle,
+        totalVideos: streamingVideos.length,
+        localPlayableCount: streamingVideos.filter((item) => !!item.localPath)
+          .length,
+        canStream,
+      });
       const startIndex = playableVideos.findIndex((item) => item.id === videoId);
       if (startIndex < 0 || playableVideos.length === 0) return;
 

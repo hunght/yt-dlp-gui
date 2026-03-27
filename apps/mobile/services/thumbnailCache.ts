@@ -2,6 +2,14 @@ import { Buffer } from "buffer";
 
 const inflightThumbnailRequests = new Map<string, Promise<string | null>>();
 
+function isExpectedMissingThumbnail(remoteUrl: string, error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("HTTP 404") &&
+    /\/api\/(?:video|playlist|channel)\/[^/]+\/thumbnail(?:$|\?)/i.test(remoteUrl)
+  );
+}
+
 function getMimeTypeFromUrl(url: string): string {
   try {
     const pathname = new URL(url).pathname.toLowerCase();
@@ -50,11 +58,13 @@ export async function cacheThumbnail(
 
   const requestPromise = cacheThumbnailInternal(trimmedUrl)
     .catch((error) => {
-      console.warn("[ThumbnailCache] Failed to cache thumbnail", {
-        cacheKey,
-        remoteUrl: trimmedUrl,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      if (!isExpectedMissingThumbnail(trimmedUrl, error)) {
+        console.warn("[ThumbnailCache] Failed to cache thumbnail", {
+          cacheKey,
+          remoteUrl: trimmedUrl,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       return null;
     })
     .finally(() => {

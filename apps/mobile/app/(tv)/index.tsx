@@ -32,6 +32,7 @@ import {
   cacheRemotePlaylists,
   resolveRemoteAssetUrl,
 } from "../../services/browseCache";
+import { logger } from "../../services/logger";
 import {
   assertSyncCompatibility,
   SyncCompatibilityError,
@@ -296,19 +297,63 @@ export default function TVHomeScreen() {
   }, [videos]);
   const canStream = !!serverUrl && connectionStage === "connected";
 
-  const refreshOfflineCatalog = useCallback(() => {
-    setOfflineSavedPlaylists(
-      getAllSavedPlaylistsWithProgress({ includeUnpinned: true })
-    );
-  }, []);
+  const logOfflinePlaylistSnapshot = useCallback(
+    (reason: string, playlistsSnapshot: OfflineSavedPlaylist[]) => {
+      const playlistDebug = playlistsSnapshot
+        .filter((playlist) => playlist.type === "playlist")
+        .map((playlist) => {
+          const savedPlaylist = getSavedPlaylistWithItems(playlist.id, {
+            includeUnpinned: true,
+          });
+          const cachedItems = savedPlaylist?.items ?? [];
+          const downloadedItems = cachedItems.filter((item) => item.isDownloaded);
+          const missingItems = cachedItems.filter((item) => !item.isDownloaded);
+
+          return {
+            playlistId: playlist.id,
+            sourceId: playlist.sourceId,
+            title: playlist.title,
+            downloadedCount: playlist.downloadedCount,
+            totalCount: playlist.totalCount,
+            itemCountField: playlist.itemCount,
+            cachedItemRows: cachedItems.length,
+            downloadedItemIdsSample: downloadedItems
+              .slice(0, 5)
+              .map((item) => item.videoId),
+            missingItemIdsSample: missingItems
+              .slice(0, 5)
+              .map((item) => item.videoId),
+          };
+        });
+
+      logger.info("[TV Offline Debug] Playlist progress snapshot", {
+        reason,
+        localVideoCount: localPathByVideoId.size,
+        playlistCount: playlistDebug.length,
+        playlists: playlistDebug,
+      });
+    },
+    [localPathByVideoId]
+  );
+
+  const refreshOfflineCatalog = useCallback(
+    (reason = "unknown") => {
+      const snapshot = getAllSavedPlaylistsWithProgress({
+        includeUnpinned: true,
+      });
+      setOfflineSavedPlaylists(snapshot);
+      logOfflinePlaylistSnapshot(reason, snapshot);
+    },
+    [logOfflinePlaylistSnapshot]
+  );
 
   useEffect(() => {
-    refreshOfflineCatalog();
+    refreshOfflineCatalog("library-videos-changed");
   }, [refreshOfflineCatalog, videos]);
 
   useFocusEffect(
     useCallback(() => {
-      refreshOfflineCatalog();
+      refreshOfflineCatalog("tv-home-focus");
     }, [refreshOfflineCatalog])
   );
 
@@ -444,6 +489,16 @@ export default function TVHomeScreen() {
           serverUrl,
           playlistResult.value.playlists
         );
+        logger.info("[TV Offline Debug] Remote playlist counts", {
+          serverUrl,
+          playlistCount: nextPlaylists.length,
+          playlists: nextPlaylists.map((playlist) => ({
+            playlistId: playlist.playlistId,
+            title: playlist.title,
+            remoteDownloadedCount: playlist.downloadedCount,
+            remoteItemCount: playlist.itemCount,
+          })),
+        });
         successCount += 1;
       } else {
         errorMessages.push(getErrorMessage(playlistResult.reason));
@@ -469,7 +524,7 @@ export default function TVHomeScreen() {
       setPlaylists(nextPlaylists);
       setMyLists(nextMyLists);
       setChannels(nextChannels);
-      refreshOfflineCatalog();
+      refreshOfflineCatalog("remote-catalog-loaded");
       setCatalogError(errorMessages[0] ?? null);
 
       if (successCount > 0) {
@@ -485,7 +540,7 @@ export default function TVHomeScreen() {
       setPlaylists(getCachedPlaylists());
       setMyLists(getCachedMyLists());
       setChannels(getCachedChannels());
-      refreshOfflineCatalog();
+      refreshOfflineCatalog("remote-catalog-load-failed");
       catalogFailedRef.current = true;
       disconnect();
       setConnectionStage("offline");
@@ -580,7 +635,27 @@ export default function TVHomeScreen() {
         localPathByVideoId
       ).filter((item) => !!item.localPath);
 
+      logger.info("[TV Offline Debug] Offline playlist playback attempt", {
+        savedPlaylistId,
+        title: savedPlaylist.title,
+        cachedItemCount: savedPlaylist.items.length,
+        playableVideoCount: playableVideos.length,
+        downloadedItemIdsSample: savedPlaylist.items
+          .filter((item) => item.isDownloaded)
+          .slice(0, 5)
+          .map((item) => item.videoId),
+        missingItemIdsSample: savedPlaylist.items
+          .filter((item) => !item.isDownloaded)
+          .slice(0, 5)
+          .map((item) => item.videoId),
+      });
+
       if (playableVideos.length === 0) {
+        logger.warn("[TV Offline Debug] Offline playlist blocked", {
+          savedPlaylistId,
+          title: savedPlaylist.title,
+          reason: "no-local-videos-on-tv",
+        });
         Alert.alert(
           "Offline mode",
           "Download videos in this list first or reconnect to desktop to stream."
@@ -641,6 +716,16 @@ export default function TVHomeScreen() {
           localPathByVideoId,
           serverUrl
         );
+        logger.info("[TV Playback Debug] Remote collection prepared", {
+          kind,
+          id,
+          title,
+          totalVideos: streamingVideos.length,
+          localPlayableCount: streamingVideos.filter((item) => !!item.localPath)
+            .length,
+          sourceKind: "desktop-playback",
+          serverUrl,
+        });
         if (streamingVideos.length === 0) {
           return;
         }

@@ -1,4 +1,4 @@
-import Constants from "expo-constants";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Directory, File, Paths } from "expo-file-system";
 import * as FileSystemLegacy from "expo-file-system/legacy";
 import * as IntentLauncher from "expo-intent-launcher";
@@ -11,6 +11,8 @@ const APK_MIME_TYPE = "application/vnd.android.package-archive";
 const FLAG_GRANT_READ_URI_PERMISSION = 1;
 const FLAG_ACTIVITY_NEW_TASK = 268_435_456;
 const DEFAULT_GITHUB_API_BASE_URL = "https://api.github.com";
+const GITHUB_API_ACCEPT_HEADER = "application/vnd.github+json";
+const DEFAULT_GITHUB_RELEASE_SCAN_LIMIT = 12;
 const INTENT_LAUNCHER_BUSY_RETRY_ATTEMPTS = 3;
 const INTENT_LAUNCHER_BUSY_RETRY_DELAY_MS = 400;
 
@@ -36,11 +38,13 @@ interface GithubReleaseAsset {
   browser_download_url?: string;
 }
 
-interface GithubLatestReleaseResponse {
+interface GithubReleaseResponse {
   tag_name?: string;
   name?: string;
   body?: string;
   assets?: GithubReleaseAsset[];
+  draft?: boolean;
+  prerelease?: boolean;
 }
 
 interface VersionComparisonResult {
@@ -156,6 +160,43 @@ const getCurrentVersionName = (): string | null => {
   return null;
 };
 
+const hasNativeBuildVersion = (): boolean => {
+  const nativeBuildVersion = Constants.nativeBuildVersion;
+  if (typeof nativeBuildVersion === "number") {
+    return Number.isFinite(nativeBuildVersion);
+  }
+  return (
+    typeof nativeBuildVersion === "string" &&
+    nativeBuildVersion.trim().length > 0
+  );
+};
+
+const getAndroidApkUpdateUnsupportedReason = (): string | null => {
+  if (Platform.OS !== "android") {
+    return "APK self-update is only available on Android.";
+  }
+
+  if (__DEV__) {
+    return "APK self-update is unavailable in development builds.";
+  }
+
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
+    return "APK self-update is unavailable in Expo Go or development clients.";
+  }
+
+  if (
+    !hasNativeBuildVersion() &&
+    Constants.executionEnvironment !== ExecutionEnvironment.Standalone
+  ) {
+    return "APK self-update requires a packaged Android build.";
+  }
+
+  return null;
+};
+
+const canUseAndroidApkUpdates = (): boolean =>
+  getAndroidApkUpdateUnsupportedReason() === null;
+
 const promptForAction = (
   title: string,
   message: string,
@@ -269,43 +310,15 @@ const selectGithubApkAsset = (
   return apkAsset ?? null;
 };
 
-const fetchUpdateManifestFromGithubRelease = async (
-  githubRepo: string,
-  timeoutMs: number,
-  options?: { assetName?: string; apiBaseUrl?: string }
-): Promise<ApkUpdateManifest> => {
-  if (!/^[^/\s]+\/[^/\s]+$/.test(githubRepo)) {
-    throw new Error(
-      `Invalid githubRepo '${githubRepo}'. Expected format: owner/repository.`
-    );
-  }
-
-  const apiBaseUrl =
-    options?.apiBaseUrl?.trim() || DEFAULT_GITHUB_API_BASE_URL;
-  const endpoint = `${apiBaseUrl}/repos/${githubRepo}/releases/latest`;
-  const response = await fetchWithTimeout(endpoint, timeoutMs, {
-    headers: {
-      Accept: "application/vnd.github+json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `GitHub latest release request failed (HTTP ${response.status}).`
-    );
-  }
-
-  const payload = (await response.json()) as GithubLatestReleaseResponse;
+const parseGithubReleaseManifest = (
+  payload: GithubReleaseResponse,
+  preferredAssetName: string | undefined
+): ApkUpdateManifest | null => {
   const assets = Array.isArray(payload.assets) ? payload.assets : [];
-  const asset = selectGithubApkAsset(assets, options?.assetName);
+  const asset = selectGithubApkAsset(assets, preferredAssetName);
 
   if (!asset?.browser_download_url) {
-    if (options?.assetName) {
-      throw new Error(
-        `No APK asset named '${options.assetName}' found in latest GitHub release.`
-      );
-    }
-    throw new Error("No APK asset found in latest GitHub release.");
+    return null;
   }
 
   const versionNameCandidate =
@@ -328,6 +341,73 @@ const fetchUpdateManifestFromGithubRelease = async (
     apkUrl: asset.browser_download_url.trim(),
     releaseNotes: typeof payload.body === "string" ? payload.body : undefined,
   };
+};
+
+const fetchUpdateManifestFromGithubRelease = async (
+  githubRepo: string,
+  timeoutMs: number,
+  options?: { assetName?: string; apiBaseUrl?: string }
+): Promise<ApkUpdateManifest> => {
+  if (!/^[^/\s]+\/[^/\s]+$/.test(githubRepo)) {
+    throw new Error(
+      `Invalid githubRepo '${githubRepo}'. Expected format: owner/repository.`
+    );
+  }
+
+  const apiBaseUrl =
+    options?.apiBaseUrl?.trim() || DEFAULT_GITHUB_API_BASE_URL;
+  const endpoint = `${apiBaseUrl}/repos/${githubRepo}/releases/latest`;
+  const response = await fetchWithTimeout(endpoint, timeoutMs, {
+    headers: {
+      Accept: GITHUB_API_ACCEPT_HEADER,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `GitHub latest release request failed (HTTP ${response.status}).`
+    );
+  }
+
+  const payload = (await response.json()) as GithubReleaseResponse;
+  const latestManifest = parseGithubReleaseManifest(payload, options?.assetName);
+  if (latestManifest) {
+    return latestManifest;
+  }
+
+  const releasesEndpoint = `${apiBaseUrl}/repos/${githubRepo}/releases?per_page=${DEFAULT_GITHUB_RELEASE_SCAN_LIMIT}`;
+  const releasesResponse = await fetchWithTimeout(releasesEndpoint, timeoutMs, {
+    headers: {
+      Accept: GITHUB_API_ACCEPT_HEADER,
+    },
+  });
+
+  if (!releasesResponse.ok) {
+    throw new Error(
+      `GitHub releases request failed (HTTP ${releasesResponse.status}).`
+    );
+  }
+
+  const releasesPayload = (await releasesResponse.json()) as GithubReleaseResponse[];
+  const releases = Array.isArray(releasesPayload) ? releasesPayload : [];
+
+  for (const release of releases) {
+    if (release.draft || release.prerelease) {
+      continue;
+    }
+
+    const manifest = parseGithubReleaseManifest(release, options?.assetName);
+    if (manifest) {
+      return manifest;
+    }
+  }
+
+  if (options?.assetName) {
+    throw new Error(
+      `No APK asset named '${options.assetName}' found in recent GitHub releases.`
+    );
+  }
+  throw new Error("No APK asset found in recent GitHub releases.");
 };
 
 const loadUpdateManifest = async (
@@ -477,7 +557,7 @@ const getUpdateTitle = (manifest: ApkUpdateManifest): string => {
 };
 
 export const shouldCheckForUpdatesOnLaunch = (): boolean => {
-  if (Platform.OS !== "android" || __DEV__) {
+  if (!canUseAndroidApkUpdates()) {
     return false;
   }
 
@@ -487,7 +567,7 @@ export const shouldCheckForUpdatesOnLaunch = (): boolean => {
 
 export const getAndroidApkUpdateAvailability =
   async (): Promise<AndroidApkUpdateAvailability> => {
-    if (Platform.OS !== "android") {
+    if (!canUseAndroidApkUpdates()) {
       return { configured: false, hasUpdate: false };
     }
 
@@ -538,7 +618,12 @@ export const getAndroidApkUpdateAvailability =
 export const checkForAndroidApkUpdate = async (
   options?: { manual?: boolean }
 ): Promise<void> => {
-  if (Platform.OS !== "android") {
+  const unsupportedReason = getAndroidApkUpdateUnsupportedReason();
+  if (unsupportedReason) {
+    if (options?.manual) {
+      Alert.alert("Updates unavailable", unsupportedReason);
+    }
+    logger.debug("APK update check skipped.", { reason: unsupportedReason });
     return;
   }
 

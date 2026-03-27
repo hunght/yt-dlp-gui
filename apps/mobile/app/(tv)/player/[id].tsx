@@ -11,10 +11,12 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLibraryStore } from "../../../stores/library";
 import { useConnectionStore } from "../../../stores/connection";
+import { useDownloadStore } from "../../../stores/downloads";
 import { usePlaybackStore } from "../../../stores/playback";
 import { useTVHistoryStore } from "../../../stores/tvHistory";
 import { api } from "../../../services/api";
-import { getVideoFileUri } from "../../../services/downloader";
+import { getVideoFileUri, getVideoLocalPath } from "../../../services/downloader";
+import { logger } from "../../../services/logger";
 import {
   TVFocusPressable,
   type TVFocusPressableHandle,
@@ -143,6 +145,44 @@ async function ensureServerVideoReady(
   throw new Error("Server download timed out");
 }
 
+async function waitForLocalVideoReady(
+  videoId: string,
+  options?: {
+    signal?: AbortSignal;
+    timeoutMs?: number;
+    onProgress?: (progress: number | null) => void;
+  }
+): Promise<string> {
+  const signal = options?.signal;
+  const timeoutMs = options?.timeoutMs ?? SERVER_DOWNLOAD_TIMEOUT_MS;
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    throwIfAborted(signal);
+
+    const localPath = getVideoLocalPath(videoId);
+    if (localPath) {
+      options?.onProgress?.(100);
+      return localPath;
+    }
+
+    const download = useDownloadStore.getState().getDownload(videoId);
+    if (download?.status === "failed") {
+      throw new Error(download.error || "Download to TV failed");
+    }
+
+    if (download?.status === "downloading" || download?.status === "completed") {
+      options?.onProgress?.(download.progress ?? null);
+    } else {
+      options?.onProgress?.(null);
+    }
+
+    await sleep(1000);
+  }
+
+  throw new Error("Download to TV timed out");
+}
+
 export default function TVPlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const libraryVideos = useLibraryStore((state) => state.videos);
@@ -163,6 +203,7 @@ export default function TVPlayerScreen() {
   const [prepareError, setPrepareError] = useState<string | null>(null);
   const [prepareProgress, setPrepareProgress] = useState<number | null>(null);
   const [prepareRetryVersion, setPrepareRetryVersion] = useState(0);
+  const [isVideoViewReady, setIsVideoViewReady] = useState(false);
   const [isRemoteNavVisible, setIsRemoteNavVisible] = useState(true);
   const [shouldPreferRemoteNavFocus, setShouldPreferRemoteNavFocus] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -237,12 +278,40 @@ export default function TVPlayerScreen() {
   const localPath = useMemo(() => {
     if (!id) return null;
     return (
+      getVideoLocalPath(id) ??
       localPathByVideoId.get(id) ??
       playlistVideo?.localPath ??
       libraryVideo?.localPath ??
       null
     );
   }, [id, libraryVideo?.localPath, localPathByVideoId, playlistVideo?.localPath]);
+
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+
+    logger.info("[TV Playback Debug] Source resolution", {
+      videoId: id,
+      hasLocalPath: !!localPath,
+      localPath,
+      hasEffectiveServerUrl: !!effectiveServerUrl,
+      effectiveServerUrl,
+      playlistVideoHasLocalPath: !!playlistVideo?.localPath,
+      libraryVideoHasLocalPath: !!libraryVideo?.localPath,
+      sourceKind: localPath
+        ? "local-file"
+        : effectiveServerUrl
+          ? "desktop-playback"
+          : "unavailable",
+    });
+  }, [
+    effectiveServerUrl,
+    id,
+    libraryVideo?.localPath,
+    localPath,
+    playlistVideo?.localPath,
+  ]);
 
   useEffect(() => {
     if (!id) {
@@ -253,6 +322,10 @@ export default function TVPlayerScreen() {
     }
 
     if (localPath) {
+      logger.info("[TV Playback Debug] Using local file", {
+        videoId: id,
+        localPath,
+      });
       setPrepareState("ready");
       setPrepareError(null);
       setPrepareProgress(100);
@@ -260,6 +333,12 @@ export default function TVPlayerScreen() {
     }
 
     if (!effectiveServerUrl) {
+      logger.warn("[TV Playback Debug] Offline playback unavailable", {
+        videoId: id,
+        reason: "no-local-file-and-no-server",
+        playlistVideoHasLocalPath: !!playlistVideo?.localPath,
+        libraryVideoHasLocalPath: !!libraryVideo?.localPath,
+      });
       setPrepareState("failed");
       setPrepareError("Video is not available offline");
       setPrepareProgress(null);
@@ -275,6 +354,15 @@ export default function TVPlayerScreen() {
 
     const prepare = async () => {
       try {
+        if (!video) {
+          throw new Error("Video metadata is unavailable");
+        }
+
+        logger.info("[TV Playback Debug] Falling back to desktop playback", {
+          videoId: id,
+          serverUrl: effectiveServerUrl,
+          reason: "download-to-tv-required",
+        });
         await ensureServerVideoReady(effectiveServerUrl, id, {
           signal: abortController.signal,
           onStatus: (status) => {
@@ -283,7 +371,38 @@ export default function TVPlayerScreen() {
           },
         });
 
+        if (cancelled || abortController.signal.aborted) {
+          return;
+        }
+
+        const existingDownload = useDownloadStore.getState().getDownload(id);
+        if (!getVideoLocalPath(id)) {
+          logger.info("[TV Playback Debug] Queueing TV download", {
+            videoId: id,
+            title: video.title,
+            existingDownloadStatus: existingDownload?.status ?? null,
+          });
+          useDownloadStore.getState().queueDownload(id, {
+            title: video.title,
+            channelTitle: video.channelTitle,
+            duration: video.duration,
+            thumbnailUrl: video.thumbnailUrl ?? undefined,
+          });
+        }
+
+        await waitForLocalVideoReady(id, {
+          signal: abortController.signal,
+          onProgress: (progress) => {
+            if (cancelled) return;
+            setPrepareProgress(progress);
+          },
+        });
+
         if (!cancelled) {
+          logger.info("[TV Playback Debug] TV download ready", {
+            videoId: id,
+            localPath: getVideoLocalPath(id),
+          });
           setPrepareState("ready");
           setPrepareError(null);
           setPrepareProgress(100);
@@ -293,6 +412,11 @@ export default function TVPlayerScreen() {
           return;
         }
 
+        logger.warn("[TV Playback Debug] Desktop playback preparation failed", {
+          videoId: id,
+          serverUrl: effectiveServerUrl,
+          error: getErrorMessage(error),
+        });
         setPrepareState("failed");
         setPrepareError(getErrorMessage(error));
         setPrepareProgress(null);
@@ -305,20 +429,40 @@ export default function TVPlayerScreen() {
       cancelled = true;
       abortController.abort();
     };
-  }, [id, localPath, effectiveServerUrl, prepareRetryVersion]);
+  }, [
+    effectiveServerUrl,
+    id,
+    localPath,
+    prepareRetryVersion,
+    video,
+  ]);
 
   const source = useMemo(() => {
     if (!id) return "";
     if (localPath) return localPath;
-    if (!effectiveServerUrl) return "";
-    if (prepareState !== "ready") return "";
-    return api.getVideoFileUrl(effectiveServerUrl, id);
+    return "";
   }, [effectiveServerUrl, id, localPath, prepareState]);
 
   const player = useVideoPlayer(source, (instance) => {
     instance.loop = false;
     instance.play();
   });
+
+  useEffect(() => {
+    setIsVideoViewReady(false);
+
+    if (!source) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setIsVideoViewReady(true);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [source]);
 
   useEffect(() => {
     if (playlistIndex >= 0 && playlistIndex !== currentIndex) {
@@ -559,7 +703,7 @@ export default function TVPlayerScreen() {
         <View style={styles.centered}>
           {prepareState === "preparing" ? (
             <>
-              <Text style={styles.errorText}>Preparing video on desktop...</Text>
+              <Text style={styles.errorText}>Preparing video for offline playback...</Text>
               <Text style={styles.channel}>
                 {prepareProgress !== null
                   ? `Download progress ${Math.max(0, Math.round(prepareProgress))}%`
@@ -691,15 +835,19 @@ export default function TVPlayerScreen() {
       </SafeAreaView>
 
       <View style={styles.videoFrame}>
-        <VideoView
-          player={player}
-          style={styles.video}
-          contentFit="contain"
-          nativeControls={false}
-          surfaceType="textureView"
-          focusable={false}
-          importantForAccessibility="no-hide-descendants"
-        />
+        {isVideoViewReady ? (
+          <VideoView
+            key={`${id}:${source}`}
+            player={player}
+            style={styles.video}
+            contentFit="contain"
+            nativeControls={false}
+            focusable={false}
+            importantForAccessibility="no-hide-descendants"
+          />
+        ) : (
+          <View style={[styles.video, styles.videoPlaceholder]} />
+        )}
       </View>
 
     </View>
@@ -746,6 +894,9 @@ const styles = StyleSheet.create({
   },
   video: {
     flex: 1,
+    backgroundColor: "#000",
+  },
+  videoPlaceholder: {
     backgroundColor: "#000",
   },
   chromeSafeArea: {

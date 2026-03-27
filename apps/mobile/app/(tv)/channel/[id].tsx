@@ -22,7 +22,7 @@ import {
   cacheRemotePlaylists,
   resolveRemoteAssetUrl,
 } from "../../../services/browseCache";
-import { getVideoFileUri } from "../../../services/downloader";
+import { getVideoFileUri, getVideoLocalPath } from "../../../services/downloader";
 import {
   buildCachedPlaylistId,
   getAllSavedPlaylistsWithProgress,
@@ -102,7 +102,7 @@ function getResolvedLocalPath(
   videoId: string,
   localPathByVideoId: Map<string, string>
 ): string | undefined {
-  return localPathByVideoId.get(videoId);
+  return localPathByVideoId.get(videoId) ?? getVideoLocalPath(videoId) ?? undefined;
 }
 
 function toOfflineChannelVideos(

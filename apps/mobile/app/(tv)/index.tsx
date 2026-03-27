@@ -36,7 +36,7 @@ import {
   assertSyncCompatibility,
   SyncCompatibilityError,
 } from "../../services/sync-compatibility";
-import { getVideoFileUri } from "../../services/downloader";
+import { getVideoFileUri, getVideoLocalPath } from "../../services/downloader";
 import {
   buildCachedPlaylistId,
   getAllSavedPlaylistsWithProgress,
@@ -192,7 +192,7 @@ function getResolvedLocalPath(
   videoId: string,
   localPathByVideoId: Map<string, string>
 ): string | undefined {
-  return localPathByVideoId.get(videoId);
+  return localPathByVideoId.get(videoId) ?? getVideoLocalPath(videoId) ?? undefined;
 }
 
 function toSavedPlaylistStreamingVideos(
@@ -205,7 +205,8 @@ function toSavedPlaylistStreamingVideos(
     channelTitle: item.channelTitle,
     duration: item.duration,
     thumbnailUrl: item.thumbnailUrl ?? undefined,
-    localPath: getResolvedLocalPath(item.videoId, localPathByVideoId),
+    localPath:
+      getResolvedLocalPath(item.videoId, localPathByVideoId),
   }));
 }
 

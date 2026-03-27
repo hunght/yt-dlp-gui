@@ -17,7 +17,7 @@
     "metro.config.js"
   ],
   "ignoreDependencies": ["expo-updates", "expo-system-ui"],
-  "ignoreBinaries": ["expo-doctor", "eas", "eslint"],
+  "ignoreBinaries": ["eas"],
   "typescript": {
     "config": ["tsconfig.json"]
   }

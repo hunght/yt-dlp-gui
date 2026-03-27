@@ -16,7 +16,17 @@
     "**/__mocks__/**",
     "vite.*.config.ts"
   ],
-  "ignoreDependencies": ["@electron-forge/*", "@electron/*", "@storybook/*"],
+  "ignoreDependencies": [
+    "@electron-forge/*",
+    "@electron/*",
+    "@storybook/*",
+    "@testing-library/react",
+    "cross-env",
+    "lefthook",
+    "png-to-ico",
+    "sharp",
+    "ts-node"
+  ],
   "vitest": false,
   "vite": false,
   "eslint": {

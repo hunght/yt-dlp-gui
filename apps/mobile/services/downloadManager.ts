@@ -32,10 +32,6 @@ class DownloadManager {
       const activeDownloads = store.getActiveDownloads();
       const queuedDownloads = store.getQueuedDownloads();
 
-      log(
-        `Processing queue: ${activeDownloads.length} active, ${queuedDownloads.length} queued`
-      );
-
       // Start downloads up to the concurrent limit
       const slotsAvailable = MAX_CONCURRENT - activeDownloads.length;
       if (slotsAvailable <= 0 || queuedDownloads.length === 0) {

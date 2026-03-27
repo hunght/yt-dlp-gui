@@ -4,53 +4,36 @@ import { useDownloadStore } from "../stores/downloads";
 import { useConnectionStore } from "../stores/connection";
 import { downloadManager } from "../services/downloadManager";
 
-const log = (message: string, data?: unknown) => {
-  const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);
-  if (data) {
-    console.log(`[${timestamp}] [DownloadProcessor] ${message}`, data);
-  } else {
-    console.log(`[${timestamp}] [DownloadProcessor] ${message}`);
+function getQueueCounts(queue: ReturnType<typeof useDownloadStore.getState>["queue"]) {
+  let queuedCount = 0;
+  let activeCount = 0;
+
+  for (const item of queue) {
+    if (item.status === "queued") {
+      queuedCount += 1;
+    } else if (item.status === "downloading") {
+      activeCount += 1;
+    }
   }
-};
+
+  return { queuedCount, activeCount };
+}
 
 export function useDownloadProcessor() {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const queue = useDownloadStore((state) => state.queue);
-  const serverUrl = useConnectionStore((state) => state.serverUrl);
-
-  // Process queue when queue changes or server connects
-  useEffect(() => {
-    if (!serverUrl) {
-      log("No server URL, skipping queue processing");
-      return;
-    }
-
-    if (appStateRef.current !== "active") {
-      log("App not active, skipping queue processing");
-      return;
-    }
-
-    const queuedCount = queue.filter((d) => d.status === "queued").length;
-    const activeCount = queue.filter((d) => d.status === "downloading").length;
-
-    if (queuedCount > 0 || activeCount > 0) {
-      log(`Queue state: ${queuedCount} queued, ${activeCount} downloading`);
-      downloadManager.processQueue();
-    }
-  }, [queue, serverUrl]);
+  const serverUrlRef = useRef(useConnectionStore.getState().serverUrl);
 
   // Handle app state changes
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      log(`App state changed: ${appStateRef.current} -> ${nextAppState}`);
-
       if (
         appStateRef.current.match(/inactive|background/) &&
         nextAppState === "active"
       ) {
-        // App became active - resume queue processing
-        log("App became active, resuming downloads");
-        downloadManager.processQueue();
+        const { queuedCount, activeCount } = getQueueCounts(useDownloadStore.getState().queue);
+        if (serverUrlRef.current && (queuedCount > 0 || activeCount > 0)) {
+          downloadManager.processQueue();
+        }
       }
 
       appStateRef.current = nextAppState;
@@ -66,17 +49,46 @@ export function useDownloadProcessor() {
     };
   }, []);
 
-  // Initial queue processing on mount
   useEffect(() => {
-    log("Download processor initialized");
+    const unsubscribeConnection = useConnectionStore.subscribe((state) => {
+      const previousServerUrl = serverUrlRef.current;
+      serverUrlRef.current = state.serverUrl;
 
-    // Process any items that were queued (or reset from downloading) on restart
-    const queuedCount = useDownloadStore
-      .getState()
-      .queue.filter((d) => d.status === "queued").length;
-    if (queuedCount > 0) {
-      log(`Found ${queuedCount} queued items on mount`);
+      if (!previousServerUrl && state.serverUrl && appStateRef.current === "active") {
+        const { queuedCount, activeCount } = getQueueCounts(useDownloadStore.getState().queue);
+        if (queuedCount > 0 || activeCount > 0) {
+          downloadManager.processQueue();
+        }
+      }
+    });
+
+    const unsubscribeQueue = useDownloadStore.subscribe((state, previousState) => {
+      if (!serverUrlRef.current || appStateRef.current !== "active") {
+        return;
+      }
+
+      const currentCounts = getQueueCounts(state.queue);
+      const previousCounts = getQueueCounts(previousState.queue);
+      if (
+        currentCounts.queuedCount === previousCounts.queuedCount &&
+        currentCounts.activeCount === previousCounts.activeCount
+      ) {
+        return;
+      }
+
+      if (currentCounts.queuedCount > 0 || currentCounts.activeCount > 0) {
+        downloadManager.processQueue();
+      }
+    });
+
+    const { queuedCount, activeCount } = getQueueCounts(useDownloadStore.getState().queue);
+    if (serverUrlRef.current && appStateRef.current === "active" && (queuedCount > 0 || activeCount > 0)) {
       downloadManager.processQueue();
     }
+
+    return () => {
+      unsubscribeConnection();
+      unsubscribeQueue();
+    };
   }, []);
 }

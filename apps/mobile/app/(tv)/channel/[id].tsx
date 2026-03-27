@@ -24,6 +24,7 @@ import {
 } from "../../../services/browseCache";
 import { getVideoFileUri, getVideoLocalPath } from "../../../services/downloader";
 import { logger } from "../../../services/logger";
+import { tvDebugInfo } from "../../../services/tvDebug";
 import {
   buildCachedPlaylistId,
   getAllSavedPlaylistsWithProgress,
@@ -445,7 +446,7 @@ export default function TVChannelDetailScreen() {
         playlistTitle,
         true
       );
-      logger.info("[TV Offline Debug] Open cached playlist", {
+      tvDebugInfo("[TV Offline Debug] Open cached playlist", {
         cachedPlaylistId,
         playlistId,
         playlistTitle,
@@ -530,7 +531,7 @@ export default function TVChannelDetailScreen() {
       const playableVideos = canStream
         ? streamingVideos
         : streamingVideos.filter((item) => !!item.localPath);
-      logger.info("[TV Playback Debug] Channel playlist prepared", {
+      tvDebugInfo("[TV Playback Debug] Channel playlist prepared", {
         videoId,
         playbackPlaylistId: activePlaylist?.id ?? channelId ?? channelTitle,
         totalVideos: streamingVideos.length,

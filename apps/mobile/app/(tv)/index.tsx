@@ -33,6 +33,7 @@ import {
   resolveRemoteAssetUrl,
 } from "../../services/browseCache";
 import { logger } from "../../services/logger";
+import { isTVDebugEnabled, tvDebugInfo } from "../../services/tvDebug";
 import {
   assertSyncCompatibility,
   SyncCompatibilityError,
@@ -299,6 +300,10 @@ export default function TVHomeScreen() {
 
   const logOfflinePlaylistSnapshot = useCallback(
     (reason: string, playlistsSnapshot: OfflineSavedPlaylist[]) => {
+      if (!isTVDebugEnabled()) {
+        return;
+      }
+
       const playlistDebug = playlistsSnapshot
         .filter((playlist) => playlist.type === "playlist")
         .map((playlist) => {
@@ -326,7 +331,7 @@ export default function TVHomeScreen() {
           };
         });
 
-      logger.info("[TV Offline Debug] Playlist progress snapshot", {
+      tvDebugInfo("[TV Offline Debug] Playlist progress snapshot", {
         reason,
         localVideoCount: localPathByVideoId.size,
         playlistCount: playlistDebug.length,
@@ -489,7 +494,7 @@ export default function TVHomeScreen() {
           serverUrl,
           playlistResult.value.playlists
         );
-        logger.info("[TV Offline Debug] Remote playlist counts", {
+        tvDebugInfo("[TV Offline Debug] Remote playlist counts", {
           serverUrl,
           playlistCount: nextPlaylists.length,
           playlists: nextPlaylists.map((playlist) => ({
@@ -635,7 +640,7 @@ export default function TVHomeScreen() {
         localPathByVideoId
       ).filter((item) => !!item.localPath);
 
-      logger.info("[TV Offline Debug] Offline playlist playback attempt", {
+      tvDebugInfo("[TV Offline Debug] Offline playlist playback attempt", {
         savedPlaylistId,
         title: savedPlaylist.title,
         cachedItemCount: savedPlaylist.items.length,
@@ -716,7 +721,7 @@ export default function TVHomeScreen() {
           localPathByVideoId,
           serverUrl
         );
-        logger.info("[TV Playback Debug] Remote collection prepared", {
+        tvDebugInfo("[TV Playback Debug] Remote collection prepared", {
           kind,
           id,
           title,

@@ -17,6 +17,7 @@ import { useTVHistoryStore } from "../../../stores/tvHistory";
 import { api } from "../../../services/api";
 import { getVideoFileUri, getVideoLocalPath } from "../../../services/downloader";
 import { logger } from "../../../services/logger";
+import { tvDebugInfo } from "../../../services/tvDebug";
 import {
   TVFocusPressable,
   type TVFocusPressableHandle,
@@ -291,7 +292,7 @@ export default function TVPlayerScreen() {
       return;
     }
 
-    logger.info("[TV Playback Debug] Source resolution", {
+    tvDebugInfo("[TV Playback Debug] Source resolution", {
       videoId: id,
       hasLocalPath: !!localPath,
       localPath,
@@ -322,7 +323,7 @@ export default function TVPlayerScreen() {
     }
 
     if (localPath) {
-      logger.info("[TV Playback Debug] Using local file", {
+      tvDebugInfo("[TV Playback Debug] Using local file", {
         videoId: id,
         localPath,
       });
@@ -358,7 +359,7 @@ export default function TVPlayerScreen() {
           throw new Error("Video metadata is unavailable");
         }
 
-        logger.info("[TV Playback Debug] Falling back to desktop playback", {
+        tvDebugInfo("[TV Playback Debug] Falling back to desktop playback", {
           videoId: id,
           serverUrl: effectiveServerUrl,
           reason: "download-to-tv-required",
@@ -377,7 +378,7 @@ export default function TVPlayerScreen() {
 
         const existingDownload = useDownloadStore.getState().getDownload(id);
         if (!getVideoLocalPath(id)) {
-          logger.info("[TV Playback Debug] Queueing TV download", {
+          tvDebugInfo("[TV Playback Debug] Queueing TV download", {
             videoId: id,
             title: video.title,
             existingDownloadStatus: existingDownload?.status ?? null,
@@ -399,7 +400,7 @@ export default function TVPlayerScreen() {
         });
 
         if (!cancelled) {
-          logger.info("[TV Playback Debug] TV download ready", {
+          tvDebugInfo("[TV Playback Debug] TV download ready", {
             videoId: id,
             localPath: getVideoLocalPath(id),
           });
@@ -742,7 +743,7 @@ export default function TVPlayerScreen() {
             nativeControls={false}
             focusable={false}
             importantForAccessibility="no-hide-descendants"
-            surfaceType="textureView"
+            surfaceType="surfaceView"
           />
         ) : (
           <View style={[styles.video, styles.videoPlaceholder]} />

@@ -3,6 +3,7 @@
   "version": "1.0.31",
   "main": "expo-router/entry",
   "scripts": {
+    "postinstall": "bash ../../scripts/setup-git-hooks.sh",
     "start": "kill $(lsof -ti:8081) 2>/dev/null || true && expo start -c",
     "start:mobile": "EXPO_PUBLIC_APP_SURFACE=mobile npm run start",
     "start:tv": "EXPO_PUBLIC_APP_SURFACE=tv npm run start",
@@ -50,6 +51,7 @@
     "react-native-tcp-socket": "^6.4.1",
     "react-native-worklets": "0.7.2",
     "react-native-zeroconf": "^0.14.0",
+    "zod": "^4.3.6",
     "zustand": "^5.0.10"
   },
   "devDependencies": {

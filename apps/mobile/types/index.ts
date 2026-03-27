@@ -35,14 +35,7 @@ export interface RemoteVideo {
   availableLanguages?: string[];
 }
 
-export interface ServerInfo {
-  name: string;
-  version: string;
-  videoCount: number;
-  // Optional for legacy desktop builds that predate protocol negotiation.
-  syncProtocolVersion?: number;
-  minSupportedMobileSyncProtocolVersion?: number;
-}
+export type { SyncServerInfo as ServerInfo } from "../../shared/mobile-sync-contract";
 
 export interface VideoMeta {
   id: string;

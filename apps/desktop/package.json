@@ -8,6 +8,7 @@
     "start": "./scripts/restart.sh --start",
     "dev": "electron-forge start",
     "clean": "rm -rf .vite dist out",
+    "lint": "eslint .",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix",
     "prettier": "prettier . --write",
@@ -21,7 +22,7 @@
     "release:no-draft": "./scripts/release.sh --no-draft",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
-    "postinstall": "lefthook install || true"
+    "postinstall": "bash ../../scripts/setup-git-hooks.sh"
   },
   "author": "HungHoang <hth321@gmail.com>",
   "license": "MIT",

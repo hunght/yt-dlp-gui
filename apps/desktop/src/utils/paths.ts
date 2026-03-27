@@ -30,9 +30,15 @@ const readDatabasePathConfig = (): DatabasePathConfig => {
 
   try {
     const raw = fs.readFileSync(configPath, "utf8");
-    const parsed = JSON.parse(raw) as DatabasePathConfig;
+    const parsed: unknown = JSON.parse(raw);
 
-    if (typeof parsed.customDatabasePath === "string" && parsed.customDatabasePath.trim()) {
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "customDatabasePath" in parsed &&
+      typeof parsed.customDatabasePath === "string" &&
+      parsed.customDatabasePath.trim()
+    ) {
       return {
         customDatabasePath: path.resolve(parsed.customDatabasePath),
       };

@@ -132,13 +132,8 @@ export default [
       /* 🚫 Ban any */
       '@typescript-eslint/no-explicit-any': 'error',
 
-      /* 🚫 Ban forced type assertions (as/<>), prefer safer narrowing */
-      '@typescript-eslint/consistent-type-assertions': [
-        'error',
-        {
-          assertionStyle: 'never',
-        },
-      ],
+      /* 🚫 Ban unsafe type escape hatches instead of literal-narrowing helpers like `as const` */
+      '@typescript-eslint/consistent-type-assertions': 'off',
 
       /* 🧠 Encourage using unknown and proper type guards */
       '@typescript-eslint/no-unsafe-assignment': 'error',
@@ -224,6 +219,18 @@ export default [
       'no-restricted-syntax': [
         'error',
         {
+          selector:
+            "TSAsExpression[typeAnnotation.type='TSAnyKeyword'], TSTypeAssertion[typeAnnotation.type='TSAnyKeyword']",
+          message:
+            "Do not use 'as any'. Prefer proper typing, narrowing, or validation.",
+        },
+        {
+          selector:
+            "TSAsExpression[typeAnnotation.type='TSUnknownKeyword'], TSTypeAssertion[typeAnnotation.type='TSUnknownKeyword']",
+          message:
+            "Do not cast to unknown as a type escape hatch. Prefer runtime validation or a dedicated type guard.",
+        },
+        {
           selector: 'ClassDeclaration',
           message: 'Do not use classes — prefer functions or factory patterns instead.',
         },
@@ -286,4 +293,3 @@ export default [
     },
   },
 ];
-

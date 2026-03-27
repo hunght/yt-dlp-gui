@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+mobile_staged=()
+while IFS= read -r file; do
+  if [[ -n "$file" ]]; then
+    mobile_staged+=("$file")
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR -- 'apps/mobile')
+
+desktop_staged=()
+while IFS= read -r file; do
+  if [[ -n "$file" ]]; then
+    desktop_staged+=("$file")
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR -- 'apps/desktop')
+
+run_mobile=false
+run_desktop=false
+
+if [[ ${#mobile_staged[@]} -gt 0 ]]; then
+  run_mobile=true
+fi
+
+if [[ ${#desktop_staged[@]} -gt 0 ]]; then
+  run_desktop=true
+fi
+
+if [[ "$run_mobile" == false && "$run_desktop" == false ]]; then
+  exit 0
+fi
+
+if [[ "$run_mobile" == true ]]; then
+  mobile_lint_files=()
+  for file in "${mobile_staged[@]}"; do
+    case "$file" in
+      *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)
+        mobile_lint_files+=("${file#apps/mobile/}")
+        ;;
+    esac
+  done
+
+  if [[ ${#mobile_lint_files[@]} -gt 0 ]]; then
+    echo "Running mobile eslint on staged files..."
+    (
+      cd apps/mobile
+      npx eslint --max-warnings=0 --no-warn-ignored "${mobile_lint_files[@]}"
+    )
+  fi
+
+  echo "Running mobile type-check..."
+  npm run mobile:type-check
+fi
+
+if [[ "$run_desktop" == true ]]; then
+  desktop_lint_files=()
+  for file in "${desktop_staged[@]}"; do
+    case "$file" in
+      *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)
+        desktop_lint_files+=("${file#apps/desktop/}")
+        ;;
+    esac
+  done
+
+  if [[ ${#desktop_lint_files[@]} -gt 0 ]]; then
+    echo "Running desktop eslint on staged files..."
+    (
+      cd apps/desktop
+      npx eslint --max-warnings=0 --no-warn-ignored "${desktop_lint_files[@]}"
+    )
+  fi
+
+  echo "Running desktop type-check..."
+  npm run desktop:type-check
+fi

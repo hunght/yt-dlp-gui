@@ -1,8 +1,8 @@
 import type { ServerInfo } from "../types";
-
-// Versioned contract between mobile app and desktop sync server.
-export const MOBILE_SYNC_PROTOCOL_VERSION = 1;
-export const MIN_SUPPORTED_DESKTOP_SYNC_PROTOCOL_VERSION = 1;
+import {
+  MOBILE_SYNC_PROTOCOL_VERSION,
+  MIN_SUPPORTED_DESKTOP_SYNC_PROTOCOL_VERSION,
+} from "../../shared/mobile-sync-contract";
 
 const LEGACY_SYNC_PROTOCOL_VERSION = 1;
 const LEGACY_MIN_SUPPORTED_MOBILE_SYNC_PROTOCOL_VERSION = 1;

@@ -25,6 +25,12 @@ import { getQueueManager } from "../services/download-queue/queue-manager";
 import { parseVttToSegments, downloadTranscript } from "../api/routers/transcripts";
 import { downloadImageToCache } from "../api/utils/ytdlp-utils/thumbnail";
 import { getPlaylistDetailsForServer } from "../api/routers/playlists";
+import { z } from "zod";
+import {
+  MOBILE_SYNC_PROTOCOL_VERSION,
+  MIN_SUPPORTED_MOBILE_SYNC_PROTOCOL_VERSION,
+  type SyncServerInfo,
+} from "../../../shared/mobile-sync-contract";
 
 /**
  * HTTP server for mobile sync - allows the mobile companion app
@@ -32,24 +38,17 @@ import { getPlaylistDetailsForServer } from "../api/routers/playlists";
  */
 
 const DEFAULT_PORT = 53318;
-// Versioned contract between desktop sync server and mobile app.
-const MOBILE_SYNC_PROTOCOL_VERSION = 1;
-const MIN_SUPPORTED_MOBILE_SYNC_PROTOCOL_VERSION = 1;
 const MOBILE_SYNC_RESUME_REANNOUNCE_DELAY_MS = 1500;
 const MOBILE_SYNC_POWER_BLOCKER_TYPE = "prevent-app-suspension";
 
 type FavoriteEntityType = "video" | "custom_playlist" | "channel_playlist";
+const MY_LIST_FAVORITE_ENTITY_TYPES: FavoriteEntityType[] = [
+  "custom_playlist",
+  "channel_playlist",
+];
+
 function isFavoriteEntityType(s: string): s is FavoriteEntityType {
   return s === "video" || s === "custom_playlist" || s === "channel_playlist";
-}
-
-// API response types matching mobile app expectations
-interface ServerInfo {
-  name: string;
-  version: string;
-  videoCount: number;
-  syncProtocolVersion: number;
-  minSupportedMobileSyncProtocolVersion: number;
 }
 
 interface RemoteVideo {
@@ -67,6 +66,72 @@ interface TranscriptSegment {
   end: number;
   text: string;
 }
+
+const transcriptSegmentSchema = z.object({
+  start: z.number(),
+  end: z.number(),
+  text: z.string(),
+});
+
+const transcriptSegmentsSchema = z.array(transcriptSegmentSchema);
+const stringArraySchema = z.array(z.string());
+
+const transcriptDownloadBodySchema = z.object({
+  lang: z.string().optional(),
+});
+
+const addFavoriteBodySchema = z.object({
+  entityType: z.enum(["video", "custom_playlist", "channel_playlist"]).optional(),
+  entityId: z.string().optional(),
+});
+
+const downloadRequestBodySchema = z.object({
+  videoId: z.string().optional(),
+  url: z.string().optional(),
+});
+
+const flashcardReviewBodySchema = z.object({
+  id: z.string().optional(),
+  grade: z.number().optional(),
+});
+
+const translateBodySchema = z.object({
+  text: z.string().optional(),
+  sourceLang: z.string().optional(),
+  targetLang: z.string().optional(),
+  videoId: z.string().optional(),
+  timestampSeconds: z.number().optional(),
+  contextText: z.string().optional(),
+});
+
+const saveWordBodySchema = z.object({
+  translationId: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const parseTranscriptSegments = (raw: string | null): TranscriptSegment[] => {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const validated = transcriptSegmentsSchema.safeParse(parsed);
+    return validated.success ? validated.data : [];
+  } catch {
+    return [];
+  }
+};
+
+const parseStringArray = (raw: string | null): string[] => {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const validated = stringArraySchema.safeParse(parsed);
+    return validated.success ? validated.data : [];
+  } catch {
+    return [];
+  }
+};
+
+const parseJsonUnknown = (raw: string): unknown => JSON.parse(raw);
 
 interface VideoMeta {
   id: string;
@@ -374,7 +439,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         return fs.existsSync(video.downloadFilePath);
       }).length;
 
-      const info: ServerInfo = {
+      const info: SyncServerInfo = {
         name: "LearnifyTube",
         version: app.getVersion(),
         videoCount: availableCount,
@@ -457,10 +522,8 @@ const createMobileSyncServer = (): MobileSyncServer => {
 
         // Try segmentsJson first (if cached)
         if (t.segmentsJson) {
-          try {
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            segments = JSON.parse(t.segmentsJson) as TranscriptSegment[];
-          } catch {
+          segments = parseTranscriptSegments(t.segmentsJson);
+          if (segments.length === 0) {
             logger.warn("[MobileSyncServer] Failed to parse segmentsJson", { videoId });
           }
         }
@@ -532,10 +595,8 @@ const createMobileSyncServer = (): MobileSyncServer => {
 
           // Fall back to segmentsJson
           if (segments.length === 0 && t.segmentsJson) {
-            try {
-              // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-              segments = JSON.parse(t.segmentsJson) as TranscriptSegment[];
-            } catch {
+            segments = parseTranscriptSegments(t.segmentsJson);
+            if (segments.length === 0) {
               logger.warn("[MobileSyncServer] Failed to parse segmentsJson", { videoId });
             }
           }
@@ -572,8 +633,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
           body += chunk;
         }
         if (body) {
-          // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-          const parsed = JSON.parse(body) as { lang?: string };
+          const parsed = transcriptDownloadBodySchema.parse(parseJsonUnknown(body));
           if (parsed.lang) lang = parsed.lang;
         }
       } catch {
@@ -1193,12 +1253,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
       const favoriteList = await defaultDb
         .select()
         .from(favorites)
-        .where(
-          inArray(favorites.entityType, [
-            "custom_playlist",
-            "channel_playlist",
-          ] as FavoriteEntityType[])
-        );
+        .where(inArray(favorites.entityType, MY_LIST_FAVORITE_ENTITY_TYPES));
       const favoriteCustomIds = new Set(
         favoriteList
           .filter((fav) => fav.entityType === "custom_playlist")
@@ -1581,11 +1636,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         body += chunk;
       }
 
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- request body is untrusted JSON
-      const parsed = JSON.parse(body) as {
-        entityType?: "video" | "custom_playlist" | "channel_playlist";
-        entityId?: string;
-      };
+      const parsed = addFavoriteBodySchema.parse(parseJsonUnknown(body));
       const { entityType, entityId } = parsed;
 
       if (!entityType || !entityId) {
@@ -1818,8 +1869,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         body += chunk;
       }
 
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- request body is untrusted JSON
-      const { videoId, url } = JSON.parse(body) as { videoId?: string; url?: string };
+      const { videoId, url } = downloadRequestBodySchema.parse(parseJsonUnknown(body));
 
       if (!videoId && !url) {
         sendError(res, "videoId or url required", 400);
@@ -1970,8 +2020,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         backContent: c.backContent,
         contextText: c.contextText,
         cardType: c.cardType ?? "basic",
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- tags is a JSON string array
-        tags: c.tags ? JSON.parse(c.tags) : [],
+        tags: parseStringArray(c.tags),
         clozeContent: c.clozeContent,
         difficulty: c.difficulty ?? 0,
         nextReviewAt: c.nextReviewAt,
@@ -2000,8 +2049,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         body += chunk;
       }
 
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- request body is untrusted JSON
-      const { id, grade } = JSON.parse(body) as { id?: string; grade?: number };
+      const { id, grade } = flashcardReviewBodySchema.parse(parseJsonUnknown(body));
 
       if (!id || grade === undefined || grade < 0 || grade > 5) {
         sendError(res, "id and grade (0-5) are required", 400);
@@ -2089,15 +2137,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         body += chunk;
       }
 
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- request body is untrusted JSON
-      const parsed = JSON.parse(body) as {
-        text?: string;
-        sourceLang?: string;
-        targetLang?: string;
-        videoId?: string;
-        timestampSeconds?: number;
-        contextText?: string;
-      };
+      const parsed = translateBodySchema.parse(parseJsonUnknown(body));
 
       const { text, targetLang, videoId, timestampSeconds, contextText } = parsed;
 
@@ -2279,11 +2319,7 @@ const createMobileSyncServer = (): MobileSyncServer => {
         body += chunk;
       }
 
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- request body is untrusted JSON
-      const { translationId, notes } = JSON.parse(body) as {
-        translationId?: string;
-        notes?: string;
-      };
+      const { translationId, notes } = saveWordBodySchema.parse(parseJsonUnknown(body));
 
       if (!translationId) {
         sendError(res, "translationId is required", 400);

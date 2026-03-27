@@ -1,18 +1,33 @@
 {
   "name": "learnify-monorepo",
   "private": true,
+  "bin": {
+    "ralph-loop": "./scripts/ralph-loop.js",
+    "cancel-ralph": "./scripts/cancel-ralph.js"
+  },
   "scripts": {
+    "setup:hooks": "bash ./scripts/setup-git-hooks.sh",
+    "prepare": "bash ./scripts/setup-git-hooks.sh",
+    "ralph-loop": "node ./scripts/ralph-loop.js",
+    "cancel-ralph": "node ./scripts/cancel-ralph.js",
     "desktop:install": "npm ci --prefix apps/desktop",
     "desktop:dev": "npm run dev --prefix apps/desktop",
+    "desktop:lint": "npm run lint --prefix apps/desktop -- --max-warnings=0",
     "desktop:type-check": "npm run type-check --prefix apps/desktop",
+    "desktop:check": "npm run desktop:lint && npm run desktop:type-check",
     "desktop:package": "npm run package --prefix apps/desktop",
     "desktop:test:e2e:smoke": "sh -lc 'cd apps/desktop && npx playwright test src/tests/e2e/core-functionality.spec.ts --grep \"App Launch and Basic Navigation\"'",
     "mobile:install": "npm ci --prefix apps/mobile",
     "mobile:start": "npm run start --prefix apps/mobile",
     "mobile:start:mobile": "npm run start:mobile --prefix apps/mobile",
     "mobile:start:tv": "npm run start:tv --prefix apps/mobile",
+    "mobile:lint": "npm run lint --prefix apps/mobile -- --max-warnings=0",
     "mobile:type-check": "npm run type-check --prefix apps/mobile",
+    "mobile:check": "npm run mobile:lint && npm run mobile:type-check",
     "mobile:android": "npm run android --prefix apps/mobile",
     "mobile:android:tv": "npm run android:tv --prefix apps/mobile"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
   }
 }

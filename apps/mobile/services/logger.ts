@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { z } from "zod";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -22,6 +23,17 @@ let logEntries: AppLogEntry[] = [];
 let logCounter = 0;
 let hydratePromise: Promise<void> | null = null;
 let persistTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const appLogEntrySchema = z.object({
+  id: z.number(),
+  timestamp: z.string(),
+  level: z.enum(["debug", "info", "warn", "error"]),
+  message: z.string(),
+  context: z.string().optional(),
+  error: z.string().optional(),
+});
+
+const appLogEntriesSchema = z.array(appLogEntrySchema);
 
 const subscribers = new Set<(entries: AppLogEntry[]) => void>();
 
@@ -94,12 +106,11 @@ async function hydrateEntries(): Promise<void> {
         return;
       }
 
-      const parsed = JSON.parse(raw) as AppLogEntry[];
-      if (!Array.isArray(parsed)) {
-        return;
-      }
+      const parsedRaw: unknown = JSON.parse(raw);
+      const parsed = appLogEntriesSchema.safeParse(parsedRaw);
+      if (!parsed.success) return;
 
-      logEntries = parsed
+      logEntries = parsed.data
         .filter((entry) => typeof entry?.id === "number" && typeof entry?.message === "string")
         .slice(-MAX_LOG_ENTRIES);
       logCounter = logEntries.reduce((maxId, entry) => Math.max(maxId, entry.id), 0);

@@ -19,6 +19,9 @@ import { PublisherGithub } from "@electron-forge/publisher-github";
 
 // Track native module dependencies that need to be packaged
 let nativeModuleDependenciesToPackage: string[] = [];
+type MakerDMGArtifacts = Awaited<ReturnType<MakerDMG["make"]>>;
+
+const singleMakerDMGArtifact = (artifactPath: string): MakerDMGArtifacts => [artifactPath];
 
 class ResilientMakerDMG extends MakerDMG {
   async make(options: Parameters<MakerDMG["make"]>[0]): ReturnType<MakerDMG["make"]> {
@@ -52,10 +55,10 @@ class ResilientMakerDMG extends MakerDMG {
             fsExtra.rename(outPath, forgeDefaultOutPath)
           );
         }
-        return [forgeDefaultOutPath] as ReturnType<MakerDMG["make"]>;
+        return singleMakerDMGArtifact(forgeDefaultOutPath);
       }
 
-      return [outPath] as ReturnType<MakerDMG["make"]>;
+      return singleMakerDMGArtifact(outPath);
     }
   }
 }
@@ -155,8 +158,6 @@ if (process.platform === "darwin") {
 
     if (appleId && appleIdPassword && teamId) {
       packagerConfig.osxNotarize = {
-        //@ts-ignore
-        tool: "notarytool",
         appleId: appleId,
         appleIdPassword: appleIdPassword,
         teamId: teamId,
@@ -190,19 +191,17 @@ const config: ForgeConfig = {
         const foundModules = new Set(nodeModuleNames);
         if (includeNestedDeps) {
           for (const external of nodeModuleNames) {
-            type MyPublicClass<T> = {
-              [P in keyof T]: T[P];
-            };
-            type MyPublicWalker = MyPublicClass<Walker> & {
-              modules: Module[];
-              walkDependenciesForModule: (moduleRoot: string, depType: DepType) => Promise<void>;
-            };
             const moduleRoot = join(projectRoot, "node_modules", external);
-            const walker = new Walker(moduleRoot) as unknown as MyPublicWalker;
-            walker.modules = [];
-            await walker.walkDependenciesForModule(moduleRoot, DepType.PROD);
-            walker.modules
-              .filter((dep) => (dep.nativeModuleType as number) === DepType.PROD)
+            const walker = new Walker(moduleRoot);
+            Reflect.set(walker, "modules", []);
+            const walkDependenciesForModule = Reflect.get(walker, "walkDependenciesForModule");
+            if (typeof walkDependenciesForModule === "function") {
+              await walkDependenciesForModule.call(walker, moduleRoot, DepType.PROD);
+            }
+            const modulesValue = Reflect.get(walker, "modules");
+            const walkerModules = Array.isArray(modulesValue) ? modulesValue : [];
+            walkerModules
+              .filter((dep) => dep instanceof Module && dep.nativeModuleType === DepType.PROD)
               // for a package like '@realm/fetch', need to split the path and just take the first part
               .map((dep) => dep.name.split("/")[0])
               .forEach((name) => foundModules.add(name));

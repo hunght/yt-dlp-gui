@@ -10,7 +10,83 @@ import type {
   ServerDownloadStatus,
   RemoteMyList,
 } from "../types";
+import { syncServerInfoSchema } from "../../shared/mobile-sync-contract";
+import { parseWithSchema } from "../../shared/schema-utils";
 import { logger } from "./logger";
+import { z } from "zod";
+
+const remoteFlashcardSchema = z.object({
+  id: z.string(),
+  videoId: z.string().nullable(),
+  frontContent: z.string(),
+  backContent: z.string(),
+  contextText: z.string().nullable(),
+  cardType: z.enum(["basic", "cloze", "concept"]),
+  tags: z.array(z.string()),
+  clozeContent: z.string().nullable(),
+  difficulty: z.number(),
+  nextReviewAt: z.string().nullable(),
+  reviewCount: z.number(),
+  easeFactor: z.number(),
+  interval: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string().nullable(),
+});
+
+const remoteSavedWordSchema = z.object({
+  id: z.string(),
+  notes: z.string().nullable(),
+  reviewCount: z.number(),
+  lastReviewedAt: z.number().nullable(),
+  createdAt: z.number(),
+  sourceText: z.string(),
+  translatedText: z.string(),
+  sourceLang: z.string(),
+  targetLang: z.string(),
+  translationId: z.string(),
+});
+
+const translateResultSchema = z.object({
+  success: z.boolean(),
+  translatedText: z.string(),
+  translationId: z.string(),
+  detectedLang: z.string(),
+  fromCache: z.boolean(),
+});
+
+const flashcardsResponseSchema = z.object({
+  flashcards: z.array(remoteFlashcardSchema),
+});
+
+const reviewFlashcardResponseSchema = z.object({
+  success: z.boolean(),
+  nextReview: z.string(),
+});
+
+const savedWordsResponseSchema = z.object({
+  words: z.array(remoteSavedWordSchema),
+});
+
+const saveWordResponseSchema = z.object({
+  success: z.boolean(),
+  alreadySaved: z.boolean(),
+  id: z.string(),
+});
+
+const remoteVideoWithStatusSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  channelTitle: z.string(),
+  duration: z.number(),
+  thumbnailUrl: z.string().nullable(),
+  downloadStatus: z.enum(["completed", "downloading", "queued", "pending"]).nullable(),
+  downloadProgress: z.number().nullable(),
+  fileSize: z.number().nullable(),
+});
+
+const remoteVideosWithStatusResponseSchema = z.object({
+  videos: z.array(remoteVideoWithStatusSchema).optional(),
+});
 
 const DEFAULT_TIMEOUT = 10000;
 const CONNECTION_INFO_TIMEOUT = 4000;
@@ -81,13 +157,13 @@ export const api = {
       });
       throw new Error(`HTTP ${response.status}`);
     }
-    const info = (await response.json()) as ServerInfo;
+    const payload: unknown = await response.json();
+    const info: ServerInfo = parseWithSchema(syncServerInfoSchema, payload);
     logger.info("[Mobile API] Desktop info response", {
       serverUrl,
       name: info.name,
       version: info.version,
-      syncProtocolVersion:
-        "syncProtocolVersion" in info ? (info as ServerInfo & { syncProtocolVersion?: number }).syncProtocolVersion : undefined,
+      syncProtocolVersion: info.syncProtocolVersion,
     });
     return info;
   },
@@ -316,8 +392,9 @@ export const api = {
         }
         throw new Error(`HTTP ${response.status}`);
       }
-      const data = (await response.json()) as { videos?: RemoteVideoWithStatus[] };
-      return { videos: Array.isArray(data.videos) ? data.videos : [] };
+      const payload: unknown = await response.json();
+      const data = parseWithSchema(remoteVideosWithStatusResponseSchema, payload);
+      return { videos: data.videos ?? [] };
     } catch (error) {
       // Graceful fallback for not-yet-implemented endpoint
       console.log("[API] Subscriptions endpoint not available");
@@ -396,9 +473,8 @@ export const api = {
       `${serverUrl}/api/flashcards${query}`
     );
     if (!res.ok) throw new Error(`Failed to get flashcards: ${res.status}`);
-    return res.json() as Promise<{
-      flashcards: import("../types").RemoteFlashcard[];
-    }>;
+    const payload: unknown = await res.json();
+    return parseWithSchema(flashcardsResponseSchema, payload);
   },
 
   async reviewFlashcard(
@@ -412,7 +488,8 @@ export const api = {
       body: JSON.stringify({ id, grade }),
     });
     if (!res.ok) throw new Error(`Failed to review flashcard: ${res.status}`);
-    return res.json() as Promise<{ success: boolean; nextReview: string }>;
+    const payload: unknown = await res.json();
+    return parseWithSchema(reviewFlashcardResponseSchema, payload);
   },
 
   async getSavedWords(
@@ -420,9 +497,8 @@ export const api = {
   ): Promise<{ words: import("../types").RemoteSavedWord[] }> {
     const res = await fetchWithTimeout(`${serverUrl}/api/saved-words`);
     if (!res.ok) throw new Error(`Failed to get saved words: ${res.status}`);
-    return res.json() as Promise<{
-      words: import("../types").RemoteSavedWord[];
-    }>;
+    const payload: unknown = await res.json();
+    return parseWithSchema(savedWordsResponseSchema, payload);
   },
 
   async translateWord(
@@ -449,7 +525,8 @@ export const api = {
       }),
     });
     if (!res.ok) throw new Error(`Failed to translate: ${res.status}`);
-    return res.json() as Promise<import("../types").TranslateResult>;
+    const payload: unknown = await res.json();
+    return parseWithSchema(translateResultSchema, payload);
   },
 
   async saveWord(
@@ -463,10 +540,7 @@ export const api = {
       body: JSON.stringify({ translationId, notes }),
     });
     if (!res.ok) throw new Error(`Failed to save word: ${res.status}`);
-    return res.json() as Promise<{
-      success: boolean;
-      alreadySaved: boolean;
-      id: string;
-    }>;
+    const payload: unknown = await res.json();
+    return parseWithSchema(saveWordResponseSchema, payload);
   },
 };

@@ -17,7 +17,7 @@
     "sourceMap": true,
     "strict": true,
     "baseUrl": ".",
-    "rootDir": ".",
+    "rootDir": "..",
     "paths": {
       "@/*": [
         "./src/*"
@@ -30,6 +30,7 @@
   },
   "include": [
     "src/**/*",
-    "forge.env.d.ts"
+    "forge.env.d.ts",
+    "../shared/**/*.ts"
   ]
 }

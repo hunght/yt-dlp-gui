@@ -7,27 +7,41 @@ import { logger } from "../logger";
 const SERVICE_TYPE = "learnify";
 const ANDROID_ZEROCONF_IMPL = "DNSSD";
 const zeroconf = new Zeroconf();
-const zeroconfExtended = zeroconf as unknown as {
-  scan: (
-    type: string,
-    protocol: string,
-    domain: string,
-    implType?: string
-  ) => void;
-  stop: (implType?: string) => void;
-  publishService: (
+
+type ZeroconfMethodArgs = {
+  scan: [type: string, protocol: string, domain: string, implType?: string];
+  stop: [implType?: string];
+  publishService: [
     type: string,
     protocol: string,
     domain: string,
     name: string,
     port: number,
     txt?: Record<string, string>,
-    implType?: string
-  ) => void;
-  unpublishService: (name: string, implType?: string) => void;
+    implType?: string,
+  ];
+  unpublishService: [name: string, implType?: string];
 };
 
 let isInitialized = false;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const toError = (value: unknown): Error =>
+  value instanceof Error ? value : new Error(typeof value === "string" ? value : String(value));
+
+const invokeZeroconf = <K extends keyof ZeroconfMethodArgs>(
+  methodName: K,
+  ...args: ZeroconfMethodArgs[K]
+): void => {
+  const method = Reflect.get(zeroconf, methodName);
+  if (typeof method !== "function") {
+    throw new Error(`Zeroconf method '${String(methodName)}' is not available`);
+  }
+
+  Reflect.apply(method, zeroconf, [...args]);
+};
 
 const log = (message: string, data?: unknown) => {
   const prefix = `[mDNS] ${message}`;
@@ -41,8 +55,8 @@ const log = (message: string, data?: unknown) => {
     return;
   }
 
-  if (typeof data === "object" && data !== null) {
-    logger.info(prefix, data as Record<string, unknown>);
+  if (isRecord(data)) {
+    logger.info(prefix, data);
     return;
   }
 
@@ -58,11 +72,11 @@ function ensureInitialized() {
     const implType = getZeroconfImplType();
     log("Initializing Zeroconf");
     if (implType) {
-      zeroconfExtended.scan(SERVICE_TYPE, "tcp", "local.", implType);
-      zeroconfExtended.stop(implType);
+      invokeZeroconf("scan", SERVICE_TYPE, "tcp", "local.", implType);
+      invokeZeroconf("stop", implType);
     } else {
-      zeroconfExtended.scan(SERVICE_TYPE, "tcp", "local.");
-      zeroconfExtended.stop();
+      invokeZeroconf("scan", SERVICE_TYPE, "tcp", "local.");
+      invokeZeroconf("stop");
     }
     isInitialized = true;
     log("Zeroconf initialized", { implType: implType ?? "default" });
@@ -116,7 +130,8 @@ export function publishService(
 
   try {
     if (implType) {
-      zeroconfExtended.publishService(
+      invokeZeroconf(
+        "publishService",
         SERVICE_TYPE,
         "tcp",
         "local.",
@@ -129,7 +144,7 @@ export function publishService(
         implType
       );
     } else {
-      zeroconfExtended.publishService(SERVICE_TYPE, "tcp", "local.", name, port, {
+      invokeZeroconf("publishService", SERVICE_TYPE, "tcp", "local.", name, port, {
         videoCount: String(videoCount),
         platform: "mobile",
       });
@@ -137,7 +152,7 @@ export function publishService(
     log("Service published successfully");
   } catch (error) {
     log("Failed to publish service", error);
-    onError?.(error as Error);
+    onError?.(toError(error));
   }
 }
 
@@ -152,7 +167,8 @@ export function publishPresence(onError?: (error: Error) => void) {
   try {
     // Use port 0 to indicate we're not running a server, just advertising presence
     if (implType) {
-      zeroconfExtended.publishService(
+      invokeZeroconf(
+        "publishService",
         SERVICE_TYPE,
         "tcp",
         "local.",
@@ -165,7 +181,7 @@ export function publishPresence(onError?: (error: Error) => void) {
         implType
       );
     } else {
-      zeroconfExtended.publishService(SERVICE_TYPE, "tcp", "local.", name, 53319, {
+      invokeZeroconf("publishService", SERVICE_TYPE, "tcp", "local.", name, 53319, {
         videoCount: "0",
         platform: "mobile",
       });
@@ -173,7 +189,7 @@ export function publishPresence(onError?: (error: Error) => void) {
     log("Presence published successfully");
   } catch (error) {
     log("Failed to publish presence", error);
-    onError?.(error as Error);
+    onError?.(toError(error));
   }
 }
 
@@ -182,9 +198,9 @@ export function unpublishService() {
   log("Unpublishing service");
   try {
     if (implType) {
-      zeroconfExtended.unpublishService(getDeviceName(), implType);
+      invokeZeroconf("unpublishService", getDeviceName(), implType);
     } else {
-      zeroconfExtended.unpublishService(getDeviceName());
+      invokeZeroconf("unpublishService", getDeviceName());
     }
     log("Service unpublished");
   } catch (error) {
@@ -286,9 +302,9 @@ export function startScanning(callbacks: {
   });
 
   if (implType) {
-    zeroconfExtended.scan(SERVICE_TYPE, "tcp", "local.", implType);
+    invokeZeroconf("scan", SERVICE_TYPE, "tcp", "local.", implType);
   } else {
-    zeroconfExtended.scan(SERVICE_TYPE, "tcp", "local.");
+    invokeZeroconf("scan", SERVICE_TYPE, "tcp", "local.");
   }
   log("Scan started");
 }
@@ -297,9 +313,9 @@ export function stopScanning() {
   const implType = getZeroconfImplType();
   log("Stopping scan");
   if (implType) {
-    zeroconfExtended.stop(implType);
+    invokeZeroconf("stop", implType);
   } else {
-    zeroconfExtended.stop();
+    invokeZeroconf("stop");
   }
   zeroconf.removeAllListeners("resolved");
   zeroconf.removeAllListeners("remove");

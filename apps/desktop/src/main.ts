@@ -25,6 +25,7 @@ import { initializeQueueManager } from "./services/download-queue/queue-manager"
 import defaultDb from "./api/db";
 import { userPreferences } from "./api/db/schema";
 import { isLikelyMdnsTransportError, logMdnsDiagnosticSnapshot } from "./main/mdnsDiagnostics";
+import { parseUserPreferences } from "./lib/types/user-preferences";
 
 // Global error handlers to prevent crashes from logging errors
 process.on("uncaughtException", (error) => {
@@ -307,8 +308,8 @@ function createWindow(): void {
 // Only check this on Windows as Squirrel is Windows-specific
 // This must be checked BEFORE requesting single instance lock
 if (process.platform === "win32") {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const squirrelStartup: boolean = require("electron-squirrel-startup");
+  const squirrelStartupModule: unknown = require("electron-squirrel-startup");
+  const squirrelStartup = squirrelStartupModule === true;
   logger.info("[app] Squirrel startup check:", squirrelStartup);
   if (squirrelStartup) {
     logger.info("[app] Squirrel installer event detected, quitting...");
@@ -382,10 +383,8 @@ app.whenReady().then(async () => {
         .limit(1);
 
       if (prefs.length > 0 && prefs[0].customizationSettings) {
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-        const settings = JSON.parse(prefs[0].customizationSettings) as {
-          sync?: { enabled?: boolean; port?: number };
-        };
+        const parsed: unknown = JSON.parse(prefs[0].customizationSettings);
+        const settings = parseUserPreferences(parsed);
         if (settings.sync?.enabled) {
           logger.info("[app] Mobile sync is enabled, starting server...");
           const { getMobileSyncServer } = await import("./main/mobileSyncServer");

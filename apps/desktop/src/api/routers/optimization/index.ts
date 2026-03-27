@@ -110,8 +110,7 @@ export const optimizationRouter = t.router({
         });
 
         const queueManager = requireOptimizationQueueManager();
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-        const targetRes = input.targetResolution as TargetResolution;
+        const targetRes: TargetResolution = input.targetResolution;
         const jobIds = await queueManager.addToQueue(defaultDb, input.videoIds, targetRes);
 
         if (jobIds.length === 0) {
@@ -198,8 +197,7 @@ export const optimizationRouter = t.router({
     )
     .query(({ input }): EstimateResult => {
       try {
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-        const targetRes = input.targetResolution as TargetResolution;
+        const targetRes: TargetResolution = input.targetResolution;
         const ratio = ESTIMATED_COMPRESSION_RATIO[targetRes];
         const estimatedSize = Math.round(input.currentSize * ratio);
         const estimatedSavings = input.currentSize - estimatedSize;

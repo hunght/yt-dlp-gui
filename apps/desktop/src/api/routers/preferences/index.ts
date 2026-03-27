@@ -12,6 +12,7 @@ import {
   DEFAULT_USER_PREFERENCES,
   YT_DLP_COOKIE_BROWSERS,
   normalizeDownloadPreferences,
+  parseUserPreferences,
 } from "@/lib/types/user-preferences";
 
 // Zod schema for preferred languages JSON
@@ -459,10 +460,8 @@ export const preferencesRouter = t.router({
         return DEFAULT_USER_PREFERENCES;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const stored = JSON.parse(rows[0].customizationSettings);
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-      const preferences = stored as unknown as UserPreferences;
+      const stored: unknown = JSON.parse(rows[0].customizationSettings);
+      const preferences = parseUserPreferences(stored);
 
       // Merge with defaults to ensure all fields exist
       return normalizeUserPreferences({
@@ -565,10 +564,13 @@ export const preferencesRouter = t.router({
           .limit(1);
 
         const storedSettings = rows[0]?.customizationSettings;
-        const current = storedSettings
-          ? // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (JSON.parse(storedSettings) as unknown as UserPreferences)
-          : DEFAULT_USER_PREFERENCES;
+        const current = (() => {
+          if (!storedSettings) {
+            return DEFAULT_USER_PREFERENCES;
+          }
+          const parsed: unknown = JSON.parse(storedSettings);
+          return parseUserPreferences(parsed);
+        })();
 
         const updated = normalizeUserPreferences({
           ...current,

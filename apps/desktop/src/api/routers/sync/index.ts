@@ -5,7 +5,11 @@ import { eq } from "drizzle-orm";
 import { userPreferences } from "@/api/db/schema";
 import defaultDb, { type Database } from "@/api/db";
 import type { UserPreferences, SyncPreferences } from "@/lib/types/user-preferences";
-import { DEFAULT_USER_PREFERENCES, DEFAULT_SYNC_PREFERENCES } from "@/lib/types/user-preferences";
+import {
+  DEFAULT_USER_PREFERENCES,
+  DEFAULT_SYNC_PREFERENCES,
+  parseUserPreferences,
+} from "@/lib/types/user-preferences";
 import {
   getMobileSyncServer,
   getLocalIpAddress,
@@ -49,11 +53,11 @@ const getSyncPreferences = async (db: Database): Promise<SyncPreferences> => {
       return DEFAULT_SYNC_PREFERENCES;
     }
 
-    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-    const stored = JSON.parse(rows[0].customizationSettings) as unknown as UserPreferences;
+    const stored: unknown = JSON.parse(rows[0].customizationSettings);
+    const parsed = parseUserPreferences(stored);
     return {
       ...DEFAULT_SYNC_PREFERENCES,
-      ...stored.sync,
+      ...parsed.sync,
     };
   } catch (error) {
     logger.error("[sync] Error getting sync preferences", { error });
@@ -97,10 +101,13 @@ const updateSyncPreferences = async (
       .limit(1);
 
     const storedSettings = rows[0]?.customizationSettings;
-    const current = storedSettings
-      ? // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-        (JSON.parse(storedSettings) as unknown as UserPreferences)
-      : DEFAULT_USER_PREFERENCES;
+    const current = (() => {
+      if (!storedSettings) {
+        return DEFAULT_USER_PREFERENCES;
+      }
+      const parsed: unknown = JSON.parse(storedSettings);
+      return parseUserPreferences(parsed);
+    })();
 
     const updated: UserPreferences = {
       ...current,

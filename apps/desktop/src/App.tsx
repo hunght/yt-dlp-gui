@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import posthog from "posthog-js";
 
 import "./localization/i18n";
+import "@/styles/global.css";
 import { updateAppLanguage } from "./helpers/language_helpers";
 import { syncThemeWithLocal } from "./helpers/theme_helpers";
 import { router } from "./routes/router";

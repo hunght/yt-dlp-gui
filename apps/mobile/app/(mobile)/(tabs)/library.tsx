@@ -21,6 +21,14 @@ import { useSyncStore } from "../../../stores/sync";
 import { usePlaybackStore } from "../../../stores/playback";
 import { savePlaylist, isPlaylistSaved } from "../../../db/repositories/playlists";
 import {
+  useBrowseCatalog,
+  useBrowseCollectionVideos,
+} from "../../../core/hooks/useBrowseCatalog";
+import {
+  hasCachedCollectionVideos,
+  shouldRefreshCollectionVideos,
+} from "../../../services/browseCache";
+import {
   PlaylistList,
   MyListsList,
   VideoListItem,
@@ -46,12 +54,11 @@ export default function LibraryScreen() {
   const libraryVideos = useLibraryStore((s) => s.videos);
   const queueDownload = useDownloadStore((s) => s.queueDownload);
   const startPlaylist = usePlaybackStore((s) => s.startPlaylist);
+  const { playlists, myLists } = useBrowseCatalog();
 
   const [libraryTab, setLibraryTab] = useState<LibraryTab>("mylists");
 
   const {
-    playlists,
-    myLists,
     isLoadingPlaylists,
     isLoadingVideos,
     isLoadingMyLists,
@@ -59,13 +66,13 @@ export default function LibraryScreen() {
     myListsError,
     videosError,
     selectedPlaylist,
-    playlistVideos,
     selectedMyList,
-    myListVideos,
     selectedVideoIds,
     favoritePlaylistIds,
     fetchPlaylists,
     fetchMyLists,
+    fetchFavorites,
+    loadFavoritesLocal,
     fetchPlaylistVideos,
     fetchMyListVideos,
     selectPlaylist,
@@ -76,18 +83,33 @@ export default function LibraryScreen() {
     addToFavorites,
     removeFromFavorites,
   } = useSyncStore();
+  const playlistVideos = useBrowseCollectionVideos(
+    selectedPlaylist ? "playlist" : null,
+    selectedPlaylist?.playlistId ?? null
+  );
+  const myListVideos = useBrowseCollectionVideos(
+    selectedMyList ? "mylist" : null,
+    selectedMyList?.id ?? null
+  );
 
   const syncedVideoIds = new Set(libraryVideos.map((v) => v.id));
   const [, bumpSavedPlaylistVersion] = useState(0);
 
   useEffect(() => {
     if (!serverUrl) return;
-    if (libraryTab === "mylists" && myLists.length === 0) {
+    if (libraryTab === "mylists") {
       fetchMyLists(serverUrl);
-    } else if (libraryTab === "playlists" && playlists.length === 0) {
+    } else if (libraryTab === "playlists") {
       fetchPlaylists(serverUrl);
     }
-  }, [libraryTab, serverUrl, myLists.length, playlists.length, fetchMyLists, fetchPlaylists]);
+  }, [libraryTab, serverUrl, fetchMyLists, fetchPlaylists]);
+
+  useEffect(() => {
+    loadFavoritesLocal();
+    if (serverUrl) {
+      void fetchFavorites(serverUrl);
+    }
+  }, [serverUrl, fetchFavorites, loadFavoritesLocal]);
 
   useEffect(() => {
     if (!serverUrl) {
@@ -120,22 +142,51 @@ export default function LibraryScreen() {
 
   const handlePlaylistPress = useCallback(
     (playlist: RemotePlaylist) => {
+      const hasCachedVideos = hasCachedCollectionVideos(
+        "playlist",
+        playlist.playlistId
+      );
+      if (!serverUrl) {
+        selectPlaylist(playlist);
+        return;
+      }
+
+      if (hasCachedVideos) {
+        selectPlaylist(playlist);
+        if (shouldRefreshCollectionVideos("playlist", playlist.playlistId)) {
+          fetchPlaylistVideos(serverUrl, playlist);
+        }
+        return;
+      }
+
       if (serverUrl) {
         fetchPlaylistVideos(serverUrl, playlist);
         return;
       }
-      selectPlaylist(playlist);
     },
     [serverUrl, fetchPlaylistVideos, selectPlaylist]
   );
 
   const handleMyListPress = useCallback(
     (myList: RemoteMyList) => {
+      const hasCachedVideos = hasCachedCollectionVideos("mylist", myList.id);
+      if (!serverUrl) {
+        selectMyList(myList);
+        return;
+      }
+
+      if (hasCachedVideos) {
+        selectMyList(myList);
+        if (shouldRefreshCollectionVideos("mylist", myList.id)) {
+          fetchMyListVideos(serverUrl, myList);
+        }
+        return;
+      }
+
       if (serverUrl) {
         fetchMyListVideos(serverUrl, myList);
         return;
       }
-      selectMyList(myList);
     },
     [serverUrl, fetchMyListVideos, selectMyList]
   );
@@ -278,7 +329,6 @@ export default function LibraryScreen() {
 
   const handlePlaylistSavePress = useCallback(
     async (playlist: RemotePlaylist) => {
-      if (!serverUrl) return;
       const entityType =
         playlist.type === "custom" ? "custom_playlist" : "channel_playlist";
       const isFavorited = favoritePlaylistIds.has(playlist.playlistId);
@@ -350,6 +400,9 @@ export default function LibraryScreen() {
         channelTitle: v.channelTitle,
         duration: v.duration,
         thumbnailUrl: v.thumbnailUrl ?? undefined,
+        downloadStatus: v.downloadStatus,
+        downloadProgress: v.downloadProgress,
+        fileSize: v.fileSize,
       }));
       try {
         savePlaylist(
@@ -540,7 +593,7 @@ export default function LibraryScreen() {
           serverUrl={serverUrl ?? undefined}
           favoritePlaylistIds={favoritePlaylistIds}
           onPlaylistPress={handlePlaylistPress}
-          onSavePress={serverUrl ? handlePlaylistSavePress : undefined}
+          onSavePress={handlePlaylistSavePress}
           onRefresh={handleRefreshPlaylists}
         />
       )}

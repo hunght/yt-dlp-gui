@@ -13,10 +13,16 @@ import type {
 import { api } from "../services/api";
 import {
   cacheRemoteChannels,
+  getCachedChannels,
+  getCachedCollectionVideos,
+  hasCachedCollectionVideos,
+  getCachedMyLists,
+  getCachedPlaylists,
   cacheRemoteCollectionVideos,
   cacheRemoteMyLists,
   cacheRemotePlaylists,
 } from "../services/browseCache";
+import * as favoritesRepo from "../db/repositories/favorites";
 
 type FavoriteEntityType = "video" | "custom_playlist" | "channel_playlist";
 
@@ -44,6 +50,7 @@ interface SyncStore {
   myListsError: string | null;
 
   // Data
+  browseCacheVersion: number;
   channels: RemoteChannel[];
   playlists: RemotePlaylist[];
   favorites: RemoteFavorite[];
@@ -74,6 +81,7 @@ interface SyncStore {
   fetchChannels: (serverUrl: string) => Promise<void>;
   fetchPlaylists: (serverUrl: string) => Promise<void>;
   fetchFavorites: (serverUrl: string) => Promise<void>;
+  loadFavoritesLocal: () => void;
   fetchChannelVideos: (serverUrl: string, channel: RemoteChannel) => Promise<void>;
   fetchPlaylistVideos: (serverUrl: string, playlist: RemotePlaylist) => Promise<void>;
   fetchSubscriptions: (serverUrl: string) => Promise<void>;
@@ -93,12 +101,12 @@ interface SyncStore {
 
   // Favorites management
   addToFavorites: (
-    serverUrl: string,
+    serverUrl: string | null,
     entityType: FavoriteEntityType,
     entityId: string
   ) => Promise<void>;
   removeFromFavorites: (
-    serverUrl: string,
+    serverUrl: string | null,
     entityType: FavoriteEntityType,
     entityId: string
   ) => Promise<void>;
@@ -108,13 +116,6 @@ interface SyncStore {
 
 interface SyncCacheState {
   activeTab: SyncTab;
-  channels: RemoteChannel[];
-  playlists: RemotePlaylist[];
-  myLists: RemoteMyList[];
-  subscriptionVideos: RemoteVideoWithStatus[];
-  channelVideosCache: Record<string, RemoteVideoWithStatus[]>;
-  playlistVideosCache: Record<string, RemoteVideoWithStatus[]>;
-  myListVideosCache: Record<string, RemoteVideoWithStatus[]>;
 }
 
 const initialState = {
@@ -131,6 +132,7 @@ const initialState = {
   videosError: null,
   subscriptionsError: null,
   myListsError: null,
+  browseCacheVersion: 0,
   channels: [],
   playlists: [],
   favorites: [],
@@ -152,48 +154,85 @@ const initialState = {
 
 export const useSyncStore = create<SyncStore>()(
   persist(
-    (set, get) => ({
-      ...initialState,
-
-      setActiveTab: (tab) => {
+    (set, get) => {
+      const readFavoriteSnapshot = () => favoritesRepo.getFavoritesSnapshotLocal();
+      const applyFavoriteSnapshot = (overrides?: Partial<SyncStore>) => {
+        const snapshot = readFavoriteSnapshot();
         set({
-          activeTab: tab,
-          selectedChannel: null,
-          channelVideos: [],
-          selectedPlaylist: null,
-          playlistVideos: [],
-          selectedMyList: null,
-          myListVideos: [],
-          selectedVideoIds: new Set(),
-          videosError: null,
+          favorites: snapshot.favorites,
+          favoritePlaylistIds: snapshot.favoritePlaylistIds,
+          ...overrides,
         });
-      },
+        return snapshot;
+      };
 
-      fetchChannels: async (serverUrl) => {
-        set({ isLoadingChannels: true, channelsError: null });
-        try {
-          const { channels: remoteChannels } = await api.getChannels(serverUrl);
-          const channels = await cacheRemoteChannels(serverUrl, remoteChannels);
-          set({ channels, isLoadingChannels: false });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to fetch channels";
-          const hasCachedChannels = get().channels.length > 0;
-          set({
-            channelsError: hasCachedChannels ? null : message,
-            isLoadingChannels: false,
-          });
+      const syncPendingFavoriteActions = async (serverUrl: string) => {
+        const pendingActions = favoritesRepo.getPendingFavoriteActionsLocal();
+
+        for (const action of pendingActions) {
+          const entityType = action.entityType as FavoriteEntityType;
+          if (action.pendingAction === "add") {
+            await api.addFavorite(serverUrl, entityType, action.entityId);
+            favoritesRepo.resolveFavoriteSyncLocal(entityType, action.entityId, true);
+            continue;
+          }
+
+          if (action.pendingAction === "remove") {
+            await api.removeFavorite(serverUrl, entityType, action.entityId);
+            favoritesRepo.resolveFavoriteSyncLocal(entityType, action.entityId, false);
+          }
         }
-      },
+      };
+
+      return {
+        ...initialState,
+        setActiveTab: (tab) => {
+          set({
+            activeTab: tab,
+            selectedChannel: null,
+            channelVideos: [],
+            selectedPlaylist: null,
+            playlistVideos: [],
+            selectedMyList: null,
+            myListVideos: [],
+            selectedVideoIds: new Set(),
+            videosError: null,
+          });
+        },
+
+        fetchChannels: async (serverUrl) => {
+          set({ isLoadingChannels: true, channelsError: null });
+          try {
+            const { channels: remoteChannels } = await api.getChannels(serverUrl);
+            const channels = await cacheRemoteChannels(serverUrl, remoteChannels);
+            set((state) => ({
+              channels,
+              isLoadingChannels: false,
+              browseCacheVersion: state.browseCacheVersion + 1,
+            }));
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to fetch channels";
+            const hasCachedChannels = getCachedChannels().length > 0;
+            set({
+              channelsError: hasCachedChannels ? null : message,
+              isLoadingChannels: false,
+            });
+          }
+        },
 
       fetchPlaylists: async (serverUrl) => {
         set({ isLoadingPlaylists: true, playlistsError: null });
         try {
           const { playlists: remotePlaylists } = await api.getPlaylists(serverUrl);
           const playlists = await cacheRemotePlaylists(serverUrl, remotePlaylists);
-          set({ playlists, isLoadingPlaylists: false });
+          set((state) => ({
+            playlists,
+            isLoadingPlaylists: false,
+            browseCacheVersion: state.browseCacheVersion + 1,
+          }));
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to fetch playlists";
-          const hasCachedPlaylists = get().playlists.length > 0;
+          const hasCachedPlaylists = getCachedPlaylists().length > 0;
           set({
             playlistsError: hasCachedPlaylists ? null : message,
             isLoadingPlaylists: false,
@@ -201,26 +240,43 @@ export const useSyncStore = create<SyncStore>()(
         }
       },
 
+      loadFavoritesLocal: () => {
+        applyFavoriteSnapshot();
+      },
+
       fetchFavorites: async (serverUrl) => {
-        set({ isLoadingFavorites: true, favoritesError: null });
+        applyFavoriteSnapshot({
+          isLoadingFavorites: true,
+          favoritesError: null,
+        });
         try {
+          await syncPendingFavoriteActions(serverUrl);
           const { favorites } = await api.getFavorites(serverUrl);
-          // Build set of favorited playlist IDs for quick lookup
-          const favoritePlaylistIds = new Set<string>();
-          for (const fav of favorites) {
-            if (fav.entityType === "channel_playlist" || fav.entityType === "custom_playlist") {
-              favoritePlaylistIds.add(fav.entityId);
-            }
-          }
-          set({ favorites, favoritePlaylistIds, isLoadingFavorites: false });
+          favoritesRepo.mergeRemoteFavorites(favorites);
+          applyFavoriteSnapshot({
+            isLoadingFavorites: false,
+            favoritesError: null,
+          });
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to fetch favorites";
-          set({ favoritesError: message, isLoadingFavorites: false });
+          const snapshot = readFavoriteSnapshot();
+          set({
+            favorites: snapshot.favorites,
+            favoritePlaylistIds: snapshot.favoritePlaylistIds,
+            favoritesError:
+              snapshot.favorites.length > 0 ||
+              snapshot.favoritePlaylistIds.size > 0 ||
+              favoritesRepo.hasPendingFavoriteActionsLocal()
+                ? null
+                : message,
+            isLoadingFavorites: false,
+          });
         }
       },
 
       fetchChannelVideos: async (serverUrl, channel) => {
-        const cachedVideos = get().channelVideosCache[channel.channelId] ?? [];
+        const cachedVideos = getCachedCollectionVideos("channel", channel.channelId);
+        const hasHydratedVideos = hasCachedCollectionVideos("channel", channel.channelId);
         set({
           isLoadingVideos: true,
           videosError: null,
@@ -253,11 +309,12 @@ export const useSyncStore = create<SyncStore>()(
               [channel.channelId]: videos,
             },
             isLoadingVideos: false,
+            browseCacheVersion: state.browseCacheVersion + 1,
           }));
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to fetch videos";
           set({
-            videosError: cachedVideos.length > 0 ? null : message,
+            videosError: hasHydratedVideos ? null : message,
             isLoadingVideos: false,
             channelVideos: cachedVideos,
           });
@@ -265,7 +322,8 @@ export const useSyncStore = create<SyncStore>()(
       },
 
       fetchPlaylistVideos: async (serverUrl, playlist) => {
-        const cachedVideos = get().playlistVideosCache[playlist.playlistId] ?? [];
+        const cachedVideos = getCachedCollectionVideos("playlist", playlist.playlistId);
+        const hasHydratedVideos = hasCachedCollectionVideos("playlist", playlist.playlistId);
         set({
           isLoadingVideos: true,
           videosError: null,
@@ -302,11 +360,12 @@ export const useSyncStore = create<SyncStore>()(
               [playlist.playlistId]: videos,
             },
             isLoadingVideos: false,
+            browseCacheVersion: state.browseCacheVersion + 1,
           }));
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to fetch videos";
           set({
-            videosError: cachedVideos.length > 0 ? null : message,
+            videosError: hasHydratedVideos ? null : message,
             isLoadingVideos: false,
             playlistVideos: cachedVideos,
           });
@@ -334,11 +393,15 @@ export const useSyncStore = create<SyncStore>()(
         try {
           const { mylists: remoteMyLists } = await api.getMyLists(serverUrl);
           const myLists = await cacheRemoteMyLists(serverUrl, remoteMyLists);
-          set({ myLists, isLoadingMyLists: false });
+          set((state) => ({
+            myLists,
+            isLoadingMyLists: false,
+            browseCacheVersion: state.browseCacheVersion + 1,
+          }));
         } catch (error) {
           const message =
             error instanceof Error ? error.message : "Failed to fetch my lists";
-          const hasCachedMyLists = get().myLists.length > 0;
+          const hasCachedMyLists = getCachedMyLists().length > 0;
           set({
             myListsError: hasCachedMyLists ? null : message,
             isLoadingMyLists: false,
@@ -347,7 +410,8 @@ export const useSyncStore = create<SyncStore>()(
       },
 
       fetchMyListVideos: async (serverUrl, myList) => {
-        const cachedVideos = get().myListVideosCache[myList.id] ?? [];
+        const cachedVideos = getCachedCollectionVideos("mylist", myList.id);
+        const hasHydratedVideos = hasCachedCollectionVideos("mylist", myList.id);
         set({
           isLoadingVideos: true,
           videosError: null,
@@ -377,12 +441,13 @@ export const useSyncStore = create<SyncStore>()(
               [myList.id]: videos,
             },
             isLoadingVideos: false,
+            browseCacheVersion: state.browseCacheVersion + 1,
           }));
         } catch (error) {
           const message =
             error instanceof Error ? error.message : "Failed to fetch videos";
           set({
-            videosError: cachedVideos.length > 0 ? null : message,
+            videosError: hasHydratedVideos ? null : message,
             isLoadingVideos: false,
             myListVideos: cachedVideos,
           });
@@ -391,7 +456,7 @@ export const useSyncStore = create<SyncStore>()(
 
       selectChannel: (channel) => {
         const channelVideos = channel
-          ? get().channelVideosCache[channel.channelId] ?? []
+          ? getCachedCollectionVideos("channel", channel.channelId)
           : [];
         set({
           selectedChannel: channel,
@@ -408,7 +473,7 @@ export const useSyncStore = create<SyncStore>()(
 
       selectPlaylist: (playlist) => {
         const playlistVideos = playlist
-          ? get().playlistVideosCache[playlist.playlistId] ?? []
+          ? getCachedCollectionVideos("playlist", playlist.playlistId)
           : [];
         set({
           selectedPlaylist: playlist,
@@ -425,7 +490,7 @@ export const useSyncStore = create<SyncStore>()(
 
       selectMyList: (myList) => {
         const myListVideos = myList
-          ? get().myListVideosCache[myList.id] ?? []
+          ? getCachedCollectionVideos("mylist", myList.id)
           : [];
         set({
           selectedMyList: myList,
@@ -454,14 +519,18 @@ export const useSyncStore = create<SyncStore>()(
       selectAllVideos: () => {
         const {
           activeTab,
-          channelVideos,
-          playlistVideos,
-          myListVideos,
+          selectedChannel,
+          selectedPlaylist,
+          selectedMyList,
         } = get();
         let videos: RemoteVideoWithStatus[] = [];
-        if (activeTab === "channels") videos = channelVideos;
-        else if (activeTab === "playlists") videos = playlistVideos;
-        else if (activeTab === "mylists") videos = myListVideos;
+        if (activeTab === "channels" && selectedChannel) {
+          videos = getCachedCollectionVideos("channel", selectedChannel.channelId);
+        } else if (activeTab === "playlists" && selectedPlaylist) {
+          videos = getCachedCollectionVideos("playlist", selectedPlaylist.playlistId);
+        } else if (activeTab === "mylists" && selectedMyList) {
+          videos = getCachedCollectionVideos("mylist", selectedMyList.id);
+        }
         const downloadableVideos = videos.filter((v) => v.downloadStatus === "completed");
         set({ selectedVideoIds: new Set(downloadableVideos.map((v) => v.id)) });
       },
@@ -485,72 +554,58 @@ export const useSyncStore = create<SyncStore>()(
       },
 
       addToFavorites: async (serverUrl, entityType, entityId) => {
+        favoritesRepo.addFavoriteLocal(entityType, entityId);
+        applyFavoriteSnapshot();
+
+        if (!serverUrl) {
+          return;
+        }
+
         try {
-          await api.addFavorite(serverUrl, entityType, entityId);
-          // Update local state
-          const { favoritePlaylistIds } = get();
-          if (entityType === "channel_playlist" || entityType === "custom_playlist") {
-            const newSet = new Set(favoritePlaylistIds);
-            newSet.add(entityId);
-            set({ favoritePlaylistIds: newSet });
-          }
-          // Refresh favorites list
-          const { favorites: currentFavorites } = await api.getFavorites(serverUrl);
-          const newFavoritePlaylistIds = new Set<string>();
-          for (const fav of currentFavorites) {
-            if (fav.entityType === "channel_playlist" || fav.entityType === "custom_playlist") {
-              newFavoritePlaylistIds.add(fav.entityId);
-            }
-          }
-          set({ favorites: currentFavorites, favoritePlaylistIds: newFavoritePlaylistIds });
+          await syncPendingFavoriteActions(serverUrl);
+          const { favorites } = await api.getFavorites(serverUrl);
+          favoritesRepo.mergeRemoteFavorites(favorites);
+          applyFavoriteSnapshot();
         } catch (error) {
           console.error("[SyncStore] Failed to add favorite:", error);
-          throw error;
+          applyFavoriteSnapshot();
         }
       },
 
       removeFromFavorites: async (serverUrl, entityType, entityId) => {
+        favoritesRepo.removeFavoriteLocal(entityType, entityId);
+        applyFavoriteSnapshot();
+
+        if (!serverUrl) {
+          return;
+        }
+
         try {
-          await api.removeFavorite(serverUrl, entityType, entityId);
-          // Update local state immediately
-          const { favoritePlaylistIds, favorites } = get();
-          if (entityType === "channel_playlist" || entityType === "custom_playlist") {
-            const newSet = new Set(favoritePlaylistIds);
-            newSet.delete(entityId);
-            set({ favoritePlaylistIds: newSet });
-          }
-          // Remove from favorites list
-          const newFavorites = favorites.filter(
-            (f) => !(f.entityType === entityType && f.entityId === entityId)
-          );
-          set({ favorites: newFavorites });
+          await syncPendingFavoriteActions(serverUrl);
+          const { favorites } = await api.getFavorites(serverUrl);
+          favoritesRepo.mergeRemoteFavorites(favorites);
+          applyFavoriteSnapshot();
         } catch (error) {
           console.error("[SyncStore] Failed to remove favorite:", error);
-          throw error;
+          applyFavoriteSnapshot();
         }
       },
 
-      reset: () => {
-        set({
-          ...initialState,
-          serverDownloadRequests: new Map(),
-          selectedVideoIds: new Set(),
-          favoritePlaylistIds: new Set(),
-        });
-      },
-    }),
+        reset: () => {
+          set({
+            ...initialState,
+            serverDownloadRequests: new Map(),
+            selectedVideoIds: new Set(),
+            favoritePlaylistIds: new Set(),
+          });
+        },
+      };
+    },
     {
       name: "learnify-sync-cache",
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state): SyncCacheState => ({
         activeTab: state.activeTab,
-        channels: state.channels,
-        playlists: state.playlists,
-        myLists: state.myLists,
-        subscriptionVideos: state.subscriptionVideos,
-        channelVideosCache: state.channelVideosCache,
-        playlistVideosCache: state.playlistVideosCache,
-        myListVideosCache: state.myListVideosCache,
       }),
     }
   )

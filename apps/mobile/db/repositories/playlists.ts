@@ -17,6 +17,9 @@ export interface PlaylistVideoInfo {
   channelTitle: string;
   duration: number;
   thumbnailUrl?: string | null;
+  downloadStatus?: "completed" | "downloading" | "queued" | "pending" | null;
+  downloadProgress?: number | null;
+  fileSize?: number | null;
 }
 
 export interface SavedPlaylistQueryOptions {
@@ -43,6 +46,7 @@ interface UpsertSavedPlaylistInput {
   itemCount?: number | null;
   pin?: boolean;
   savedAt?: number | null;
+  detailHydratedAt?: number | null;
   updatedAt?: number | null;
 }
 
@@ -79,6 +83,7 @@ function upsertSavedPlaylistRecord({
   itemCount,
   pin,
   savedAt,
+  detailHydratedAt,
   updatedAt,
 }: UpsertSavedPlaylistInput): SavedPlaylist {
   const now = Date.now();
@@ -108,6 +113,10 @@ function upsertSavedPlaylistRecord({
     itemCount: nextItemCount,
     isPinned: nextIsPinned,
     savedAt: nextSavedAt,
+    detailHydratedAt:
+      detailHydratedAt === undefined
+        ? existing?.detailHydratedAt ?? null
+        : detailHydratedAt,
     updatedAt: nextUpdatedAt,
   };
 
@@ -140,6 +149,9 @@ function upsertPlaylistItem(
     channelTitle: video.channelTitle,
     duration: video.duration,
     thumbnailUrl: video.thumbnailUrl ?? existing?.thumbnailUrl ?? null,
+    downloadStatus: video.downloadStatus ?? existing?.downloadStatus ?? null,
+    downloadProgress: video.downloadProgress ?? existing?.downloadProgress ?? null,
+    fileSize: video.fileSize ?? existing?.fileSize ?? null,
     position,
     createdAt: existing?.createdAt ?? now,
   };
@@ -305,6 +317,7 @@ export function upsertBrowseCachePlaylist(input: {
   thumbnailUrl?: string | null;
   itemCount?: number | null;
   savedAt?: number | null;
+  detailHydratedAt?: number | null;
 }): SavedPlaylist {
   return upsertSavedPlaylistRecord({
     id: input.playlistId,
@@ -314,59 +327,45 @@ export function upsertBrowseCachePlaylist(input: {
     thumbnailUrl: input.thumbnailUrl,
     itemCount: input.itemCount,
     savedAt: input.savedAt,
+    detailHydratedAt: input.detailHydratedAt,
   });
 }
 
 export function mergeBrowseCachePlaylistItems(
   playlistId: string,
-  videoInfos: PlaylistVideoInfo[]
+  videoInfos: PlaylistVideoInfo[],
+  options?: {
+    detailHydratedAt?: number | null;
+  }
 ) {
   const playlist = getRawSavedPlaylistById(playlistId);
   if (!playlist) {
     throw new Error(`Playlist cache row not found: ${playlistId}`);
   }
+  const detailHydratedAt =
+    options?.detailHydratedAt === undefined
+      ? Date.now()
+      : options.detailHydratedAt;
 
-  const existingItems = getPlaylistItemsInternal(playlistId);
-  const existingByVideoId = new Map(existingItems.map((item) => [item.videoId, item]));
-  const seenVideoIds = new Set<string>();
-  let nextPosition = 0;
-
-  for (const video of videoInfos) {
-    if (seenVideoIds.has(video.videoId)) {
-      continue;
-    }
-
-    seenVideoIds.add(video.videoId);
-    upsertPlaylistItem(
-      playlistId,
-      video,
-      nextPosition,
-      existingByVideoId.get(video.videoId)
-    );
-    nextPosition += 1;
-  }
-
-  for (const item of existingItems) {
-    if (seenVideoIds.has(item.videoId)) {
-      continue;
-    }
-
-    getDb()
-      .update(savedPlaylistItems)
-      .set({ position: nextPosition })
-      .where(eq(savedPlaylistItems.id, item.id))
-      .run();
-    nextPosition += 1;
-  }
+  replacePlaylistItems(playlistId, videoInfos);
 
   getDb()
     .update(savedPlaylists)
     .set({
-      itemCount: Math.max(playlist.itemCount ?? 0, videoInfos.length, existingItems.length),
+      itemCount: videoInfos.length,
+      detailHydratedAt,
       updatedAt: Date.now(),
     })
     .where(eq(savedPlaylists.id, playlistId))
     .run();
+}
+
+export function hasHydratedPlaylistDetails(
+  id: string,
+  options?: SavedPlaylistQueryOptions
+): boolean {
+  const playlist = getSavedPlaylistById(id, options);
+  return typeof playlist?.detailHydratedAt === "number";
 }
 
 // Delete a saved playlist

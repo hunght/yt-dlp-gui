@@ -33,6 +33,7 @@ function dbVideoToVideo(
     duration: dbVideo.duration,
     thumbnailUrl: dbVideo.thumbnailUrl ?? undefined,
     localPath: dbVideo.localPath ?? undefined,
+    description: dbVideo.description ?? null,
   };
 
   // Handle transcripts
@@ -85,6 +86,7 @@ export const useLibraryStore = create<LibraryStore>()(
           duration: video.duration,
           thumbnailUrl,
           localPath,
+          description: video.description,
         });
 
         // Add transcripts if provided
@@ -128,6 +130,10 @@ export const useLibraryStore = create<LibraryStore>()(
           duration: updates.duration ?? existing.duration,
           thumbnailUrl: updates.thumbnailUrl ?? existing.thumbnailUrl,
           localPath: updates.localPath ?? existing.localPath,
+          description:
+            updates.description === undefined
+              ? existing.description
+              : updates.description,
         });
 
         // Handle transcript updates

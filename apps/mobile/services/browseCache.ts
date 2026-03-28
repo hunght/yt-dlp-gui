@@ -10,6 +10,8 @@ import {
   buildCachedPlaylistId,
   getAllSavedPlaylistsWithProgress,
   getSavedPlaylistById,
+  getSavedPlaylistWithItems,
+  hasHydratedPlaylistDetails,
   mergeBrowseCachePlaylistItems,
   upsertBrowseCachePlaylist,
   type BrowseCachePlaylistKind,
@@ -116,7 +118,26 @@ function toPlaylistItemVideoInfo(video: RemoteVideoWithStatus): PlaylistVideoInf
     channelTitle: video.channelTitle,
     duration: video.duration,
     thumbnailUrl: video.thumbnailUrl ?? null,
+    downloadStatus: video.downloadStatus,
+    downloadProgress: video.downloadProgress,
+    fileSize: video.fileSize,
   };
+}
+
+function normalizeCachedDownloadStatus(
+  value: string | null,
+  hasLocalPath: boolean
+): RemoteVideoWithStatus["downloadStatus"] {
+  if (
+    value === "completed" ||
+    value === "downloading" ||
+    value === "queued" ||
+    value === "pending"
+  ) {
+    return value;
+  }
+
+  return hasLocalPath ? "completed" : null;
 }
 
 export async function cacheRemoteChannels(
@@ -245,6 +266,7 @@ export async function cacheRemoteCollectionVideos(
   }
 ): Promise<RemoteVideoWithStatus[]> {
   const playlistId = buildCachedPlaylistId(input.kind, input.id);
+  const detailHydratedAt = Date.now();
   const existingPlaylist = getSavedPlaylistById(playlistId, {
     includeUnpinned: true,
   });
@@ -262,7 +284,8 @@ export async function cacheRemoteCollectionVideos(
     type: input.kind,
     sourceId: input.sourceId ?? (input.kind === "playlist" ? null : input.id),
     thumbnailUrl: normalizedCollectionThumbnailUrl,
-    itemCount: input.itemCount ?? input.videos.length,
+    itemCount: input.videos.length,
+    detailHydratedAt,
   });
 
   const normalizedVideos = await Promise.all(
@@ -277,7 +300,10 @@ export async function cacheRemoteCollectionVideos(
 
   mergeBrowseCachePlaylistItems(
     playlistId,
-    normalizedVideos.map(toPlaylistItemVideoInfo)
+    normalizedVideos.map(toPlaylistItemVideoInfo),
+    {
+      detailHydratedAt,
+    }
   );
 
   return normalizedVideos;
@@ -322,4 +348,77 @@ export function getCachedMyLists(): RemoteMyList[] {
       sourceId: playlist.sourceId ?? stripCachedPlaylistPrefix("mylist", playlist.id),
       isFavorite: false,
     }));
+}
+
+export function getCachedCollectionVideos(
+  kind: BrowseCachePlaylistKind,
+  id: string
+): RemoteVideoWithStatus[] {
+  const savedPlaylist = getSavedPlaylistWithItems(buildCachedPlaylistId(kind, id), {
+    includeUnpinned: true,
+  });
+  if (!savedPlaylist) {
+    return [];
+  }
+
+  return savedPlaylist.items.map((item) => ({
+    id: item.videoId,
+    title: item.title,
+    channelTitle: item.channelTitle,
+    duration: item.duration,
+    thumbnailUrl: item.thumbnailUrl ?? null,
+    downloadStatus: normalizeCachedDownloadStatus(
+      item.downloadStatus,
+      Boolean(item.localPath)
+    ),
+    downloadProgress: item.downloadProgress ?? null,
+    fileSize: item.fileSize ?? null,
+  }));
+}
+
+const COLLECTION_DETAIL_REFRESH_MS = 15 * 60 * 1000;
+
+export function shouldRefreshCollectionVideos(
+  kind: BrowseCachePlaylistKind,
+  id: string,
+  maxAgeMs = COLLECTION_DETAIL_REFRESH_MS
+): boolean {
+  const playlistId = buildCachedPlaylistId(kind, id);
+  const savedPlaylist = getSavedPlaylistById(playlistId, {
+    includeUnpinned: true,
+  });
+  if (!savedPlaylist) {
+    return true;
+  }
+
+  const cachedVideos = getCachedCollectionVideos(kind, id);
+  const hasHydratedData =
+    cachedVideos.length > 0 ||
+    typeof savedPlaylist.detailHydratedAt === "number";
+
+  if (!hasHydratedData) {
+    return true;
+  }
+
+  const lastHydratedAt =
+    savedPlaylist.detailHydratedAt ??
+    savedPlaylist.updatedAt ??
+    savedPlaylist.savedAt;
+
+  if (typeof lastHydratedAt !== "number") {
+    return false;
+  }
+
+  return Date.now() - lastHydratedAt > maxAgeMs;
+}
+
+export function hasCachedCollectionVideos(
+  kind: BrowseCachePlaylistKind,
+  id: string
+): boolean {
+  const playlistId = buildCachedPlaylistId(kind, id);
+  return (
+    getCachedCollectionVideos(kind, id).length > 0 ||
+    hasHydratedPlaylistDetails(playlistId, { includeUnpinned: true })
+  );
 }

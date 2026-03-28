@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useConnectionStore } from "../../../stores/connection";
 import { api } from "../../../services/api";
 import * as wordsRepo from "../../../db/repositories/words";
+import * as flashcardsRepo from "../../../db/repositories/flashcards";
 import type { RemoteFlashcard, RemoteSavedWord } from "../../../types";
 
 type StudyMode = "flashcards" | "words";
@@ -38,24 +39,64 @@ export default function FlashcardsScreen() {
   const [isLoadingWords, setIsLoadingWords] = useState(false);
   const [wordsError, setWordsError] = useState<string | null>(null);
 
+  const syncPendingFlashcardReviews = useCallback(async () => {
+    if (!serverUrl) {
+      return;
+    }
+
+    const pendingReviews = flashcardsRepo.getPendingFlashcardReviewsLocal();
+    for (const review of pendingReviews) {
+      await api.reviewFlashcard(serverUrl, review.flashcardId, review.grade);
+      flashcardsRepo.removePendingFlashcardReviewLocal(review.id);
+    }
+  }, [serverUrl]);
+
   const loadCards = useCallback(async () => {
-    if (!serverUrl) return;
     setIsLoading(true);
     setError(null);
+    const localCards = flashcardsRepo.getDueFlashcardsLocal();
+    setCards(localCards);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setSessionComplete(false);
+    setReviewedCount(0);
+
     try {
-      const result = await api.getFlashcards(serverUrl, true);
-      setCards(result.flashcards);
+      if (!serverUrl) {
+        return;
+      }
+
+      const hasPendingReviews =
+        flashcardsRepo.getPendingFlashcardReviewsLocal().length > 0;
+      let shouldRefreshFromDesktop = true;
+
+      try {
+        await syncPendingFlashcardReviews();
+      } catch (syncError) {
+        shouldRefreshFromDesktop = !hasPendingReviews;
+        console.log("[Flashcards] Failed to sync pending reviews:", syncError);
+      }
+
+      if (shouldRefreshFromDesktop) {
+        const result = await api.getFlashcards(serverUrl, false);
+        flashcardsRepo.replaceRemoteFlashcards(result.flashcards);
+      }
+
+      const refreshedCards = flashcardsRepo.getDueFlashcardsLocal();
+      setCards(refreshedCards);
       setCurrentIndex(0);
       setIsFlipped(false);
       setSessionComplete(false);
       setReviewedCount(0);
     } catch (e) {
       console.log("[Flashcards] Failed to load:", e);
-      setError("Could not load flashcards from desktop");
+      if (flashcardsRepo.getDueFlashcardsLocal().length === 0) {
+        setError("Could not refresh flashcards from desktop");
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [serverUrl]);
+  }, [serverUrl, syncPendingFlashcardReviews]);
 
   const loadSavedWords = useCallback(async () => {
     setIsLoadingWords(true);
@@ -77,10 +118,10 @@ export default function FlashcardsScreen() {
   }, [serverUrl]);
 
   useEffect(() => {
-    if (isConnected) {
+    if (mode === "flashcards") {
       loadCards();
     }
-  }, [isConnected, loadCards]);
+  }, [mode, loadCards]);
 
   useEffect(() => {
     if (mode === "words") {
@@ -90,20 +131,34 @@ export default function FlashcardsScreen() {
 
   const handleGrade = useCallback(
     async (grade: number) => {
-      if (!serverUrl || isReviewing) return;
+      if (isReviewing) return;
       const card = cards[currentIndex];
       if (!card) return;
 
       setIsReviewing(true);
       try {
-        await api.reviewFlashcard(serverUrl, card.id, grade);
-        setReviewedCount((c) => c + 1);
+        flashcardsRepo.applyFlashcardReviewLocal(card.id, grade);
+        flashcardsRepo.queueFlashcardReviewLocal(card.id, grade);
 
-        if (currentIndex + 1 >= cards.length) {
+        if (serverUrl) {
+          try {
+            await syncPendingFlashcardReviews();
+          } catch (syncError) {
+            console.log("[Flashcards] Review sync deferred:", syncError);
+          }
+        }
+
+        setReviewedCount((c) => c + 1);
+        const remainingCards = flashcardsRepo.getDueFlashcardsLocal();
+
+        if (remainingCards.length === 0) {
+          setCards([]);
           setSessionComplete(true);
         } else {
-          setCurrentIndex((i) => i + 1);
+          setCards(remainingCards);
+          setCurrentIndex((i) => Math.min(i, remainingCards.length - 1));
           setIsFlipped(false);
+          setSessionComplete(false);
         }
       } catch (e) {
         console.log("[Flashcards] Review failed:", e);
@@ -111,7 +166,7 @@ export default function FlashcardsScreen() {
         setIsReviewing(false);
       }
     },
-    [serverUrl, cards, currentIndex, isReviewing]
+    [serverUrl, cards, currentIndex, isReviewing, syncPendingFlashcardReviews]
   );
 
   const renderWords = () => {
@@ -184,18 +239,6 @@ export default function FlashcardsScreen() {
   };
 
   const renderFlashcards = () => {
-    if (!isConnected) {
-      return (
-        <View style={styles.centered}>
-          <Text style={styles.icon}>📡</Text>
-          <Text style={styles.title}>Connect to Desktop</Text>
-          <Text style={styles.description}>
-            Connect to your desktop app to study flashcards
-          </Text>
-        </View>
-      );
-    }
-
     if (isLoading) {
       return (
         <View style={styles.centered}>
@@ -235,13 +278,19 @@ export default function FlashcardsScreen() {
     if (cards.length === 0) {
       return (
         <View style={styles.centered}>
-          <Text style={styles.icon}>✅</Text>
-          <Text style={styles.title}>All Caught Up!</Text>
+          <Text style={styles.icon}>{isConnected ? "✅" : "📚"}</Text>
+          <Text style={styles.title}>
+            {isConnected ? "All Caught Up!" : "No Local Flashcards Yet"}
+          </Text>
           <Text style={styles.description}>
-            No flashcards due for review. Create more on your desktop app.
+            {isConnected
+              ? "No flashcards due for review. Create more on your desktop app."
+              : "Connect to your desktop app once to sync flashcards for offline study."}
           </Text>
           <Pressable style={styles.retryButton} onPress={loadCards}>
-            <Text style={styles.retryButtonText}>Refresh</Text>
+            <Text style={styles.retryButtonText}>
+              {isConnected ? "Refresh" : "Retry"}
+            </Text>
           </Pressable>
         </View>
       );

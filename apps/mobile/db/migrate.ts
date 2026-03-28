@@ -12,11 +12,13 @@ const MIGRATIONS = [
     duration INTEGER NOT NULL,
     thumbnail_url TEXT,
     local_path TEXT,
+    description TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER
   );
   `,
   `CREATE INDEX IF NOT EXISTS videos_updated_at_idx ON videos (updated_at);`,
+  `ALTER TABLE videos ADD COLUMN description TEXT;`,
 
   // Transcripts table
   `
@@ -91,6 +93,9 @@ const MIGRATIONS = [
     front_content TEXT NOT NULL,
     back_content TEXT NOT NULL,
     context_text TEXT,
+    card_type TEXT DEFAULT 'basic',
+    tags_json TEXT,
+    cloze_content TEXT,
     timestamp_seconds INTEGER,
     difficulty INTEGER DEFAULT 0,
     next_review_at INTEGER,
@@ -103,6 +108,23 @@ const MIGRATIONS = [
   `,
   `CREATE INDEX IF NOT EXISTS flashcards_video_id_idx ON flashcards (video_id);`,
   `CREATE INDEX IF NOT EXISTS flashcards_next_review_idx ON flashcards (next_review_at);`,
+  `ALTER TABLE flashcards ADD COLUMN card_type TEXT DEFAULT 'basic';`,
+  `ALTER TABLE flashcards ADD COLUMN tags_json TEXT;`,
+  `ALTER TABLE flashcards ADD COLUMN cloze_content TEXT;`,
+  `ALTER TABLE flashcards ADD COLUMN interval INTEGER DEFAULT 0;`,
+  `UPDATE flashcards SET interval = COALESCE(interval, interval_days);`,
+
+  // Flashcard review queue table
+  `
+  CREATE TABLE IF NOT EXISTS flashcard_review_queue (
+    id TEXT PRIMARY KEY NOT NULL,
+    flashcard_id TEXT NOT NULL REFERENCES flashcards(id) ON DELETE CASCADE,
+    grade INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  `,
+  `CREATE INDEX IF NOT EXISTS flashcard_review_queue_flashcard_id_idx ON flashcard_review_queue (flashcard_id);`,
+  `CREATE INDEX IF NOT EXISTS flashcard_review_queue_created_at_idx ON flashcard_review_queue (created_at);`,
 
   // Watch stats table
   `
@@ -130,11 +152,13 @@ const MIGRATIONS = [
     item_count INTEGER DEFAULT 0,
     is_pinned INTEGER NOT NULL DEFAULT 0,
     saved_at INTEGER NOT NULL,
+    detail_hydrated_at INTEGER,
     updated_at INTEGER
   );
   `,
   `CREATE INDEX IF NOT EXISTS saved_playlists_type_idx ON saved_playlists (type);`,
   `ALTER TABLE saved_playlists ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;`,
+  `ALTER TABLE saved_playlists ADD COLUMN detail_hydrated_at INTEGER;`,
 
   // Saved playlist items table
   `
@@ -153,6 +177,25 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS saved_playlist_items_playlist_id_idx ON saved_playlist_items (playlist_id);`,
   `CREATE INDEX IF NOT EXISTS saved_playlist_items_video_id_idx ON saved_playlist_items (video_id);`,
   `CREATE UNIQUE INDEX IF NOT EXISTS saved_playlist_items_unique_idx ON saved_playlist_items (playlist_id, video_id);`,
+  `ALTER TABLE saved_playlist_items ADD COLUMN download_status TEXT;`,
+  `ALTER TABLE saved_playlist_items ADD COLUMN download_progress INTEGER;`,
+  `ALTER TABLE saved_playlist_items ADD COLUMN file_size INTEGER;`,
+
+  // Favorites table
+  `
+  CREATE TABLE IF NOT EXISTS favorites (
+    id TEXT PRIMARY KEY NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    is_favorite INTEGER NOT NULL DEFAULT 1,
+    pending_action TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER
+  );
+  `,
+  `CREATE UNIQUE INDEX IF NOT EXISTS favorites_entity_unique_idx ON favorites (entity_type, entity_id);`,
+  `CREATE INDEX IF NOT EXISTS favorites_entity_idx ON favorites (entity_type, entity_id);`,
+  `CREATE INDEX IF NOT EXISTS favorites_pending_action_idx ON favorites (pending_action);`,
 
   // Schema version tracking
   `

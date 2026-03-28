@@ -19,6 +19,11 @@ import { useConnectionStore } from "../../../stores/connection";
 import { useSyncStore } from "../../../stores/sync";
 import { usePlaybackStore } from "../../../stores/playback";
 import { savePlaylist, isPlaylistSaved } from "../../../db/repositories/playlists";
+import {
+  useBrowseCatalog,
+  useBrowseCollectionVideos,
+} from "../../../core/hooks/useBrowseCatalog";
+import { hasCachedCollectionVideos } from "../../../services/browseCache";
 import { ChannelList } from "../../../components/sync";
 import { VideoGridCard } from "../../../components/VideoGridCard";
 import { colors, radius, spacing, fontSize, fontWeight } from "../../../theme";
@@ -34,15 +39,14 @@ export default function HomeScreen() {
 
   const libraryVideos = useLibraryStore((s) => s.videos);
   const queueDownload = useDownloadStore((s) => s.queueDownload);
+  const { channels } = useBrowseCatalog();
 
   const {
-    channels,
     isLoadingChannels,
     isLoadingVideos,
     channelsError,
     videosError,
     selectedChannel,
-    channelVideos,
     selectedVideoIds,
     fetchChannels,
     fetchChannelVideos,
@@ -51,6 +55,10 @@ export default function HomeScreen() {
     selectAllVideos,
     clearVideoSelection,
   } = useSyncStore();
+  const channelVideos = useBrowseCollectionVideos(
+    selectedChannel ? "channel" : null,
+    selectedChannel?.channelId ?? null
+  );
 
   const startPlaylist = usePlaybackStore((s) => s.startPlaylist);
 
@@ -75,10 +83,8 @@ export default function HomeScreen() {
   // Fetch channels when connected
   useEffect(() => {
     if (!serverUrl) return;
-    if (channels.length === 0) {
-      fetchChannels(serverUrl);
-    }
-  }, [serverUrl, channels.length, fetchChannels]);
+    fetchChannels(serverUrl);
+  }, [serverUrl, fetchChannels]);
 
   // Clear pending actions when disconnected
   useEffect(() => {
@@ -107,11 +113,15 @@ export default function HomeScreen() {
 
   const handleChannelPress = useCallback(
     (channel: RemoteChannel) => {
+      if (hasCachedCollectionVideos("channel", channel.channelId) || !serverUrl) {
+        selectChannel(channel);
+        return;
+      }
+
       if (serverUrl) {
         fetchChannelVideos(serverUrl, channel);
         return;
       }
-      selectChannel(channel);
     },
     [serverUrl, fetchChannelVideos, selectChannel]
   );
@@ -424,6 +434,9 @@ export default function HomeScreen() {
         channelTitle: v.channelTitle,
         duration: v.duration,
         thumbnailUrl: v.thumbnailUrl ?? undefined,
+        downloadStatus: v.downloadStatus,
+        downloadProgress: v.downloadProgress,
+        fileSize: v.fileSize,
       }));
 
       try {

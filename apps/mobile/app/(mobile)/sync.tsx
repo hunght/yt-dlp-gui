@@ -19,6 +19,14 @@ import { useDownloadStore } from "../../stores/downloads";
 import { usePlaybackStore } from "../../stores/playback";
 import { savePlaylist, isPlaylistSaved } from "../../db/repositories/playlists";
 import {
+  useBrowseCatalog,
+  useBrowseCollectionVideos,
+} from "../../core/hooks/useBrowseCatalog";
+import {
+  hasCachedCollectionVideos,
+  shouldRefreshCollectionVideos,
+} from "../../services/browseCache";
+import {
   SyncTabBar,
   ChannelList,
   PlaylistList,
@@ -41,13 +49,11 @@ export default function SyncScreen() {
   const libraryVideos = useLibraryStore((s) => s.videos);
   const queueDownload = useDownloadStore((s) => s.queueDownload);
   const startPlaylist = usePlaybackStore((s) => s.startPlaylist);
+  const { channels, playlists, myLists } = useBrowseCatalog();
 
   const {
     activeTab,
     setActiveTab,
-    channels,
-    playlists,
-    myLists,
     isLoadingChannels,
     isLoadingPlaylists,
     isLoadingVideos,
@@ -57,11 +63,8 @@ export default function SyncScreen() {
     myListsError,
     videosError,
     selectedChannel,
-    channelVideos,
     selectedPlaylist,
-    playlistVideos,
     selectedMyList,
-    myListVideos,
     selectedVideoIds,
     fetchChannels,
     fetchPlaylists,
@@ -76,6 +79,18 @@ export default function SyncScreen() {
     selectAllVideos,
     clearVideoSelection,
   } = useSyncStore();
+  const channelVideos = useBrowseCollectionVideos(
+    selectedChannel ? "channel" : null,
+    selectedChannel?.channelId ?? null
+  );
+  const playlistVideos = useBrowseCollectionVideos(
+    selectedPlaylist ? "playlist" : null,
+    selectedPlaylist?.playlistId ?? null
+  );
+  const myListVideos = useBrowseCollectionVideos(
+    selectedMyList ? "mylist" : null,
+    selectedMyList?.id ?? null
+  );
 
   // Set of video IDs already synced to mobile
   const syncedVideoIds = new Set(libraryVideos.map((v) => v.id));
@@ -99,19 +114,16 @@ export default function SyncScreen() {
   useEffect(() => {
     if (!serverUrl) return;
 
-    if (activeTab === "channels" && channels.length === 0) {
+    if (activeTab === "channels") {
       fetchChannels(serverUrl);
-    } else if (activeTab === "playlists" && playlists.length === 0) {
+    } else if (activeTab === "playlists") {
       fetchPlaylists(serverUrl);
-    } else if (activeTab === "mylists" && myLists.length === 0) {
+    } else if (activeTab === "mylists") {
       fetchMyLists(serverUrl);
     }
   }, [
     activeTab,
     serverUrl,
-    channels.length,
-    playlists.length,
-    myLists.length,
     fetchChannels,
     fetchPlaylists,
     fetchMyLists,
@@ -162,33 +174,78 @@ export default function SyncScreen() {
 
   const handleChannelPress = useCallback(
     (channel: RemoteChannel) => {
+      const hasCachedVideos = hasCachedCollectionVideos(
+        "channel",
+        channel.channelId
+      );
+      if (!serverUrl) {
+        selectChannel(channel);
+        return;
+      }
+
+      if (hasCachedVideos) {
+        selectChannel(channel);
+        if (shouldRefreshCollectionVideos("channel", channel.channelId)) {
+          fetchChannelVideos(serverUrl, channel);
+        }
+        return;
+      }
+
       if (serverUrl) {
         fetchChannelVideos(serverUrl, channel);
         return;
       }
-      selectChannel(channel);
     },
     [serverUrl, fetchChannelVideos, selectChannel]
   );
 
   const handlePlaylistPress = useCallback(
     (playlist: RemotePlaylist) => {
+      const hasCachedVideos = hasCachedCollectionVideos(
+        "playlist",
+        playlist.playlistId
+      );
+      if (!serverUrl) {
+        selectPlaylist(playlist);
+        return;
+      }
+
+      if (hasCachedVideos) {
+        selectPlaylist(playlist);
+        if (shouldRefreshCollectionVideos("playlist", playlist.playlistId)) {
+          fetchPlaylistVideos(serverUrl, playlist);
+        }
+        return;
+      }
+
       if (serverUrl) {
         fetchPlaylistVideos(serverUrl, playlist);
         return;
       }
-      selectPlaylist(playlist);
     },
     [serverUrl, fetchPlaylistVideos, selectPlaylist]
   );
 
   const handleMyListPress = useCallback(
     (myList: RemoteMyList) => {
+      const hasCachedVideos = hasCachedCollectionVideos("mylist", myList.id);
+      if (!serverUrl) {
+        selectMyList(myList);
+        return;
+      }
+
+      if (hasCachedVideos) {
+        selectMyList(myList);
+        if (shouldRefreshCollectionVideos("mylist", myList.id)) {
+          fetchMyListVideos(serverUrl, myList);
+        }
+        return;
+      }
+
       if (serverUrl) {
         fetchMyListVideos(serverUrl, myList);
         return;
       }
-      selectMyList(myList);
     },
     [serverUrl, fetchMyListVideos, selectMyList]
   );
@@ -500,6 +557,9 @@ export default function SyncScreen() {
         channelTitle: v.channelTitle,
         duration: v.duration,
         thumbnailUrl: v.thumbnailUrl ?? undefined,
+        downloadStatus: v.downloadStatus,
+        downloadProgress: v.downloadProgress,
+        fileSize: v.fileSize,
       }));
 
       try {

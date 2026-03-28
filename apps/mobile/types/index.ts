@@ -17,6 +17,7 @@ export interface Video {
   duration: number;
   thumbnailUrl?: string;
   localPath?: string;
+  description?: string | null;
   transcriptPath?: string;
   transcript?: Transcript;
   // Multiple transcripts for different languages

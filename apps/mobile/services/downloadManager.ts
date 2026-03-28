@@ -96,6 +96,7 @@ class DownloadManager {
         duration: item.duration,
         thumbnailUrl: item.thumbnailUrl,
         localPath: videoPath,
+        description: meta.description ?? null,
         // Use transcripts from dedicated endpoint, fallback to meta
         transcripts:
           transcripts.length > 0

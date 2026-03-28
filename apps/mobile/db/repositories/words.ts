@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb, savedWords, translationCache } from "../index";
-import type { RemoteSavedWord } from "../../types";
+import type { RemoteSavedWord, TranslateResult } from "../../types";
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -22,6 +22,12 @@ interface UpsertSavedWordInput {
   reviewCount?: number;
   lastReviewedAt?: number | null;
   createdAt?: number;
+}
+
+interface LocalTranslationLookupInput {
+  sourceText: string;
+  targetLang: string;
+  sourceLang?: string;
 }
 
 function getSavedWordById(id: string): RemoteSavedWord | undefined {
@@ -181,6 +187,124 @@ function upsertSavedWord(input: UpsertSavedWordInput): string {
     .run();
 
   return id;
+}
+
+function normalizeLookupInput(input: LocalTranslationLookupInput) {
+  return {
+    sourceText: input.sourceText.trim(),
+    sourceTextLower: input.sourceText.trim().toLowerCase(),
+    targetLang: input.targetLang.trim() || "en",
+    sourceLang: input.sourceLang?.trim(),
+  };
+}
+
+function bumpTranslationLookupStats(translationId: string) {
+  const now = Date.now();
+  const existing = getDb()
+    .select()
+    .from(translationCache)
+    .where(eq(translationCache.id, translationId))
+    .get();
+
+  if (!existing) {
+    return;
+  }
+
+  getDb()
+    .update(translationCache)
+    .set({
+      queryCount: (existing.queryCount ?? 0) + 1,
+      lastQueriedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(translationCache.id, translationId))
+    .run();
+}
+
+export function getCachedTranslationLocal(
+  input: LocalTranslationLookupInput
+): TranslateResult | undefined {
+  const normalized = normalizeLookupInput(input);
+  if (!normalized.sourceText) {
+    return undefined;
+  }
+
+  const exactMatch = normalized.sourceLang
+    ? getDb()
+        .select()
+        .from(translationCache)
+        .where(
+          and(
+            eq(translationCache.sourceText, normalized.sourceText),
+            eq(translationCache.sourceLang, normalized.sourceLang),
+            eq(translationCache.targetLang, normalized.targetLang)
+          )
+        )
+        .get()
+    : getDb()
+        .select()
+        .from(translationCache)
+        .where(
+          and(
+            eq(translationCache.sourceText, normalized.sourceText),
+            eq(translationCache.targetLang, normalized.targetLang)
+          )
+        )
+        .get();
+
+  const caseInsensitiveMatch =
+    exactMatch ??
+    getDb()
+      .select()
+      .from(translationCache)
+      .where(eq(translationCache.targetLang, normalized.targetLang))
+      .all()
+      .find((entry) => {
+        if (entry.sourceText.trim().toLowerCase() !== normalized.sourceTextLower) {
+          return false;
+        }
+
+        if (!normalized.sourceLang) {
+          return true;
+        }
+
+        return entry.sourceLang === normalized.sourceLang;
+      });
+
+  if (!caseInsensitiveMatch) {
+    return undefined;
+  }
+
+  bumpTranslationLookupStats(caseInsensitiveMatch.id);
+
+  return {
+    success: true,
+    translatedText: caseInsensitiveMatch.translatedText,
+    translationId: caseInsensitiveMatch.id,
+    detectedLang:
+      caseInsensitiveMatch.detectedLang ??
+      caseInsensitiveMatch.sourceLang ??
+      "auto",
+    fromCache: true,
+  };
+}
+
+export function cacheTranslationLocal(input: {
+  translationId?: string;
+  sourceText: string;
+  translatedText: string;
+  sourceLang: string;
+  targetLang: string;
+  detectedLang?: string;
+}): string {
+  return upsertTranslation({
+    translationId: input.translationId,
+    sourceText: input.sourceText,
+    translatedText: input.translatedText,
+    sourceLang: input.sourceLang,
+    targetLang: input.targetLang,
+    detectedLang: input.detectedLang,
+  });
 }
 
 export function getAllSavedWordsLocal(): RemoteSavedWord[] {

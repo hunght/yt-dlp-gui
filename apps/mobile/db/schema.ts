@@ -10,6 +10,7 @@ export const videos = sqliteTable(
     duration: integer("duration").notNull(), // seconds
     thumbnailUrl: text("thumbnail_url"),
     localPath: text("local_path"), // Local file path after download
+    description: text("description"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at"),
   },
@@ -118,6 +119,9 @@ export const flashcards = sqliteTable(
     frontContent: text("front_content").notNull(),
     backContent: text("back_content").notNull(),
     contextText: text("context_text"),
+    cardType: text("card_type").default("basic"),
+    tagsJson: text("tags_json"),
+    clozeContent: text("cloze_content"),
     timestampSeconds: integer("timestamp_seconds"),
     difficulty: integer("difficulty").default(0), // 0=new, 1=easy, 2=medium, 3=hard
     nextReviewAt: integer("next_review_at"),
@@ -133,6 +137,23 @@ export const flashcards = sqliteTable(
   ]
 );
 
+// Offline flashcard review queue for replaying reviews to desktop later.
+export const flashcardReviewQueue = sqliteTable(
+  "flashcard_review_queue",
+  {
+    id: text("id").primaryKey(),
+    flashcardId: text("flashcard_id")
+      .notNull()
+      .references(() => flashcards.id, { onDelete: "cascade" }),
+    grade: integer("grade").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [
+    index("flashcard_review_queue_flashcard_id_idx").on(table.flashcardId),
+    index("flashcard_review_queue_created_at_idx").on(table.createdAt),
+  ]
+);
+
 // Saved playlists - for offline access
 export const savedPlaylists = sqliteTable(
   "saved_playlists",
@@ -145,6 +166,7 @@ export const savedPlaylists = sqliteTable(
     itemCount: integer("item_count").default(0),
     isPinned: integer("is_pinned", { mode: "boolean" }).notNull().default(false),
     savedAt: integer("saved_at").notNull(),
+    detailHydratedAt: integer("detail_hydrated_at"),
     updatedAt: integer("updated_at"),
   },
   (table) => [index("saved_playlists_type_idx").on(table.type)]
@@ -163,6 +185,9 @@ export const savedPlaylistItems = sqliteTable(
     channelTitle: text("channel_title").notNull(),
     duration: integer("duration").notNull(),
     thumbnailUrl: text("thumbnail_url"),
+    downloadStatus: text("download_status"),
+    downloadProgress: integer("download_progress"),
+    fileSize: integer("file_size"),
     position: integer("position").notNull(), // Order in playlist
     createdAt: integer("created_at").notNull(),
   },
@@ -194,6 +219,26 @@ export const watchStats = sqliteTable(
   ]
 );
 
+export const favorites = sqliteTable(
+  "favorites",
+  {
+    id: text("id").primaryKey(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    isFavorite: integer("is_favorite", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    pendingAction: text("pending_action"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at"),
+  },
+  (table) => [
+    unique().on(table.entityType, table.entityId),
+    index("favorites_entity_idx").on(table.entityType, table.entityId),
+    index("favorites_pending_action_idx").on(table.pendingAction),
+  ]
+);
+
 // TypeScript types
 export type Video = typeof videos.$inferSelect;
 export type NewVideo = typeof videos.$inferInsert;
@@ -213,6 +258,9 @@ export type NewSavedWord = typeof savedWords.$inferInsert;
 export type Flashcard = typeof flashcards.$inferSelect;
 export type NewFlashcard = typeof flashcards.$inferInsert;
 
+export type FlashcardReviewQueueEntry = typeof flashcardReviewQueue.$inferSelect;
+export type NewFlashcardReviewQueueEntry = typeof flashcardReviewQueue.$inferInsert;
+
 export type WatchStat = typeof watchStats.$inferSelect;
 export type NewWatchStat = typeof watchStats.$inferInsert;
 
@@ -221,3 +269,6 @@ export type NewSavedPlaylist = typeof savedPlaylists.$inferInsert;
 
 export type SavedPlaylistItem = typeof savedPlaylistItems.$inferSelect;
 export type NewSavedPlaylistItem = typeof savedPlaylistItems.$inferInsert;
+
+export type Favorite = typeof favorites.$inferSelect;
+export type NewFavorite = typeof favorites.$inferInsert;

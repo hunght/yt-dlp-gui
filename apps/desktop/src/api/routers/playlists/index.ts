@@ -2,12 +2,13 @@ import { z } from "zod";
 import { publicProcedure, t } from "@/api/trpc";
 import { logger } from "@/helpers/logger";
 import fs from "fs";
-import { eq, desc, inArray, and } from "drizzle-orm";
+import { eq, desc, inArray, and, sql } from "drizzle-orm";
 import {
   channelPlaylists,
   playlistItems,
   youtubeVideos,
   channels,
+  favorites,
   type ChannelPlaylist,
   type YoutubeVideo,
   type NewYoutubeVideo,
@@ -511,7 +512,12 @@ export const playlistsRouter = t.router({
             lastFetchedAt: channelPlaylists.lastFetchedAt,
           })
           .from(channelPlaylists)
-          .orderBy(desc(channelPlaylists.createdAt))
+          // Most-recently-viewed first (treat never-viewed as oldest), then newest added.
+          .orderBy(
+            sql`${channelPlaylists.lastViewedAt} IS NULL`,
+            desc(channelPlaylists.lastViewedAt),
+            desc(channelPlaylists.createdAt)
+          )
           .limit(limit);
 
         // Get channel info for each playlist
@@ -535,6 +541,59 @@ export const playlistsRouter = t.router({
       } catch (e) {
         logger.error("[playlists] listAll failed", e);
         return [];
+      }
+    }),
+
+  remove: publicProcedure
+    .input(z.object({ playlistId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+
+      try {
+        const existing = await db
+          .select({
+            playlistId: channelPlaylists.playlistId,
+            title: channelPlaylists.title,
+            channelId: channelPlaylists.channelId,
+          })
+          .from(channelPlaylists)
+          .where(eq(channelPlaylists.playlistId, input.playlistId))
+          .limit(1);
+
+        const playlist = existing[0];
+        if (!playlist) {
+          return { success: false as const, message: "Playlist not found" };
+        }
+
+        await db
+          .delete(favorites)
+          .where(
+            and(
+              eq(favorites.entityType, "channel_playlist"),
+              eq(favorites.entityId, input.playlistId)
+            )
+          );
+
+        await db.delete(channelPlaylists).where(eq(channelPlaylists.playlistId, input.playlistId));
+
+        logger.info("[playlists] Removed playlist from library", {
+          playlistId: input.playlistId,
+          title: playlist.title,
+          channelId: playlist.channelId,
+        });
+
+        return {
+          success: true as const,
+          playlistId: input.playlistId,
+          title: playlist.title,
+          channelId: playlist.channelId,
+        };
+      } catch (error) {
+        logger.error("[playlists] remove failed", {
+          playlistId: input.playlistId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return { success: false as const, message: "Failed to remove playlist" };
       }
     }),
 

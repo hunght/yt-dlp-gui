@@ -107,9 +107,11 @@ export function SystemTab(): React.JSX.Element {
       toast({
         title: "Database Path Updated",
         description: result.requiresRestart
-          ? result.copiedExistingData
-            ? "Your current data was copied to the new database file. Restart LearnifyTube to start using it."
-            : "Restart LearnifyTube to start using the new database location."
+          ? result.usedExistingDatabase
+            ? "Found an existing database at the selected path. Restart LearnifyTube to start using it."
+            : result.copiedExistingData
+              ? "Your current data was copied to the new database file. Restart LearnifyTube to start using it."
+              : "Restart LearnifyTube to start using the new database location."
           : result.isDefault
             ? "LearnifyTube is already using the default database location."
             : "LearnifyTube is already using this database location.",

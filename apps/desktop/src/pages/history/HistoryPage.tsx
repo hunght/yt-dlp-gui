@@ -1,17 +1,61 @@
 import React from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
-import { Clock, PlayCircle, Loader2 } from "lucide-react";
+import { Clock, PlayCircle, Loader2, ListVideo } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import Thumbnail from "@/components/Thumbnail";
+import { logger } from "@/helpers/logger";
 
 const PAGE_SIZE = 30;
 
 export default function HistoryPage(): React.JSX.Element {
   const navigate = useNavigate();
+
+  // Fetch recently played playlists (sorted by lastViewedAt on the server).
+  const playlistsQuery = useQuery({
+    queryKey: ["playlists", "listAll"],
+    queryFn: () => trpcClient.playlists.listAll.query({ limit: 30 }),
+  });
+
+  const recentPlaylists = (playlistsQuery.data ?? []).filter(
+    (p) => p.lastViewedAt !== null
+  );
+
+  const handleResumePlaylist = async (playlist: {
+    playlistId: string;
+    url: string | null;
+    currentVideoIndex: number | null;
+  }): Promise<void> => {
+    try {
+      const details = await trpcClient.playlists.getDetails.query({
+        playlistId: playlist.playlistId,
+        playlistUrl: playlist.url ?? undefined,
+      });
+      const videos = details?.videos ?? [];
+      const startIndex = playlist.currentVideoIndex ?? 0;
+      const video = videos[startIndex] ?? videos[0];
+      if (!video) {
+        toast.error("This playlist has no videos to resume.");
+        return;
+      }
+      navigate({
+        to: "/player",
+        search: {
+          videoId: video.videoId,
+          playlistId: playlist.playlistId,
+          playlistUrl: playlist.url ?? undefined,
+          playlistIndex: videos.indexOf(video),
+        },
+      });
+    } catch (error) {
+      logger.error("[history] Failed to resume playlist", { playlist, error });
+      toast.error("Could not resume this playlist.");
+    }
+  };
 
   // Fetch metadata for recently played videos with pagination
   const query = useInfiniteQuery({
@@ -48,6 +92,82 @@ export default function HistoryPage(): React.JSX.Element {
           </div>
         )}
       </div>
+
+      {recentPlaylists.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ListVideo className="h-4 w-4 text-primary" />
+              Recently Played Playlists ({recentPlaylists.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {recentPlaylists.map((p) => {
+                const itemCount = p.itemCount ?? 0;
+                const resumePosition = (p.currentVideoIndex ?? 0) + 1;
+                const resumeLabel =
+                  itemCount > 0
+                    ? `Resume video ${Math.min(resumePosition, itemCount)} of ${itemCount}`
+                    : "Resume";
+                return (
+                  <div
+                    key={p.playlistId}
+                    role="button"
+                    tabIndex={0}
+                    className="group cursor-pointer space-y-2 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/30 hover:bg-muted/50"
+                    onClick={() =>
+                      handleResumePlaylist({
+                        playlistId: p.playlistId,
+                        url: p.url,
+                        currentVideoIndex: p.currentVideoIndex,
+                      })
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleResumePlaylist({
+                          playlistId: p.playlistId,
+                          url: p.url,
+                          currentVideoIndex: p.currentVideoIndex,
+                        });
+                      }
+                    }}
+                  >
+                    <div className="relative">
+                      <Thumbnail
+                        thumbnailPath={p.thumbnailPath}
+                        thumbnailUrl={p.thumbnailUrl}
+                        alt={p.title}
+                        className="aspect-video w-full rounded object-cover"
+                        fallbackIcon={<ListVideo className="h-6 w-6 text-muted-foreground" />}
+                      />
+                      {itemCount > 0 && (
+                        <div className="absolute bottom-2 right-2 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white">
+                          <ListVideo className="h-3 w-3" />
+                          {itemCount}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="line-clamp-2 text-sm font-medium">{p.title}</div>
+                      {p.channelTitle && (
+                        <div className="line-clamp-1 text-xs text-muted-foreground">
+                          {p.channelTitle}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 pt-1 text-xs text-primary">
+                        <PlayCircle className="h-3.5 w-3.5" />
+                        <span className="font-medium">{resumeLabel}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

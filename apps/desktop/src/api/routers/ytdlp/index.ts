@@ -13,7 +13,7 @@ import {
 import { upsertChannelData } from "@/api/utils/ytdlp-utils/database";
 import { spawnYtDlpWithLogging, extractVideoId, runYtDlpJson } from "@/api/utils/ytdlp-utils/ytdlp";
 import { downloadImageToCache } from "@/api/utils/ytdlp-utils/cache";
-import { eq, desc, inArray, sql } from "drizzle-orm";
+import { eq, desc, inArray, sql, and } from "drizzle-orm";
 import { getBackgroundJobsManager } from "@/services/background-jobs/job-manager";
 import { getVideoResolution } from "@/services/optimization-queue/optimization-worker";
 import {
@@ -21,6 +21,7 @@ import {
   channels,
   channelPlaylists,
   videoWatchStats,
+  favorites,
   type YoutubeVideo,
   type ChannelPlaylist,
   type Channel,
@@ -863,6 +864,81 @@ export const ytdlpRouter = t.router({
         durationMs,
       });
       return { channel, videos, totalVideos: videos.length };
+    }),
+
+  removeChannel: publicProcedure
+    .input(z.object({ channelId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = ctx.db ?? defaultDb;
+      const now = Date.now();
+
+      try {
+        const channelRows = await db
+          .select({
+            channelId: channels.channelId,
+            channelTitle: channels.channelTitle,
+          })
+          .from(channels)
+          .where(eq(channels.channelId, input.channelId))
+          .limit(1);
+
+        const channel = channelRows[0];
+        if (!channel) {
+          return { success: false as const, message: "Channel not found" };
+        }
+
+        const relatedPlaylists = await db
+          .select({ playlistId: channelPlaylists.playlistId })
+          .from(channelPlaylists)
+          .where(eq(channelPlaylists.channelId, input.channelId));
+
+        const playlistIds = relatedPlaylists.map((playlist) => playlist.playlistId);
+
+        await db
+          .update(youtubeVideos)
+          .set({
+            channelId: null,
+            updatedAt: now,
+          })
+          .where(eq(youtubeVideos.channelId, input.channelId));
+
+        if (playlistIds.length > 0) {
+          await db
+            .delete(favorites)
+            .where(
+              and(
+                eq(favorites.entityType, "channel_playlist"),
+                inArray(favorites.entityId, playlistIds)
+              )
+            );
+        }
+
+        await db.delete(channelPlaylists).where(eq(channelPlaylists.channelId, input.channelId));
+        await db.delete(channels).where(eq(channels.channelId, input.channelId));
+
+        logger.info("[ytdlp] Removed channel from library", {
+          channelId: input.channelId,
+          channelTitle: channel.channelTitle,
+          removedPlaylistsCount: playlistIds.length,
+        });
+
+        return {
+          success: true as const,
+          channelId: input.channelId,
+          channelTitle: channel.channelTitle,
+          removedPlaylistsCount: playlistIds.length,
+        };
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logger.error("[ytdlp] Failed to remove channel", {
+          channelId: input.channelId,
+          error: errorMsg,
+        });
+        return {
+          success: false as const,
+          message: errorMsg || "Failed to remove channel",
+        };
+      }
     }),
 
   // Get video playback info by videoId (for PlayerPage)

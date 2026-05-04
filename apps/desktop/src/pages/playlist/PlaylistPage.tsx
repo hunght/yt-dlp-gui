@@ -3,6 +3,16 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PageContainer } from "@/components/ui/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +57,7 @@ export default function PlaylistPage(): React.JSX.Element {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
 
   // YouTube playlist query
   const youtubeQuery = useQuery({
@@ -94,6 +105,34 @@ export default function PlaylistPage(): React.JSX.Element {
       }
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add to queue"),
+  });
+
+  const removePlaylistMutation = useMutation({
+    mutationFn: () => trpcClient.playlists.remove.mutate({ playlistId: playlistId! }),
+    onSuccess: async (result) => {
+      if (!result.success) {
+        toast.error(result.message ?? "Failed to remove playlist");
+        return;
+      }
+
+      setShowRemoveDialog(false);
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["playlists"] }),
+        queryClient.invalidateQueries({ queryKey: ["playlist-details", playlistId] }),
+        queryClient.invalidateQueries({ queryKey: ["channel-playlists"] }),
+        queryClient.invalidateQueries({ queryKey: ["favorites"] }),
+        ...(result.channelId
+          ? [queryClient.invalidateQueries({ queryKey: ["channel", result.channelId] })]
+          : []),
+      ]);
+
+      toast.success(`Removed "${result.title}" from playlists`);
+      navigate({ to: "/playlists" });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to remove playlist");
+    },
   });
 
   // Normalize data from both query types
@@ -236,6 +275,12 @@ export default function PlaylistPage(): React.JSX.Element {
     downloadMutation.mutate(urls);
   };
 
+  const handleConfirmRemovePlaylist = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    if (!playlistId || removePlaylistMutation.isPending) return;
+    removePlaylistMutation.mutate();
+  };
+
   // Loading state
   if (query.isLoading) {
     return (
@@ -303,6 +348,17 @@ export default function PlaylistPage(): React.JSX.Element {
             size="sm"
             showLabel
           />
+          {!isCustomPlaylist && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-destructive hover:text-destructive"
+              onClick={() => setShowRemoveDialog(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Remove Playlist
+            </Button>
+          )}
           {isCustomPlaylist && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -423,14 +479,43 @@ export default function PlaylistPage(): React.JSX.Element {
       )}
 
       {/* Delete confirmation dialog */}
-      <DeleteCustomPlaylistDialog
-        open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
-        playlistId={playlistId}
-        playlistName={title}
-        videoCount={stats.total}
-        onDeleted={() => navigate({ to: "/playlists" })}
-      />
+      {isCustomPlaylist && (
+        <DeleteCustomPlaylistDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          playlistId={playlistId}
+          playlistName={title}
+          videoCount={stats.total}
+          onDeleted={() => navigate({ to: "/playlists" })}
+        />
+      )}
+
+      {!isCustomPlaylist && (
+        <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove playlist?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Remove "{title}" from your saved playlists? This removes the playlist and its cached
+                video list from the desktop app. Downloaded videos and favorites stay in your
+                library.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={removePlaylistMutation.isPending}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmRemovePlaylist}
+                disabled={removePlaylistMutation.isPending}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                {removePlaylistMutation.isPending ? "Removing..." : "Remove Playlist"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </PageContainer>
   );
 }

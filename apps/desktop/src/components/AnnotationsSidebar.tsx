@@ -132,6 +132,12 @@ export function AnnotationsSidebar({
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const captureCapableVideoRef = videoRef as React.RefObject<
+    HTMLVideoElement & {
+      captureStream?: () => MediaStream;
+      mozCaptureStream?: () => MediaStream;
+    }
+  >;
 
   // Update form when selection changes
   useEffect(() => {
@@ -220,10 +226,11 @@ export function AnnotationsSidebar({
         setIsRecording(false);
       }
     } else {
-      if (!videoRef.current) return;
+      if (!captureCapableVideoRef.current) return;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/consistent-type-assertions, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-        const stream = (videoRef.current as any).captureStream() as MediaStream;
+        const stream =
+          captureCapableVideoRef.current.captureStream?.() ??
+          captureCapableVideoRef.current.mozCaptureStream?.();
         if (!stream) {
           toast.error("Browser does not support capturing from this video source.");
           return;
@@ -264,8 +271,8 @@ export function AnnotationsSidebar({
         recorder.start();
         setIsRecording(true);
         toast.info("Recording loop... Play video!", { duration: 2000 });
-        if (videoRef.current.paused) {
-          videoRef.current.play().catch(() => {});
+        if (captureCapableVideoRef.current?.paused) {
+          captureCapableVideoRef.current.play().catch(() => {});
         }
       } catch (err) {
         logger.error("Recording failed", err);

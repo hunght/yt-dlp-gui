@@ -113,7 +113,6 @@ const getRendererLogger = async (): Promise<LogFunctions> => {
   } catch {
     // Fallback: rely on global injected by log.initialize() from main
     if ("__electronLog" in globalThis) {
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
       const electronLog: unknown = (globalThis as Record<string, unknown>).__electronLog;
       // Check if it has the required log methods
       if (
@@ -124,7 +123,6 @@ const getRendererLogger = async (): Promise<LogFunctions> => {
         "warn" in electronLog &&
         "error" in electronLog
       ) {
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
         return electronLog as LogFunctions;
       }
     }

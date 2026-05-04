@@ -37,7 +37,6 @@ const NotificationApp: React.FC = () => {
 
         const validatedData = parseResult.data;
         // Cast is safe because NotificationData has actions with function property that Zod can't validate
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
         setNotificationData(validatedData as NotificationData);
         // Reset timer when new notification arrives (only if autoDismiss is enabled)
         if (validatedData.autoDismiss) {

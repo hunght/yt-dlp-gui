@@ -137,15 +137,14 @@ export function OptimizeDialog({
 
           {/* Resolution selector */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Target Resolution</label>
-            <Select
-              value={selectedResolution}
-              onValueChange={(value) => {
-                // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-                setSelectedResolution(value as TargetResolution);
-              }}
-              disabled={!ffmpegAvailable}
-            >
+              <label className="text-sm font-medium">Target Resolution</label>
+              <Select
+                value={selectedResolution}
+                onValueChange={(value) => {
+                  setSelectedResolution(value as TargetResolution);
+                }}
+                disabled={!ffmpegAvailable}
+              >
               <SelectTrigger>
                 <SelectValue placeholder="Select resolution" />
               </SelectTrigger>

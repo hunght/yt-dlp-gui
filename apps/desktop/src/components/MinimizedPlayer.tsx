@@ -142,8 +142,8 @@ export function MinimizedPlayer(): React.JSX.Element | null {
       to: "/player",
       search: {
         videoId,
-        playlistId: undefined,
-        playlistIndex: undefined,
+        playlistId: playerState.playlistId ?? undefined,
+        playlistIndex: playerState.playlistIndex ?? undefined,
       },
     });
   };

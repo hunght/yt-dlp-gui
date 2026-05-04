@@ -141,6 +141,7 @@ type UpdateDatabasePathSuccess = {
   success: true;
   path: string;
   copiedExistingData: boolean;
+  usedExistingDatabase: boolean;
   isDefault: boolean;
   requiresRestart: boolean;
 };
@@ -814,9 +815,14 @@ export const utilsRouter = t.router({
         const willUseDefaultPath = requestedPath === defaultPath;
 
         let copiedExistingData = false;
+        let usedExistingDatabase = false;
 
         if (requestedPath !== currentPath) {
-          copiedExistingData = await copyActiveDatabaseToPath(requestedPath);
+          if (fs.existsSync(requestedPath)) {
+            usedExistingDatabase = true;
+          } else {
+            copiedExistingData = await copyActiveDatabaseToPath(requestedPath);
+          }
         }
 
         if (willUseDefaultPath) {
@@ -829,6 +835,7 @@ export const utilsRouter = t.router({
           currentPath,
           requestedPath,
           copiedExistingData,
+          usedExistingDatabase,
           willUseDefaultPath,
         });
 
@@ -836,6 +843,7 @@ export const utilsRouter = t.router({
           success: true,
           path: requestedPath,
           copiedExistingData,
+          usedExistingDatabase,
           isDefault: willUseDefaultPath,
           requiresRestart: requestedPath !== currentPath,
         };

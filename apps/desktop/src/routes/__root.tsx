@@ -71,8 +71,7 @@ function Root(): React.JSX.Element {
       "params" in leaf &&
       typeof leaf.params === "object" &&
       leaf.params !== null
-        ? // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-          (leaf.params as Record<string, unknown>)
+        ? (leaf.params as Record<string, unknown>)
         : {};
 
     const from = previousPathRef.current;

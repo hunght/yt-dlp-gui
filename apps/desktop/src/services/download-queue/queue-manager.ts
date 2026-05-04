@@ -1,5 +1,10 @@
-import { desc, eq } from "drizzle-orm";
-import { youtubeVideos, userPreferences } from "@/api/db/schema";
+import { desc, eq, inArray } from "drizzle-orm";
+import {
+  youtubeVideos,
+  userPreferences,
+  playlistItems,
+  channelPlaylists,
+} from "@/api/db/schema";
 import type { Database } from "@/api/db";
 import { DEFAULT_QUEUE_CONFIG } from "./config";
 import type { QueueConfig, QueueStatus, QueueStats, QueuedDownload } from "./types";
@@ -53,6 +58,50 @@ interface QueueItem {
   fallbackAttempts: number;
   maxFallbackAttempts: number;
 }
+
+/**
+ * Sanitize a string so it is safe to use as a folder name on macOS / Windows / Linux.
+ * Strips reserved chars, collapses whitespace, trims trailing dots/spaces, and caps length.
+ */
+const sanitizeFolderName = (name: string): string => {
+  const cleaned = name
+    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/g, "");
+  // Cap at 100 chars to stay well under filesystem limits when nested
+  return cleaned.slice(0, 100);
+};
+
+/**
+ * Look up the first YouTube playlist a video belongs to, if any.
+ * Returns the playlist title to use as a folder name, or null when the video
+ * is not associated with any channel playlist.
+ */
+const getPrimaryPlaylistTitle = async (
+  db: Database,
+  videoId: string
+): Promise<string | null> => {
+  try {
+    const rows = await db
+      .select({ title: channelPlaylists.title })
+      .from(playlistItems)
+      .innerJoin(
+        channelPlaylists,
+        eq(channelPlaylists.playlistId, playlistItems.playlistId)
+      )
+      .where(eq(playlistItems.videoId, videoId))
+      .orderBy(playlistItems.position)
+      .limit(1);
+    return rows[0]?.title ?? null;
+  } catch (error) {
+    logger.warn("[queue-manager] Failed to look up playlist for video", {
+      videoId,
+      error,
+    });
+    return null;
+  }
+};
 
 /**
  * Get the download path from user preferences or use default
@@ -452,7 +501,7 @@ const createQueueManager = (
           updatedAt: youtubeVideos.updatedAt,
         })
         .from(youtubeVideos)
-        .where(eq(youtubeVideos.downloadStatus, "downloading"))
+        .where(inArray(youtubeVideos.downloadStatus, ["downloading", "queued"]))
         .execute();
 
       logger.info("[queue-manager] Found interrupted downloads", {
@@ -611,9 +660,22 @@ const createQueueManager = (
             }
           }
 
-          // Get output path from preferences or use default
+          // Get output path from preferences or use default.
+          // Layout: <downloadsRoot>/<channelTitle>/<playlistTitle?>/<filename>
           const downloadsRoot = await getDownloadPath(db);
-          const outputPath = path.join(downloadsRoot, "%(fulltitle)s [%(id)s].%(ext)s");
+          const channelFolder = item.channelTitle
+            ? sanitizeFolderName(item.channelTitle)
+            : "";
+          const playlistTitle = item.videoId
+            ? await getPrimaryPlaylistTitle(db, item.videoId)
+            : null;
+          const playlistFolder = playlistTitle ? sanitizeFolderName(playlistTitle) : "";
+          const outputPath = path.join(
+            downloadsRoot,
+            ...(channelFolder ? [channelFolder] : []),
+            ...(playlistFolder ? [playlistFolder] : []),
+            "%(fulltitle)s [%(id)s].%(ext)s"
+          );
 
           // Update status to downloading
           item.status = "downloading";
@@ -753,19 +815,41 @@ const createQueueManager = (
                 continue;
               }
 
-              // Skip if currently downloading or queued
+              // Skip only if a worker is actually active in memory.
+              // A "queued"/"downloading" status with no in-memory entry means the
+              // previous run was interrupted; allow the user to re-add it.
               if (status === "downloading" || status === "queued") {
-                logger.info("[queue-manager] Skipping duplicate - already in progress", {
+                const liveEntry = Array.from(queue.values()).find(
+                  (q) => q.videoId === videoId
+                );
+                if (liveEntry) {
+                  logger.info("[queue-manager] Skipping duplicate - already in progress", {
+                    videoId,
+                    title: video.title,
+                    status,
+                  });
+                  skippedUrls.push({
+                    url,
+                    videoId,
+                    reason: `Already ${status}: "${video.title}"`,
+                  });
+                  continue;
+                }
+
+                logger.warn("[queue-manager] Stale download status in DB - resetting", {
                   videoId,
                   title: video.title,
                   status,
                 });
-                skippedUrls.push({
-                  url,
-                  videoId,
-                  reason: `Already ${status}: "${video.title}"`,
-                });
-                continue;
+                await db
+                  .update(youtubeVideos)
+                  .set({
+                    downloadStatus: null,
+                    downloadProgress: null,
+                    updatedAt: Date.now(),
+                  })
+                  .where(eq(youtubeVideos.videoId, videoId))
+                  .execute();
               }
             }
           } catch (dbError) {

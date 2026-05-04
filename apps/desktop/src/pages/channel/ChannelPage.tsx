@@ -1,25 +1,37 @@
 import React, { useState } from "react";
-import { useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpcClient } from "@/utils/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ExternalLink } from "@/components/ExternalLink";
 import { PageContainer } from "@/components/ui/page-container";
 import { toast } from "sonner";
 import { LatestTab, PopularTab, LibraryTab, PlaylistsTab } from "./components";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import Thumbnail from "@/components/Thumbnail";
 
 export default function ChannelPage(): React.JSX.Element {
+  const navigate = useNavigate();
   const search = useSearch({ from: "/channel" });
   const channelId = search.channelId;
   const queryClient = useQueryClient();
 
   // Track active tab for lazy loading
   const [activeTab, setActiveTab] = useState("latest");
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["channel", channelId],
@@ -73,6 +85,33 @@ export default function ChannelPage(): React.JSX.Element {
     },
   });
 
+  const removeChannelMutation = useMutation({
+    mutationFn: () => trpcClient.ytdlp.removeChannel.mutate({ channelId: channelId! }),
+    onSuccess: async (result) => {
+      if (!result.success) {
+        toast.error(result.message ?? "Failed to remove channel");
+        return;
+      }
+
+      setShowRemoveDialog(false);
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["ytdlp", "channels"] }),
+        queryClient.invalidateQueries({ queryKey: ["channel", channelId] }),
+        queryClient.invalidateQueries({ queryKey: ["channel-library", channelId] }),
+        queryClient.invalidateQueries({ queryKey: ["channel-playlists", channelId] }),
+        queryClient.invalidateQueries({ queryKey: ["playlists"] }),
+        queryClient.invalidateQueries({ queryKey: ["favorites"] }),
+      ]);
+
+      toast.success(`Removed "${result.channelTitle}" from channels`);
+      navigate({ to: "/channels" });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to remove channel");
+    },
+  });
+
   const handleDownloadVideo = async (videoUrl: string, videoTitle: string): Promise<void> => {
     try {
       const result = await addToQueueMutation.mutateAsync(videoUrl);
@@ -88,6 +127,12 @@ export default function ChannelPage(): React.JSX.Element {
       toast.error("Failed to add video to queue");
       // Error already shown to user via toast
     }
+  };
+
+  const handleConfirmRemoveChannel = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    if (!channelId || removeChannelMutation.isPending) return;
+    removeChannelMutation.mutate();
   };
 
   if (isLoading) {
@@ -141,18 +186,29 @@ export default function ChannelPage(): React.JSX.Element {
             <div className="flex-1 space-y-2">
               <div className="flex items-start justify-between gap-4">
                 <h1 className="text-2xl font-bold">{channel.channelTitle}</h1>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => refreshChannelMutation.mutate()}
-                  disabled={refreshChannelMutation.isPending}
-                  className="flex items-center gap-2"
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${refreshChannelMutation.isPending ? "animate-spin" : ""}`}
-                  />
-                  {refreshChannelMutation.isPending ? "Refreshing..." : "Refresh Info"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => refreshChannelMutation.mutate()}
+                    disabled={refreshChannelMutation.isPending}
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${refreshChannelMutation.isPending ? "animate-spin" : ""}`}
+                    />
+                    {refreshChannelMutation.isPending ? "Refreshing..." : "Refresh Info"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowRemoveDialog(true)}
+                    className="flex items-center gap-2 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Remove Channel
+                  </Button>
+                </div>
               </div>
 
               {channel.channelDescription && (
@@ -230,6 +286,29 @@ export default function ChannelPage(): React.JSX.Element {
           </Tabs>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove channel?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove "{channel.channelTitle}" from your saved channels? Its saved playlists will be
+              removed from the desktop app too. Downloaded videos stay in your library, but they
+              will no longer link back to this channel.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removeChannelMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmRemoveChannel}
+              disabled={removeChannelMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {removeChannelMutation.isPending ? "Removing..." : "Remove Channel"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageContainer>
   );
 }

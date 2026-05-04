@@ -319,8 +319,41 @@ export default function PlayerPage(): React.JSX.Element {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ytdlp", "all-playlists"] });
+      queryClient.invalidateQueries({ queryKey: ["playlists", "listAll"] });
     },
   });
+
+  // Bump lastViewedAt/viewCount once per playlist session so the playlist
+  // appears (and ranks) correctly in Recent Playlists.
+  useEffect(() => {
+    if (!playlistId) return;
+    trpcClient.playlists.updateView
+      .mutate({ playlistId })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["playlists", "listAll"] });
+      })
+      .catch((error: unknown) => {
+        logger.warn("[player] Failed to update playlist view stats", { playlistId, error });
+      });
+  }, [playlistId, queryClient]);
+
+  // Persist the currently-playing index so resume works even when the user
+  // jumps to a specific video (instead of using next/previous).
+  useEffect(() => {
+    if (!playlistId || playlistIndex === undefined || playlistIndex === null) return;
+    trpcClient.playlists.updatePlayback
+      .mutate({ playlistId, currentVideoIndex: playlistIndex })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["playlists", "listAll"] });
+      })
+      .catch((error: unknown) => {
+        logger.warn("[player] Failed to persist playlist position", {
+          playlistId,
+          playlistIndex,
+          error,
+        });
+      });
+  }, [playlistId, playlistIndex, queryClient]);
 
   const playlistData = playlistQuery.data;
   const playlistVideos = playlistData?.videos ?? [];

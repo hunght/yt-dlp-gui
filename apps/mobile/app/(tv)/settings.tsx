@@ -653,145 +653,149 @@ export default function TVSettingsScreen() {
         showsVerticalScrollIndicator
       >
         <View style={styles.settingsGrid}>
-          <View style={[styles.section, styles.connectionSection]}>
-            <Text style={styles.sectionTitle}>Desktop Connection</Text>
-        <Text style={styles.statusText}>{connectionLabel}</Text>
-
-        {!isConnected ? (
-          <View style={styles.discoveryHint}>
-            {isScanning ? <ActivityIndicator size="small" color="#ffd93d" /> : null}
-            <Text style={styles.discoveryHintText}>
-              {discoveredDevices.length > 0
-                ? `${discoveredDevices.length} desktop${discoveredDevices.length > 1 ? "s" : ""} found nearby`
-                : emulatorHostConnectUrls.length > 0
-                  ? "Searching nearby desktop app... Trying emulator host too."
-                  : "Searching nearby desktop app..."}
-            </Text>
-          </View>
-        ) : null}
-
-        {connectionError ? <Text style={styles.errorText}>{connectionError}</Text> : null}
-
-        {singleDiscoveredDevice && autoConnectCountdown !== null && !isConnected ? (
-          <View style={styles.autoConnectBanner}>
-            <Text style={styles.autoConnectText}>
-              Auto-connecting in {autoConnectCountdown}s
-            </Text>
-            <TVFocusPressable style={styles.cancelButton} onPress={handleCancelAutoConnect}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TVFocusPressable>
-          </View>
-        ) : null}
-
-        {discoveredDevices.length > 0 ? (
-          <View style={styles.deviceList}>
-            {discoveredDevices.map((device, index) => (
-              <TVFocusPressable
-                key={getPeerKey(device)}
-                style={styles.deviceButton}
-                hasTVPreferredFocus={index === 0}
-                onPress={() => {
-                  handleCancelAutoConnect();
-                  void connectToDiscoveredDevice(device);
-                }}
-                disabled={isConnecting}
-              >
-                <Text style={styles.deviceName}>{device.name}</Text>
-                <Text style={styles.deviceHost}>{device.host}:{device.port}</Text>
-              </TVFocusPressable>
-            ))}
-          </View>
-        ) : null}
-
-        <View style={styles.actionsRow}>
-          {isConnected ? (
-            <>
-              <TVFocusPressable style={styles.primaryAction} onPress={triggerSmartReconnect}>
-                <Text style={styles.actionText}>Smart Reconnect</Text>
-              </TVFocusPressable>
-              <TVFocusPressable style={styles.secondaryAction} onPress={handleDisconnect}>
-                <Text style={styles.actionText}>Disconnect</Text>
-              </TVFocusPressable>
-            </>
-          ) : (
-            <TVFocusPressable style={styles.primaryAction} onPress={handleRetryDiscovery}>
-              <Text style={styles.actionText}>Retry Discovery</Text>
-            </TVFocusPressable>
-          )}
-          </View>
-        </View>
-
-          <View style={styles.sideColumn}>
+          <View style={styles.gridColumn}>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Manual Fallback</Text>
-        <TextInput
-          value={input}
-          onChangeText={setInput}
-          placeholder={emulatorHostConnectUrls.length > 0 ? "10.0.2.2" : "192.168.1.5"}
-          placeholderTextColor="#64748b"
-          style={styles.input}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+              <Text style={styles.sectionTitle}>Desktop Connection</Text>
+              <Text style={styles.statusText}>{connectionLabel}</Text>
 
-        <TVFocusPressable
-          style={styles.primaryAction}
-          onPress={() => void connectToManualInput()}
-          disabled={isConnecting}
-        >
-          <Text style={styles.actionText}>
-            {isConnecting ? "Connecting..." : "Connect Now"}
-          </Text>
-        </TVFocusPressable>
+              {!isConnected ? (
+                <View style={styles.discoveryHint}>
+                  {isScanning ? <ActivityIndicator size="small" color="#ffd93d" /> : null}
+                  <Text style={styles.discoveryHintText}>
+                    {discoveredDevices.length > 0
+                      ? `${discoveredDevices.length} desktop${discoveredDevices.length > 1 ? "s" : ""} found nearby`
+                      : emulatorHostConnectUrls.length > 0
+                        ? "Searching nearby desktop app... Trying emulator host too."
+                        : "Searching nearby desktop app..."}
+                  </Text>
+                </View>
+              ) : null}
 
-        {candidates.length > 0 ? (
-          <Text style={styles.candidatesText}>{candidates[0]}</Text>
-        ) : emulatorHostConnectUrls.length > 0 ? (
-          <Text style={styles.candidatesText}>Emulator tip: try 10.0.2.2</Text>
-        ) : null}
+              {connectionError ? <Text style={styles.errorText}>{connectionError}</Text> : null}
+
+              {singleDiscoveredDevice && autoConnectCountdown !== null && !isConnected ? (
+                <View style={styles.autoConnectBanner}>
+                  <Text style={styles.autoConnectText}>
+                    Auto-connecting in {autoConnectCountdown}s
+                  </Text>
+                  <TVFocusPressable style={styles.cancelButton} onPress={handleCancelAutoConnect}>
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TVFocusPressable>
+                </View>
+              ) : null}
+
+              {discoveredDevices.length > 0 ? (
+                <View style={styles.deviceList}>
+                  {discoveredDevices.map((device, index) => (
+                    <TVFocusPressable
+                      key={getPeerKey(device)}
+                      style={styles.deviceButton}
+                      hasTVPreferredFocus={index === 0}
+                      onPress={() => {
+                        handleCancelAutoConnect();
+                        void connectToDiscoveredDevice(device);
+                      }}
+                      disabled={isConnecting}
+                    >
+                      <Text style={styles.deviceName}>{device.name}</Text>
+                      <Text style={styles.deviceHost}>{device.host}:{device.port}</Text>
+                    </TVFocusPressable>
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.actionsRow}>
+                {isConnected ? (
+                  <>
+                    <TVFocusPressable style={styles.primaryAction} onPress={triggerSmartReconnect}>
+                      <Text style={styles.actionText}>Smart Reconnect</Text>
+                    </TVFocusPressable>
+                    <TVFocusPressable style={styles.secondaryAction} onPress={handleDisconnect}>
+                      <Text style={styles.actionText}>Disconnect</Text>
+                    </TVFocusPressable>
+                  </>
+                ) : (
+                  <TVFocusPressable style={styles.primaryAction} onPress={handleRetryDiscovery}>
+                    <Text style={styles.actionText}>Retry Discovery</Text>
+                  </TVFocusPressable>
+                )}
+              </View>
             </View>
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>App</Text>
-        <Text style={styles.statusText}>
-          Version {appVersion} (build {appBuild})
-        </Text>
+              <Text style={styles.statusText}>
+                Version {appVersion} (build {appBuild})
+              </Text>
 
-        {isLoadingUpdateAvailability ? (
-          <View style={styles.discoveryHint}>
-            <ActivityIndicator size="small" color="#ffd93d" />
-            <Text style={styles.discoveryHintText}>Checking update status...</Text>
+              {isLoadingUpdateAvailability ? (
+                <View style={styles.discoveryHint}>
+                  <ActivityIndicator size="small" color="#ffd93d" />
+                  <Text style={styles.discoveryHintText}>Checking update status...</Text>
+                </View>
+              ) : null}
+
+              <TVFocusPressable
+                style={[styles.primaryAction, isCheckingUpdate && styles.actionDisabled]}
+                onPress={() => void handleUpdatePress()}
+                disabled={isCheckingUpdate}
+              >
+                <Text style={styles.actionText}>
+                  {isCheckingUpdate
+                    ? "Opening installer..."
+                    : updateAvailability?.hasUpdate
+                      ? "Download Update"
+                      : "Check for Updates"}
+                </Text>
+              </TVFocusPressable>
+
+              {updateAvailability?.hasUpdate ? (
+                <Text style={styles.discoveryHintText}>
+                  {updateAvailability.latestVersionLabel
+                    ? `New version ${updateAvailability.latestVersionLabel} is available`
+                    : "A new app version is available"}
+                </Text>
+              ) : null}
+
+              {!isLoadingUpdateAvailability &&
+              updateAvailability?.configured &&
+              !updateAvailability.hasUpdate ? (
+                <Text style={styles.candidatesText}>App is up to date</Text>
+              ) : null}
+            </View>
           </View>
-        ) : null}
 
-        <TVFocusPressable
-          style={[styles.primaryAction, isCheckingUpdate && styles.actionDisabled]}
-          onPress={() => void handleUpdatePress()}
-          disabled={isCheckingUpdate}
-        >
-          <Text style={styles.actionText}>
-            {isCheckingUpdate
-              ? "Opening installer..."
-              : updateAvailability?.hasUpdate
-                ? "Download Update"
-                : "Check for Updates"}
-          </Text>
-        </TVFocusPressable>
+          <View style={styles.gridColumn}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Manual Fallback</Text>
+              <TextInput
+                value={input}
+                onChangeText={setInput}
+                placeholder={emulatorHostConnectUrls.length > 0 ? "10.0.2.2" : "192.168.1.5"}
+                placeholderTextColor="#64748b"
+                style={styles.input}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
 
-        {updateAvailability?.hasUpdate ? (
-          <Text style={styles.discoveryHintText}>
-            {updateAvailability.latestVersionLabel
-              ? `New version ${updateAvailability.latestVersionLabel} is available`
-              : "A new app version is available"}
-          </Text>
-        ) : null}
+              <TVFocusPressable
+                style={styles.primaryAction}
+                onPress={() => void connectToManualInput()}
+                disabled={isConnecting}
+              >
+                <Text style={styles.actionText}>
+                  {isConnecting ? "Connecting..." : "Connect Now"}
+                </Text>
+              </TVFocusPressable>
 
-        {!isLoadingUpdateAvailability &&
-        updateAvailability?.configured &&
-        !updateAvailability.hasUpdate ? (
-          <Text style={styles.candidatesText}>App is up to date</Text>
-        ) : null}
+              {candidates.length > 0 ? (
+                <Text style={styles.candidatesText}>{candidates[0]}</Text>
+              ) : emulatorHostConnectUrls.length > 0 ? (
+                <Text style={styles.candidatesText}>Emulator tip: try 10.0.2.2</Text>
+              ) : null}
+            </View>
 
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>Video Storage</Text>
               <Text style={styles.statusText} numberOfLines={2}>
                 {videoStorageLocation?.label ?? "Internal app storage"}
@@ -806,7 +810,7 @@ export default function TVSettingsScreen() {
                     {isSelectingStorage ? "Opening..." : "Choose Folder"}
                   </Text>
                 </TVFocusPressable>
-                {videoStorageLocation?.kind === "saf" ? (
+                {videoStorageLocation?.kind !== "internal" ? (
                   <TVFocusPressable
                     style={styles.secondaryAction}
                     onPress={() => void handleUseInternalStorage()}
@@ -816,7 +820,7 @@ export default function TVSettingsScreen() {
                 ) : null}
               </View>
               <Text style={styles.candidatesText}>
-                Pick a USB/external drive folder. New downloads save there.
+                If folder picker is unavailable, LearnifyTube will try a connected USB drive automatically.
               </Text>
             </View>
           </View>
@@ -906,15 +910,12 @@ const styles = StyleSheet.create({
   },
   settingsGrid: {
     flexDirection: "row",
-    gap: 10,
-    alignItems: "flex-start",
+    gap: 12,
+    alignItems: "stretch",
   },
-  connectionSection: {
-    flex: 1.25,
-  },
-  sideColumn: {
-    flex: 0.85,
-    gap: 10,
+  gridColumn: {
+    flex: 1,
+    gap: 12,
   },
   topBar: {
     flexDirection: "row",

@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import {
   ActivityIndicator,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -605,8 +606,14 @@ export default function TVSettingsScreen() {
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Desktop Connection</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator
+      >
+        <View style={styles.settingsGrid}>
+          <View style={[styles.section, styles.connectionSection]}>
+            <Text style={styles.sectionTitle}>Desktop Connection</Text>
         <Text style={styles.statusText}>{connectionLabel}</Text>
 
         {!isConnected ? (
@@ -670,11 +677,12 @@ export default function TVSettingsScreen() {
               <Text style={styles.actionText}>Retry Discovery</Text>
             </TVFocusPressable>
           )}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Manual Fallback</Text>
+          <View style={styles.sideColumn}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Manual Fallback</Text>
         <TextInput
           value={input}
           onChangeText={setInput}
@@ -700,10 +708,10 @@ export default function TVSettingsScreen() {
         ) : emulatorHostConnectUrls.length > 0 ? (
           <Text style={styles.candidatesText}>Emulator tip: try 10.0.2.2</Text>
         ) : null}
-      </View>
+            </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>App</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>App</Text>
         <Text style={styles.statusText}>
           Version {appVersion} (build {appBuild})
         </Text>
@@ -742,7 +750,10 @@ export default function TVSettingsScreen() {
         !updateAvailability.hasUpdate ? (
           <Text style={styles.candidatesText}>App is up to date</Text>
         ) : null}
-      </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
 
       {isLogViewerOpen ? (
         <View style={styles.logOverlay}>
@@ -816,65 +827,87 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#132447",
-    paddingHorizontal: 36,
+    paddingHorizontal: 24,
+    paddingBottom: 10,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingBottom: 24,
+  },
+  settingsGrid: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+  },
+  connectionSection: {
+    flex: 1.25,
+  },
+  sideColumn: {
+    flex: 0.85,
+    gap: 10,
   },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: 2,
   },
   topActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   title: {
     color: "#fff4cc",
-    fontSize: 44,
+    fontSize: 34,
     fontWeight: "900",
   },
   logButton: {
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: "#8ec5ff",
     backgroundColor: "#2d7ff9",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
     alignItems: "center",
     justifyContent: "center",
   },
   backButton: {
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: "#ffd93d",
     backgroundColor: "#ff8a00",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
   },
   backText: {
+    color: "#fffef2",
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  section: {
+    marginTop: 0,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#2f5f9f",
+    backgroundColor: "#1b376f",
+    padding: 12,
+    gap: 7,
+    shadowColor: "#020817",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  sectionTitle: {
     color: "#fffef2",
     fontSize: 20,
     fontWeight: "900",
   },
-  section: {
-    marginTop: 14,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: "#8ec5ff",
-    backgroundColor: "#2d7ff9",
-    padding: 16,
-    gap: 10,
-  },
-  sectionTitle: {
-    color: "#fffef2",
-    fontSize: 24,
-    fontWeight: "900",
-  },
   statusText: {
     color: "#eaf5ff",
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "700",
   },
   discoveryHint: {
@@ -884,12 +917,12 @@ const styles = StyleSheet.create({
   },
   discoveryHintText: {
     color: "#eaf5ff",
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "700",
   },
   errorText: {
     color: "#ffe3e3",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
   },
   autoConnectBanner: {
@@ -897,7 +930,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#ffd93d",
     backgroundColor: "#ff8a00",
-    padding: 12,
+    padding: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -905,7 +938,7 @@ const styles = StyleSheet.create({
   },
   autoConnectText: {
     color: "#fffef2",
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "900",
     flex: 1,
   },
@@ -914,81 +947,81 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#ffe48f",
     backgroundColor: "#ff6b6b",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   cancelButtonText: {
     color: "#fffef2",
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "900",
   },
   deviceList: {
-    gap: 8,
+    gap: 6,
   },
   deviceButton: {
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: "#ffd93d",
     backgroundColor: "#40c4aa",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    gap: 2,
   },
   deviceName: {
     color: "#fffef2",
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "900",
   },
   deviceHost: {
     color: "#e8fffa",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
   },
   actionsRow: {
-    marginTop: 4,
+    marginTop: 2,
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
   },
   primaryAction: {
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: "#ffd93d",
     backgroundColor: "#ff6b6b",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     alignSelf: "flex-start",
   },
   secondaryAction: {
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: "#ffd93d",
     backgroundColor: "#ff8a00",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     alignSelf: "flex-start",
   },
   actionText: {
     color: "#fffef2",
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "900",
   },
   actionDisabled: {
     opacity: 0.6,
   },
   input: {
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: "#8ec5ff",
     backgroundColor: "#132447",
     color: "#fffef2",
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: "800",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
   },
   candidatesText: {
     color: "#dbeafe",
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
   },
   logOverlay: {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Constants from "expo-constants";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -27,6 +28,12 @@ import {
   SyncCompatibilityError,
 } from "../../services/sync-compatibility";
 import { ensureDiscoveryPermissions } from "../../services/discovery-permissions";
+import {
+  getVideoStorageLocation,
+  selectVideoStorageDirectory,
+  setInternalVideoStorage,
+  type VideoStorageLocation,
+} from "../../services/storage-location";
 import { TVFocusPressable } from "../../components/tv/TVFocusPressable";
 import type { DiscoveredPeer } from "../../types";
 
@@ -143,6 +150,9 @@ export default function TVSettingsScreen() {
     useState(false);
   const [updateAvailability, setUpdateAvailability] =
     useState<AndroidApkUpdateAvailability | null>(null);
+  const [videoStorageLocation, setVideoStorageLocation] =
+    useState<VideoStorageLocation | null>(null);
+  const [isSelectingStorage, setIsSelectingStorage] = useState(false);
 
   const autoConnectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoConnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -373,6 +383,37 @@ export default function TVSettingsScreen() {
   useEffect(() => {
     void refreshUpdateAvailability();
   }, [refreshUpdateAvailability]);
+
+  useEffect(() => {
+    void getVideoStorageLocation().then(setVideoStorageLocation);
+  }, []);
+
+  const handleSelectStorage = useCallback(async () => {
+    if (isSelectingStorage) return;
+
+    setIsSelectingStorage(true);
+    try {
+      const location = await selectVideoStorageDirectory();
+      if (location) {
+        setVideoStorageLocation(location);
+        logger.info("[TV Settings] Video storage folder selected", {
+          label: location.label,
+          kind: location.kind,
+        });
+      }
+    } catch (error) {
+      Alert.alert("Storage folder", getErrorMessage(error));
+      logger.error("[TV Settings] Failed to select video storage folder", error);
+    } finally {
+      setIsSelectingStorage(false);
+    }
+  }, [isSelectingStorage]);
+
+  const handleUseInternalStorage = useCallback(async () => {
+    const location = await setInternalVideoStorage();
+    setVideoStorageLocation(location);
+    logger.info("[TV Settings] Video storage reset to internal");
+  }, []);
 
   const handleUpdatePress = useCallback(async () => {
     if (isCheckingUpdate) return;
@@ -750,6 +791,33 @@ export default function TVSettingsScreen() {
         !updateAvailability.hasUpdate ? (
           <Text style={styles.candidatesText}>App is up to date</Text>
         ) : null}
+
+              <Text style={styles.sectionTitle}>Video Storage</Text>
+              <Text style={styles.statusText} numberOfLines={2}>
+                {videoStorageLocation?.label ?? "Internal app storage"}
+              </Text>
+              <View style={styles.actionsRow}>
+                <TVFocusPressable
+                  style={[styles.primaryAction, isSelectingStorage && styles.actionDisabled]}
+                  onPress={() => void handleSelectStorage()}
+                  disabled={isSelectingStorage}
+                >
+                  <Text style={styles.actionText}>
+                    {isSelectingStorage ? "Opening..." : "Choose Folder"}
+                  </Text>
+                </TVFocusPressable>
+                {videoStorageLocation?.kind === "saf" ? (
+                  <TVFocusPressable
+                    style={styles.secondaryAction}
+                    onPress={() => void handleUseInternalStorage()}
+                  >
+                    <Text style={styles.actionText}>Use Internal</Text>
+                  </TVFocusPressable>
+                ) : null}
+              </View>
+              <Text style={styles.candidatesText}>
+                Pick a USB/external drive folder. New downloads save there.
+              </Text>
             </View>
           </View>
         </View>

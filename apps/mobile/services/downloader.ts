@@ -1,6 +1,12 @@
 import * as FileSystemLegacy from "expo-file-system/legacy";
 import { Paths } from "expo-file-system";
 import { api } from "./api";
+import {
+  createSafVideoFile,
+  ensureSafVideosDirectory,
+  findSafVideoFile,
+  getVideoStorageLocation,
+} from "./storage-location";
 import type { VideoMeta, Transcript } from "../types";
 
 // Custom AbortError for React Native (DOMException doesn't exist)
@@ -83,14 +89,20 @@ export async function downloadVideo(
   signal?: AbortSignal
 ): Promise<{ videoPath: string; meta: VideoMeta; transcripts: Transcript[] }> {
   await ensureVideosDir();
-  const videoFileUri = getVideoFileUri(videoId);
-  if (!videoFileUri) {
+  const storageLocation = await getVideoStorageLocation();
+  const internalVideoFileUri = getVideoFileUri(videoId);
+  if (!internalVideoFileUri) {
     throw new Error("Video directory is not available");
   }
+
+  const isExternalStorage = storageLocation.kind === "saf" && !!storageLocation.directoryUri;
+  const videoFileUri = isExternalStorage
+    ? `${internalVideoFileUri}.download`
+    : internalVideoFileUri;
   const videoUrl = api.getVideoFileUrl(serverUrl, videoId);
 
   log(`Starting download: ${videoUrl}`);
-  log(`Destination: ${videoFileUri}`);
+  log(`Destination: ${isExternalStorage ? storageLocation.label : videoFileUri}`);
 
   // Signal that download is starting
   onProgress({ progress: 0, bytesDownloaded: 0, totalBytes: 0 });
@@ -153,7 +165,26 @@ export async function downloadVideo(
         );
       }
 
-      log(`Download complete: ${result.uri}`);
+      let finalVideoUri = result.uri;
+
+      if (isExternalStorage && storageLocation.directoryUri) {
+        const videosDirUri = await ensureSafVideosDirectory(storageLocation.directoryUri);
+        const existingUri = await findSafVideoFile(videosDirUri, videoId);
+        if (existingUri) {
+          await FileSystemLegacy.StorageAccessFramework.deleteAsync(existingUri, {
+            idempotent: true,
+          });
+        }
+        const externalVideoUri = await createSafVideoFile(videosDirUri, videoId);
+        await FileSystemLegacy.StorageAccessFramework.copyAsync({
+          from: result.uri,
+          to: externalVideoUri,
+        });
+        await FileSystemLegacy.deleteAsync(result.uri, { idempotent: true });
+        finalVideoUri = externalVideoUri;
+      }
+
+      log(`Download complete: ${finalVideoUri}`);
       onProgress({
         progress: 100,
         bytesDownloaded: result.headers?.["content-length"]
@@ -183,7 +214,7 @@ export async function downloadVideo(
       }
 
       return {
-        videoPath: result.uri,
+        videoPath: finalVideoUri,
         meta,
         transcripts,
       };
